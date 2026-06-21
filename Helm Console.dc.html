@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  html,body{margin:0;padding:0;min-height:100%;background:#cfe0e8;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+  button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s ease,filter .08s ease;}
+  button:active{transform:scale(.97);filter:brightness(.93);}
+  @keyframes hcPulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" style="min-height:100vh;font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--bg,#cfe0e8);color:var(--ink,#1c1c1e);">
+
+  <!-- TOP BAR -->
+  <div style="display:flex;align-items:center;gap:0;height:60px;padding:0 16px;background:var(--glassbg,rgba(255,255,255,.72));backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border-bottom:.5px solid var(--hair,rgba(60,60,67,.12));position:sticky;top:0;z-index:20;">
+    <img src="uploads/HT_Main_Logo_Black_Web.svg" alt="Hatteland Technology" style="height:20px;width:auto;display:block;filter:var(--logofilter,none);"/>
+    <span style="width:1px;height:22px;background:var(--hair,rgba(60,60,67,.2));margin:0 14px;"></span>
+    <div style="display:flex;flex-direction:column;justify-content:center;line-height:1.2;">
+      <span style="font-size:14px;font-weight:700;letter-spacing:.2px;">{{ shipName }}</span>
+      <span style="font-size:9.5px;font-weight:700;letter-spacing:.6px;color:var(--muted,#8e8e93);">HELM &amp; MANOEUVRING · CONNING</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-left:18px;padding:8px 13px;border-radius:13px;background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));">
+      <span ref="{{ linkDotRef }}" style="width:7px;height:7px;border-radius:50%;background:var(--red,#FF3B30);animation:hcPulse 2s infinite;flex:none;"></span>
+      <span ref="{{ linkRef }}" style="font-size:11px;font-weight:700;color:var(--red,#FF3B30);">NO LINK</span>
+      <span style="font-size:9.5px;color:var(--muted,#8e8e93);font-weight:600;">↔ ECDIS</span>
+    </div>
+    <div style="flex:1;"></div>
+    <button onClick="{{ onGoChart }}" title="Open Chart / ECDIS" style="display:flex;align-items:center;gap:7px;margin-right:10px;padding:8px 13px;border-radius:13px;border:.5px solid var(--hair,rgba(60,60,67,.12));background:var(--card,rgba(255,255,255,.5));color:var(--muted,#8e8e93);cursor:pointer;font-family:inherit;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"></path><path d="M9 4v14M15 6v14"></path></svg>
+      <span style="font-size:10.5px;font-weight:700;letter-spacing:.5px;">CHART</span>
+    </button>
+    <div style="display:flex;gap:3px;background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:14px;padding:3px;margin-right:10px;">
+      <button onClick="{{ onPalDay }}" title="Day" style="{{ st.palDay }}">☀</button>
+      <button onClick="{{ onPalDusk }}" title="Dusk" style="{{ st.palDusk }}">◐</button>
+      <button onClick="{{ onPalNight }}" title="Night" style="{{ st.palNight }}">☾</button>
+    </div>
+    <button onClick="{{ onEngage }}" style="{{ st.engage }}">{{ engageLabel }}</button>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding-left:14px;line-height:1.1;">
+      <span ref="{{ roRef }}" data-ro="clock" style="font-variant-numeric:tabular-nums;font-size:15px;font-weight:700;">--:--:--</span>
+      <span style="font-size:8.5px;letter-spacing:.8px;color:var(--muted,#8e8e93);font-weight:700;">LOCAL</span>
+    </div>
+  </div>
+
+  <!-- SHARED ALARM LINE (from ECDIS) -->
+  <div ref="{{ alarmBarRef }}" style="display:none;align-items:center;gap:10px;padding:9px 16px;background:#FF3B30;color:#fff;font-weight:700;font-size:12px;letter-spacing:.2px;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M12 3 L22 20 H2 Z"></path><line x1="12" y1="10" x2="12" y2="14.5"></line><circle cx="12" cy="17.6" r="0.7" fill="#fff"></circle></svg>
+    <span ref="{{ alarmTxtRef }}" style="flex:1;min-width:0;">—</span>
+  </div>
+
+  <div style="padding:14px 16px 28px;">
+
+  <!-- INSTRUMENT RAIL -->
+  <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+    <sc-for list="{{ railCells }}" as="c" hint-placeholder-count="9">
+      <div style="{{ c.wrap }}">
+        <div style="font-size:8.5px;letter-spacing:.6px;color:var(--muted,#8e8e93);font-weight:700;">{{ c.label }}</div>
+        <div style="display:flex;align-items:baseline;gap:4px;"><span ref="{{ roRef }}" data-ro="{{ c.ro }}" style="{{ c.valStyle }}">--</span><span style="font-size:9px;color:var(--muted,#8e8e93);font-weight:600;">{{ c.unit }}</span></div>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div style="display:grid;grid-template-columns:336px minmax(0,1fr) 344px;gap:14px;align-items:start;">
+
+    <!-- LEFT COLUMN -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <!-- ENGINE TELEGRAPH LEVER -->
+      <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted,#8e8e93)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="13" rx="3"></rect><line x1="12" y1="6" x2="12" y2="9"></line><path d="M6 20h12"></path><path d="M8 16l-2 4M16 16l2 4"></path></svg>
+          <span style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;flex:1;">ENGINE TELEGRAPH</span>
+          <span style="font-size:9.5px;color:var(--muted,#8e8e93);font-weight:700;">DRAG LEVER</span>
+        </div>
+        <div style="display:flex;gap:14px;align-items:stretch;justify-content:center;">
+          <!-- COMBINATOR LEVER -->
+          <div ref="{{ leverTrackRef }}" style="position:relative;width:88px;height:312px;border-radius:20px;background:linear-gradient(to bottom, rgba(52,199,89,.18) 0%, rgba(52,199,89,.18) 49%, var(--seg,rgba(118,118,128,.12)) 49%, var(--seg,rgba(118,118,128,.12)) 61%, rgba(255,59,48,.16) 61%, rgba(255,59,48,.16) 100%);border:.5px solid var(--hair,rgba(60,60,67,.12));touch-action:none;cursor:grab;flex:none;overflow:hidden;">
+            <span style="position:absolute;top:10px;left:0;right:0;text-align:center;font-size:8.5px;letter-spacing:1px;font-weight:700;color:var(--green,#34C759);">AHEAD</span>
+            <span style="position:absolute;top:148px;left:0;right:0;text-align:center;font-size:8.5px;letter-spacing:1px;font-weight:700;color:var(--muted,#8e8e93);">STOP</span>
+            <span style="position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:8.5px;letter-spacing:1px;font-weight:700;color:var(--red,#FF3B30);">ASTERN</span>
+            <div style="position:absolute;left:50%;top:8px;bottom:8px;width:4px;border-radius:2px;background:var(--hair,rgba(60,60,67,.2));transform:translateX(-50%);"></div>
+            <sc-for list="{{ notchTicks }}" as="n" hint-placeholder-count="10"><div style="{{ n.style }}"></div></sc-for>
+            <div ref="{{ leverHandleRef }}" style="position:absolute;left:6px;right:6px;top:149px;height:44px;border-radius:13px;background:var(--accent,#0A84FF);box-shadow:0 4px 12px rgba(0,60,120,.4);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;line-height:1;gap:1px;">
+              <span ref="{{ roRef }}" data-ro="leverKn" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:17px;">0</span>
+              <span style="font-size:7.5px;letter-spacing:.5px;opacity:.85;font-weight:700;">KNOTS</span>
+            </div>
+          </div>
+          <!-- KNOT SCALE (non-interactive) -->
+          <div style="position:relative;flex:1;height:312px;">
+            <sc-for list="{{ scaleRows }}" as="r" hint-placeholder-count="10"><div style="{{ r.style }}"><span style="width:6px;height:6px;border-radius:50%;flex:none;background:{{ r.dot }};"></span><span style="flex:1;color:var(--muted,#8e8e93);font-weight:600;">{{ r.tag }}</span><span style="font-variant-numeric:tabular-nums;font-weight:700;color:{{ r.knCol }};">{{ r.kn }}</span></div></sc-for>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:13px;padding:10px 13px;border-radius:12px;background:var(--seg,rgba(118,118,128,.12));border:.5px solid var(--hair,rgba(60,60,67,.12));">
+          <div style="display:flex;flex-direction:column;line-height:1.1;"><span style="font-size:8.5px;letter-spacing:.6px;color:var(--muted,#8e8e93);font-weight:700;">ENGINE ORDER</span><span ref="{{ roRef }}" data-ro="leverOrder" style="font-size:15px;font-weight:700;color:var(--ink,#1c1c1e);">Stop</span></div>
+          <span ref="{{ roRef }}" data-ro="leverDir" style="font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--muted,#8e8e93);">STOPPED</span>
+        </div>
+        <div style="margin-top:14px;padding-top:12px;border-top:.5px solid var(--hair,rgba(60,60,67,.12));">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted,#8e8e93);font-weight:700;margin-bottom:6px;"><span>SPEED OVER GROUND</span><span ref="{{ roRef }}" data-ro="sog2" style="font-variant-numeric:tabular-nums;color:var(--ink,#1c1c1e);">-- kn</span></div>
+          <div style="height:8px;border-radius:4px;background:var(--seg,rgba(118,118,128,.12));overflow:hidden;"><div ref="{{ sogBarRef }}" style="height:100%;width:0%;background:var(--accent,#0A84FF);transition:width .2s;border-radius:4px;"></div></div>
+        </div>
+      </div>
+
+      <!-- MANOEUVRE & SAFETY -->
+      <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted,#8e8e93)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 L22 20 H2 Z"></path><line x1="12" y1="10" x2="12" y2="14"></line><circle cx="12" cy="17" r="0.6" fill="var(--muted,#8e8e93)"></circle></svg>
+          <span style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;">MANOEUVRE &amp; SAFETY</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
+          <button onClick="{{ onMob }}" style="{{ st.mob }}">{{ mobLabel }}</button>
+          <button onPointerDown="{{ onHoldCrash }}" onPointerUp="{{ onHoldEnd }}" onPointerLeave="{{ onHoldEnd }}" style="{{ st.crash }}"><span data-fill="1" style="{{ st.holdFill }}"></span><span style="position:relative;z-index:1;">CRASH STOP</span><span style="position:relative;z-index:1;font-size:8px;opacity:.7;font-weight:700;margin-top:1px;">HOLD</span></button>
+          <button onPointerDown="{{ onHoldHardP }}" onPointerUp="{{ onHoldEnd }}" onPointerLeave="{{ onHoldEnd }}" style="{{ st.hardP }}"><span data-fill="1" style="{{ st.holdFill }}"></span><span style="position:relative;z-index:1;">◄ HARD-A-PORT</span><span style="position:relative;z-index:1;font-size:8px;opacity:.7;font-weight:700;margin-top:1px;">HOLD</span></button>
+          <button onPointerDown="{{ onHoldHardS }}" onPointerUp="{{ onHoldEnd }}" onPointerLeave="{{ onHoldEnd }}" style="{{ st.hardS }}"><span data-fill="1" style="{{ st.holdFill }}"></span><span style="position:relative;z-index:1;">HARD-A-STBD ►</span><span style="position:relative;z-index:1;font-size:8px;opacity:.7;font-weight:700;margin-top:1px;">HOLD</span></button>
+          <button onPointerDown="{{ onHoldWilly }}" onPointerUp="{{ onHoldEnd }}" onPointerLeave="{{ onHoldEnd }}" style="{{ st.willy }}"><span data-fill="1" style="{{ st.holdFill }}"></span><span style="position:relative;z-index:1;">WILLIAMSON TURN</span><span style="position:relative;z-index:1;font-size:8px;opacity:.7;font-weight:700;margin-top:1px;">HOLD</span></button>
+          <button onClick="{{ onAllStop }}" style="{{ st.allStop }}">ALL STOP</button>
+        </div>
+        <div style="font-size:9.5px;color:var(--muted,#8e8e93);line-height:1.45;margin-top:10px;">{{ manHint }}</div>
+      </div>
+
+      <!-- BELL BOOK -->
+      <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted,#8e8e93)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="7" x2="19" y2="7"></line><line x1="9" y1="12" x2="19" y2="12"></line><line x1="9" y1="17" x2="19" y2="17"></line><circle cx="5" cy="7" r="1"></circle><circle cx="5" cy="12" r="1"></circle><circle cx="5" cy="17" r="1"></circle></svg>
+          <span style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;flex:1;">BELL BOOK · ORDER LOG</span>
+          <span style="font-size:9px;color:var(--muted,#8e8e93);font-weight:600;">LT</span>
+        </div>
+        <sc-if value="{{ hasBell }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;">
+            <sc-for list="{{ bellRows }}" as="b" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:.5px solid var(--hair,rgba(60,60,67,.08));">
+                <span style="font-variant-numeric:tabular-nums;font-size:11px;font-weight:700;color:var(--muted,#8e8e93);flex:none;">{{ b.t }}</span>
+                <span style="{{ b.dotStyle }}"></span>
+                <span style="font-size:12px;font-weight:600;flex:1;min-width:0;">{{ b.label }}</span>
+                <span style="font-variant-numeric:tabular-nums;font-size:11px;font-weight:700;color:var(--muted,#8e8e93);">{{ b.kn }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{ noBell }}" hint-placeholder-val="{{ true }}">
+          <div style="font-size:11px;color:var(--muted,#8e8e93);line-height:1.5;padding:4px 2px;">No orders logged yet. Every telegraph order is time-stamped here.</div>
+        </sc-if>
+      </div>
+
+    </div>
+
+    <!-- CENTER COLUMN -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <!-- COMPASS -->
+      <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;display:flex;flex-direction:column;align-items:center;">
+        <div style="align-self:flex-start;font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;margin-bottom:4px;">HEADING · HDG ▲ &nbsp; COG ● &nbsp; AP ▽</div>
+        <svg viewBox="0 0 220 220" style="width:248px;height:248px;display:block;">
+          <circle cx="110" cy="110" r="106" fill="var(--seg,rgba(118,118,128,.12))" stroke="var(--hair,rgba(60,60,67,.12))" stroke-width="1.5"></circle>
+          <g ref="{{ compassRotRef }}">
+            <sc-for list="{{ compassTicks }}" as="tk" hint-placeholder-count="0"><line x1="{{ tk.x1 }}" y1="{{ tk.y1 }}" x2="{{ tk.x2 }}" y2="{{ tk.y2 }}" stroke="{{ tk.col }}" stroke-width="{{ tk.w }}"></line></sc-for>
+            <sc-for list="{{ compassLabels }}" as="lb" hint-placeholder-count="0"><text x="{{ lb.x }}" y="{{ lb.y }}" text-anchor="middle" font-size="{{ lb.size }}" font-weight="700" fill="{{ lb.col }}" font-family="Inter, sans-serif">{{ lb.t }}</text></sc-for>
+          </g>
+          <g ref="{{ cogBugRef }}"><path d="M110 9 L104 22 L116 22 Z" fill="var(--green,#34C759)"></path></g>
+          <g ref="{{ apBugRef }}" style="display:none;"><path d="M110 10 L104.5 20 L115.5 20 Z" fill="none" stroke="var(--amber,#FF9F0A)" stroke-width="2"></path></g>
+          <path d="M110 3 L102 21 L118 21 Z" fill="var(--red,#FF3B30)"></path>
+          <line x1="110" y1="40" x2="110" y2="110" stroke="var(--red,#FF3B30)" stroke-width="1.5" opacity=".45"></line>
+          <circle cx="110" cy="110" r="58" fill="var(--card,rgba(255,255,255,.5))" stroke="var(--hair,rgba(60,60,67,.12))" stroke-width="1"></circle>
+          <text x="110" y="100" text-anchor="middle" font-size="10" font-weight="700" letter-spacing="1.5" fill="var(--muted,#8e8e93)" font-family="Inter, sans-serif">GYRO</text>
+          <text ref="{{ roRef }}" data-ro="hdgc" x="110" y="130" text-anchor="middle" font-size="34" font-weight="700" fill="var(--ink,#1c1c1e)" font-family="Inter, sans-serif">---</text>
+          <text x="110" y="147" text-anchor="middle" font-size="11" font-weight="600" fill="var(--muted,#8e8e93)" font-family="Inter, sans-serif">°T</text>
+        </svg>
+      </div>
+
+      <!-- RUDDER + WHEEL + ROT -->
+      <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;">
+        <div style="display:flex;align-items:center;gap:18px;">
+          <div style="flex:none;display:flex;flex-direction:column;align-items:center;gap:5px;">
+            <div ref="{{ wheelHitRef }}" style="touch-action:none;cursor:grab;border-radius:50%;">
+              <svg viewBox="0 0 120 120" style="width:106px;height:106px;display:block;pointer-events:none;">
+                <g ref="{{ wheelRef }}" style="transition:transform .1s linear;">
+                  <circle cx="60" cy="60" r="46" fill="none" stroke="var(--accent,#0A84FF)" stroke-width="6"></circle>
+                  <sc-for list="{{ wheelSpokes }}" as="sp" hint-placeholder-count="6"><line x1="60" y1="60" x2="{{ sp.x }}" y2="{{ sp.y }}" stroke="var(--accent,#0A84FF)" stroke-width="3"></line></sc-for>
+                  <sc-for list="{{ wheelSpokes }}" as="sp" hint-placeholder-count="6"><circle cx="{{ sp.hx }}" cy="{{ sp.hy }}" r="5" fill="var(--accent,#0A84FF)"></circle></sc-for>
+                </g>
+                <circle cx="60" cy="60" r="11" fill="var(--seg,rgba(118,118,128,.12))" stroke="var(--accent,#0A84FF)" stroke-width="2.5"></circle>
+              </svg>
+            </div>
+            <span style="font-size:9px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">DRAG WHEEL</span>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:.4px;font-weight:700;"><span style="color:var(--red,#FF3B30);">◄ PORT</span><span style="color:var(--muted,#8e8e93);">RUDDER ANGLE</span><span style="color:var(--green,#34C759);">STBD ►</span></div>
+            <div ref="{{ rudSurfaceRef }}" style="position:relative;width:100%;height:36px;margin:5px 0 2px;touch-action:none;cursor:pointer;">
+              <div style="position:absolute;top:15px;left:5%;width:45%;height:7px;background:var(--red,#FF3B30);opacity:.28;border-radius:3px 0 0 3px;"></div>
+              <div style="position:absolute;top:15px;left:50%;width:45%;height:7px;background:var(--green,#34C759);opacity:.28;border-radius:0 3px 3px 0;"></div>
+              <div style="position:absolute;top:9px;left:50%;width:2px;height:19px;background:var(--ink,#1c1c1e);transform:translateX(-50%);opacity:.5;"></div>
+              <div ref="{{ rudOrderRef }}" style="position:absolute;top:7px;left:50%;width:3px;height:23px;background:var(--accent,#0A84FF);transform:translateX(-50%);transition:left .12s;border-radius:2px;"></div>
+              <div ref="{{ rudPtrRef }}" style="position:absolute;top:2px;left:50%;transform:translateX(-50%);transition:left .12s;"><div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:13px solid var(--ink,#1c1c1e);"></div></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:9px;font-variant-numeric:tabular-nums;color:var(--muted,#8e8e93);font-weight:600;padding:0 3%;"><span>35</span><span>20</span><span>10</span><span>0</span><span>10</span><span>20</span><span>35</span></div>
+
+            <sc-if value="{{ modeManual }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;gap:6px;margin-top:11px;">
+                <sc-for list="{{ cmdBtns }}" as="c" hint-placeholder-count="7"><button onClick="{{ c.set }}" style="{{ c.style }}">{{ c.label }}</button></sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ modeNfu }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:7px;margin-top:11px;">
+                <button onPointerDown="{{ onNfuPortDown }}" onPointerUp="{{ onNfuStop }}" onPointerLeave="{{ onNfuStop }}" style="flex:1;padding:16px;border-radius:12px;border:.5px solid var(--hair,rgba(60,60,67,.12));background:var(--seg,rgba(118,118,128,.12));color:var(--red,#FF3B30);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">◄ PORT</button>
+                <button onClick="{{ onMid }}" style="flex:none;width:66px;padding:16px 0;border-radius:12px;border:.5px solid var(--hair,rgba(60,60,67,.12));background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">MID</button>
+                <button onPointerDown="{{ onNfuStbdDown }}" onPointerUp="{{ onNfuStop }}" onPointerLeave="{{ onNfuStop }}" style="flex:1;padding:16px;border-radius:12px;border:.5px solid var(--hair,rgba(60,60,67,.12));background:var(--seg,rgba(118,118,128,.12));color:var(--green,#34C759);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">STBD ►</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{ modeAutoCtl }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:11px;padding:14px;border-radius:12px;background:var(--seg,rgba(118,118,128,.12));border:.5px solid var(--hair,rgba(60,60,67,.12));font-size:11px;color:var(--muted,#8e8e93);line-height:1.45;"><span style="color:var(--green,#34C759);font-weight:700;">●</span> Rudder under {{ autoCtlLabel }} control. Switch to HAND or NFU to take manual steering.</div>
+            </sc-if>
+          </div>
+        </div>
+        <div style="margin-top:13px;padding-top:12px;border-top:.5px solid var(--hair,rgba(60,60,67,.12));">
+          <div style="display:flex;justify-content:space-between;font-size:10px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;margin-bottom:5px;"><span>RATE OF TURN · ROT</span><span ref="{{ roRef }}" data-ro="rot2" style="font-variant-numeric:tabular-nums;color:var(--ink,#1c1c1e);">-- °/min</span></div>
+          <div style="position:relative;width:100%;height:16px;">
+            <div style="position:absolute;top:6px;left:5%;width:90%;height:4px;border-radius:2px;background:var(--seg,rgba(118,118,128,.12));"></div>
+            <div style="position:absolute;top:1px;left:50%;width:2px;height:14px;background:var(--muted,#8e8e93);transform:translateX(-50%);"></div>
+            <div ref="{{ rotPtrRef }}" style="position:absolute;top:1px;left:50%;width:11px;height:11px;border-radius:50%;background:var(--accent,#0A84FF);transform:translate(-50%,0);transition:left .15s;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;font-variant-numeric:tabular-nums;color:var(--muted,#8e8e93);padding:0 3%;margin-top:1px;"><span>60 P</span><span>30</span><span>0</span><span>30</span><span>60 S</span></div>
+        </div>
+      </div>
+
+      <!-- PROPULSION + WIND -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:13px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted,#8e8e93)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.4"></circle><path d="M12 9.6c1.5-3 4-5 5.5-3.5S16 11 12 9.6M12 9.6c-3-1.5-5-4-3.5-5.5S11 8 12 9.6M14.4 12c3-1.5 5.5-1 5.5 1s-3.5 2-5.5 1M9.6 12c-3 1.5-5.5 1-5.5-1s3.5-2 5.5-1M12 14.4c1.5 3 1 5.5-1 5.5s-2-3.5-1-5.5"></path></svg>
+            <span style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;">PROPULSION</span>
+          </div>
+          <div style="margin-bottom:13px;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted,#8e8e93);font-weight:700;margin-bottom:5px;"><span>SHAFT</span><span style="font-variant-numeric:tabular-nums;color:var(--ink,#1c1c1e);"><span ref="{{ roRef }}" data-ro="rpm">0</span> rpm</span></div>
+            <div style="height:7px;border-radius:4px;background:var(--seg,rgba(118,118,128,.12));overflow:hidden;"><div ref="{{ rpmBarRef }}" style="height:100%;width:0%;background:var(--accent,#0A84FF);transition:width .25s;border-radius:4px;"></div></div>
+          </div>
+          <div style="margin-bottom:13px;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted,#8e8e93);font-weight:700;margin-bottom:5px;"><span>PITCH · CPP</span><span ref="{{ roRef }}" data-ro="pitch" style="font-variant-numeric:tabular-nums;color:var(--ink,#1c1c1e);">0 %</span></div>
+            <div style="position:relative;width:100%;height:13px;">
+              <div style="position:absolute;top:5px;left:0;width:100%;height:5px;border-radius:3px;background:var(--seg,rgba(118,118,128,.12));"></div>
+              <div style="position:absolute;top:2px;left:50%;width:2px;height:11px;background:var(--muted,#8e8e93);transform:translateX(-50%);"></div>
+              <div ref="{{ pitchPtrRef }}" style="position:absolute;top:1px;left:50%;width:9px;height:11px;border-radius:3px;background:var(--accent,#0A84FF);transform:translateX(-50%);transition:left .25s;"></div>
+            </div>
+          </div>
+          <div style="margin-bottom:13px;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted,#8e8e93);font-weight:700;margin-bottom:5px;"><span>POWER · MCR</span><span ref="{{ roRef }}" data-ro="power" style="font-variant-numeric:tabular-nums;color:var(--ink,#1c1c1e);">0 %</span></div>
+            <div style="height:7px;border-radius:4px;background:var(--seg,rgba(118,118,128,.12));overflow:hidden;"><div ref="{{ powerBarRef }}" style="height:100%;width:0%;background:var(--green,#34C759);transition:width .25s;border-radius:4px;"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted,#8e8e93);font-weight:700;margin-bottom:5px;"><span>FUEL</span><span style="font-variant-numeric:tabular-nums;color:var(--ink,#1c1c1e);"><span ref="{{ roRef }}" data-ro="fuel">0</span> l/h</span></div>
+            <div style="height:7px;border-radius:4px;background:var(--seg,rgba(118,118,128,.12));overflow:hidden;"><div ref="{{ fuelBarRef }}" style="height:100%;width:0%;background:var(--amber,#FF9F0A);transition:width .25s;border-radius:4px;"></div></div>
+          </div>
+        </div>
+
+        <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted,#8e8e93)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h11a2.5 2.5 0 1 0-2.5-2.5"></path><path d="M3 12h15a2.5 2.5 0 1 1-2.5 2.5"></path><path d="M3 16h8a2 2 0 1 1-2 2"></path></svg>
+            <span style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;">WIND</span>
+          </div>
+          <div style="display:flex;justify-content:center;">
+            <svg viewBox="0 0 120 120" style="width:118px;height:118px;display:block;">
+              <circle cx="60" cy="60" r="52" fill="var(--seg,rgba(118,118,128,.12))" stroke="var(--hair,rgba(60,60,67,.12))" stroke-width="1.2"></circle>
+              <line x1="60" y1="8" x2="60" y2="16" stroke="var(--muted,#8e8e93)" stroke-width="1.4"></line>
+              <line x1="60" y1="104" x2="60" y2="112" stroke="var(--muted,#8e8e93)" stroke-width="1.4"></line>
+              <line x1="8" y1="60" x2="16" y2="60" stroke="var(--muted,#8e8e93)" stroke-width="1.4"></line>
+              <line x1="104" y1="60" x2="112" y2="60" stroke="var(--muted,#8e8e93)" stroke-width="1.4"></line>
+              <path d="M60 44 C55 44 53 49 53 56 L53 72 C53 76 56 78 60 78 C64 78 67 76 67 72 L67 56 C67 49 65 44 60 44 Z" fill="var(--muted,#8e8e93)" opacity=".35"></path>
+              <g ref="{{ windArrowRef }}" style="transition:transform .3s ease;opacity:0;">
+                <line x1="60" y1="16" x2="60" y2="46" stroke="var(--accent,#0A84FF)" stroke-width="3.4" stroke-linecap="round"></line>
+                <path d="M60 48 L52 36 L68 36 Z" fill="var(--accent,#0A84FF)"></path>
+              </g>
+            </svg>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;margin-top:6px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:9.5px;color:var(--muted,#8e8e93);font-weight:700;letter-spacing:.3px;">APPARENT</span><span ref="{{ roRef }}" data-ro="wApp" style="font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;color:var(--accent,#0A84FF);">—</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:9.5px;color:var(--muted,#8e8e93);font-weight:700;letter-spacing:.3px;">RELATIVE</span><span ref="{{ roRef }}" data-ro="wRel" style="font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;color:var(--ink,#1c1c1e);">—</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:9.5px;color:var(--muted,#8e8e93);font-weight:700;letter-spacing:.3px;">TRUE</span><span ref="{{ roRef }}" data-ro="wTrue" style="font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;color:var(--ink,#1c1c1e);">—</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+
+      <!-- CHART OVERVIEW · live mini-map from the ECDIS -->
+      <div ref="{{ miniWrapRef }}" style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;display:none;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted,#8e8e93)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"></path><path d="M9 4v14M15 6v14"></path></svg>
+          <span style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;flex:1;">CHART OVERVIEW</span>
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--green,#34C759);flex:none;"></span>
+        </div>
+        <div onClick="{{ onGoChart }}" title="Open full chart" style="position:relative;border-radius:12px;overflow:hidden;height:248px;background:#9bb8c9;cursor:pointer;">
+          <img ref="{{ miniImgRef }}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;"/>
+          <div style="position:absolute;inset:0;border-radius:12px;box-shadow:inset 0 0 0 .5px var(--hair,rgba(60,60,67,.12));pointer-events:none;"></div>
+          <div style="position:absolute;left:9px;top:9px;display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:9px;background:rgba(18,22,28,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H5v14h14v-4M14 5h5v5M19 5l-8 8"></path></svg>
+            <span style="font-size:9px;letter-spacing:.5px;color:#fff;font-weight:700;">OPEN CHART</span>
+          </div>
+          <div style="position:absolute;right:9px;bottom:9px;display:flex;flex-direction:column;gap:6px;">
+            <button onClick="{{ onMiniZoomIn }}" title="Zoom in" style="{{ st.miniZoomBtn }}">+</button>
+            <button onClick="{{ onMiniZoomOut }}" title="Zoom out" style="{{ st.miniZoomBtn }}">−</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEERING MODE -->
+      <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted,#8e8e93)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="2.4"></circle><line x1="12" y1="9.6" x2="12" y2="3"></line><line x1="14.1" y1="13.2" x2="19.8" y2="16.5"></line><line x1="9.9" y1="13.2" x2="4.2" y2="16.5"></line></svg>
+          <span style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;">STEERING MODE</span>
+        </div>
+        <div style="display:flex;gap:4px;background:var(--seg,rgba(118,118,128,.12));border-radius:12px;padding:4px;">
+          <button onClick="{{ onModeHand }}" style="{{ st.mHand }}">HAND</button>
+          <button onClick="{{ onModeNfu }}" style="{{ st.mNfu }}">NFU</button>
+          <button onClick="{{ onModeAuto }}" style="{{ st.mAuto }}">AUTO</button>
+          <button onClick="{{ onModeTrack }}" style="{{ st.mTrack }}">TRACK</button>
+        </div>
+        <div style="font-size:9.5px;color:var(--muted,#8e8e93);line-height:1.45;margin-top:10px;">{{ modeHint }}</div>
+      </div>
+
+      <!-- AUTOPILOT -->
+      <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted,#8e8e93)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="1" fill="var(--muted,#8e8e93)"></circle><line x1="12" y1="3" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="21"></line><line x1="3" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="21" y2="12"></line></svg>
+            <span style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;">AUTOPILOT · HEADING</span>
+            <sc-if value="{{ apMin }}" hint-placeholder-val="{{ false }}"><span style="font-variant-numeric:tabular-nums;font-size:11px;font-weight:700;color:{{ apValColor }};margin-left:2px;">{{ apHeadingLabel }}°</span></sc-if>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;">
+            <button onClick="{{ onToggleAp }}" style="{{ st.apBtn }}">{{ apLabel }}</button>
+            <button onClick="{{ onToggleApMin }}" title="{{ apMinTitle }}" style="width:28px;height:28px;flex:none;border-radius:9px;border:.5px solid var(--hair,rgba(60,60,67,.12));background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;">{{ apMinIcon }}</button>
+          </div>
+        </div>
+        <sc-if value="{{ apOpen }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:12px;">
+            <button onClick="{{ onApM10 }}" style="{{ st.apStep }}">−10</button>
+            <button onClick="{{ onApM1 }}" style="{{ st.apStep }}">−1</button>
+            <div style="flex:1;text-align:center;background:var(--seg,rgba(118,118,128,.12));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:12px;padding:9px 4px;"><div style="font-variant-numeric:tabular-nums;font-size:27px;font-weight:700;color:{{ apValColor }};line-height:1;">{{ apHeadingLabel }}</div><div style="font-size:8.5px;letter-spacing:.7px;color:var(--muted,#8e8e93);font-weight:700;margin-top:3px;">SET COURSE °T</div></div>
+            <button onClick="{{ onApP1 }}" style="{{ st.apStep }}">+1</button>
+            <button onClick="{{ onApP10 }}" style="{{ st.apStep }}">+10</button>
+          </div>
+          <button onClick="{{ onApToCurrent }}" style="{{ st.apSet }}">SET = CURRENT GYRO HEADING</button>
+          <div style="font-size:9.5px;color:var(--muted,#8e8e93);line-height:1.45;margin-top:9px;">{{ apHint }}</div>
+        </sc-if>
+      </div>
+
+      <!-- THRUSTERS -->
+      <div style="background:var(--card,rgba(255,255,255,.5));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:16px;box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));padding:14px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted,#8e8e93)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 10c0-3 1-5 2.5-4.5S15 9 12 10M12 14c0 3-1 5-2.5 4.5S9 15 12 14M10 12c-3 0-5-1-4.5-2.5S9 9 10 12M14 12c3 0 5 1 4.5 2.5S15 15 14 12"></path></svg>
+          <span style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;">THRUSTERS · % POWER</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:7px;"><span>Bow</span><span ref="{{ roRef }}" data-ro="bowThr" style="font-variant-numeric:tabular-nums;color:var(--accent,#0A84FF);font-weight:700;">0 %</span></div>
+            <div ref="{{ bowThrRef }}" style="position:relative;width:100%;height:30px;touch-action:none;cursor:pointer;">
+              <div style="position:absolute;top:12px;left:0;width:100%;height:6px;border-radius:3px;background:var(--seg,rgba(118,118,128,.12));"></div>
+              <div style="position:absolute;top:9px;left:50%;width:2px;height:12px;background:var(--muted,#8e8e93);transform:translateX(-50%);"></div>
+              <div ref="{{ bowThrKnobRef }}" style="position:absolute;top:0;left:50%;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3),0 0 0 .5px rgba(0,0,0,.06);transform:translateX(-50%);"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted,#8e8e93);font-weight:600;"><span style="color:var(--red,#FF3B30);">100 P</span><span>0</span><span style="color:var(--green,#34C759);">100 S</span></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;margin-bottom:7px;"><span>Stern</span><span ref="{{ roRef }}" data-ro="sternThr" style="font-variant-numeric:tabular-nums;color:var(--accent,#0A84FF);font-weight:700;">0 %</span></div>
+            <div ref="{{ sternThrRef }}" style="position:relative;width:100%;height:30px;touch-action:none;cursor:pointer;">
+              <div style="position:absolute;top:12px;left:0;width:100%;height:6px;border-radius:3px;background:var(--seg,rgba(118,118,128,.12));"></div>
+              <div style="position:absolute;top:9px;left:50%;width:2px;height:12px;background:var(--muted,#8e8e93);transform:translateX(-50%);"></div>
+              <div ref="{{ sternThrKnobRef }}" style="position:absolute;top:0;left:50%;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3),0 0 0 .5px rgba(0,0,0,.06);transform:translateX(-50%);"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted,#8e8e93);font-weight:600;"><span style="color:var(--red,#FF3B30);">100 P</span><span>0</span><span style="color:var(--green,#34C759);">100 S</span></div>
+          </div>
+          <button onClick="{{ onThrZero }}" style="{{ st.thrZero }}">ZERO THRUSTERS</button>
+          <div style="font-size:9.5px;color:var(--muted,#8e8e93);line-height:1.45;">Most effective below ~4 kn. Bow + stern the same way = lateral move; opposite ways = turn on the spot.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:880},&quot;shipName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;M/S MERIDIAN&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;defaultPalette&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;day&quot;,&quot;dusk&quot;,&quot;night&quot;],&quot;default&quot;:&quot;day&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { telegraph: 5, rudder: 0, ap: false, apHeading: 0, bowThr: 0, sternThr: 0, active: false, palette: 'day', linked: false, mode: 'hand', bell: [], mob: false, miniZoom: 0.6, apMin: false };
+  ORDERS = [
+    { label: 'Nav Full Ahead', kn: 19, z: 'a' },
+    { label: 'Full Ahead', kn: 16, z: 'a' },
+    { label: 'Half Ahead', kn: 12, z: 'a' },
+    { label: 'Slow Ahead', kn: 8, z: 'a' },
+    { label: 'Dead Slow Ahead', kn: 4, z: 'a' },
+    { label: 'Stop', kn: 0, z: 's' },
+    { label: 'Dead Slow Astern', kn: -3, z: 'r' },
+    { label: 'Slow Astern', kn: -5, z: 'r' },
+    { label: 'Half Astern', kn: -8, z: 'r' },
+    { label: 'Full Astern', kn: -10, z: 'r' },
+  ];
+  TRACKH = 312; HH = 44;
+  ros = {}; ship = {}; lastState = 0; _rpm = 0; _pit = 0; _pow = 0; _fuel = 0;
+  PAL = {
+    day:   { bg:'#cfe0e8', ink:'#1c1c1e', muted:'#8e8e93', glassbg:'rgba(255,255,255,0.72)', glassbd:'rgba(255,255,255,0.55)', seg:'rgba(118,118,128,0.12)', hair:'rgba(60,60,67,0.12)', card:'rgba(255,255,255,0.55)', shadow:'0 8px 30px rgba(0,40,80,0.12)', segon:'#fff', logo:'none', accent:'#0A84FF', red:'#FF3B30', amber:'#FF9F0A', green:'#34C759' },
+    dusk:  { bg:'#5b6b7a', ink:'#f2f3f5', muted:'#aab2bd', glassbg:'rgba(38,42,52,0.62)', glassbd:'rgba(255,255,255,0.12)', seg:'rgba(255,255,255,0.1)', hair:'rgba(255,255,255,0.14)', card:'rgba(255,255,255,0.08)', shadow:'0 8px 30px rgba(0,0,0,0.32)', segon:'rgba(255,255,255,0.18)', logo:'invert(1) brightness(1.6)', accent:'#0A84FF', red:'#FF453A', amber:'#FF9F0A', green:'#30D158' },
+    night: { bg:'#05080c', ink:'#e9edf2', muted:'#7d8794', glassbg:'rgba(18,22,28,0.7)', glassbd:'rgba(255,255,255,0.08)', seg:'rgba(255,255,255,0.08)', hair:'rgba(255,255,255,0.1)', card:'rgba(255,255,255,0.05)', shadow:'0 8px 30px rgba(0,0,0,0.5)', segon:'rgba(255,255,255,0.16)', logo:'invert(1) brightness(1.7)', accent:'#0A84FF', red:'#FF453A', amber:'#FF9F0A', green:'#30D158' },
+  };
+
+  componentDidMount() {
+    if (this.props.defaultPalette) this.state.palette = this.props.defaultPalette;
+    this.shipName = this.props.shipName || 'M/S MERIDIAN';
+    this.SID = (window.__mrdSid || (window.__mrdSid = Math.random().toString(36).slice(2)));
+    try { this.ch = new BroadcastChannel('meridian-helm'); this.ch.onmessage = (e) => this.onMsg(e.data); } catch (e) { this.ch = null; }
+    this.applyTheme();
+    setTimeout(() => { this.applyTheme(); this.helloAndPost(); this.placeLever(); }, 40);
+    this._raf = requestAnimationFrame(this.loop);
+    this._ui = setInterval(this.tickUI, 90); this.tickUI();
+    this._beat = setInterval(() => this.postCmd(), 600);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this._raf); clearInterval(this._beat); clearInterval(this._ui); this.nfuStop(); if (this.ch) { try { this.ch.close(); } catch (e) {} } }
+  componentDidUpdate(pp, ps) { if (ps && ps.palette !== this.state.palette) this.applyTheme(); }
+
+  rootRef = (el) => { this.root = el; if (el) this.applyTheme(); };
+  miniWrapRef = (el) => { this.miniWrap = el; };
+  miniImgRef = (el) => { this.miniImg = el; };
+  alarmBarRef = (el) => { this.alarmBar = el; };
+  alarmTxtRef = (el) => { this.alarmTxt = el; };
+  roRef = (el) => { if (el && el.dataset && el.dataset.ro) this.ros[el.dataset.ro] = el; };
+  compassRotRef = (el) => { this.compassRot = el; };
+  cogBugRef = (el) => { this.cogBug = el; };
+  apBugRef = (el) => { this.apBug = el; };
+  wheelRef = (el) => { this.wheel = el; };
+  rudPtrRef = (el) => { this.rudPtr = el; };
+  rudOrderRef = (el) => { this.rudOrder = el; };
+  rotPtrRef = (el) => { this.rotPtr = el; };
+  sogBarRef = (el) => { this.sogBar = el; };
+  linkRef = (el) => { this.linkEl = el; };
+  linkDotRef = (el) => { this.linkDot = el; };
+  rpmBarRef = (el) => { this.rpmBar = el; };
+  pitchPtrRef = (el) => { this.pitchPtr = el; };
+  powerBarRef = (el) => { this.powerBar = el; };
+  fuelBarRef = (el) => { this.fuelBar = el; };
+  windArrowRef = (el) => { this.windArrow = el; };
+  leverHandleRef = (el) => { this.leverHandle = el; this.placeLever(); };
+  leverTrackRef = (el) => { if (!el || el === this.leverTrack) return; this.leverTrack = el; el.addEventListener('pointerdown', this.leverDown); };
+  wheelHitRef = (el) => { if (!el || el === this.wheelHit) return; this.wheelHit = el; el.addEventListener('pointerdown', this.wheelDown); };
+  rudSurfaceRef = (el) => { if (!el || el === this.rudSurface) return; this.rudSurface = el; el.addEventListener('pointerdown', this.rudDown); };
+  bowThrRef = (el) => { if (!el || el === this.bowThrEl) return; this.bowThrEl = el; el.addEventListener('pointerdown', (e) => this.thrDown(e, 'bowThr', el)); };
+  bowThrKnobRef = (el) => { this.bowKnob = el; };
+  sternThrRef = (el) => { if (!el || el === this.sternThrEl) return; this.sternThrEl = el; el.addEventListener('pointerdown', (e) => this.thrDown(e, 'sternThr', el)); };
+  sternThrKnobRef = (el) => { this.sternKnob = el; };
+
+  applyTheme() { if (!this.root) return; const u = this.PAL[this.state.palette] || this.PAL.day; const st = this.root.style; for (const k in u) { if (k === 'logo') st.setProperty('--logofilter', u.logo); else st.setProperty('--' + k, u[k]); } try { document.body.style.background = u.bg; } catch (e) {} }
+
+  helloAndPost() { if (this.ch) { try { this.ch.postMessage({ type: 'helmHello', sid: this.SID, t: Date.now() }); } catch (e) {} } this.postCmd(); this.postMiniZoom(); }
+  onMsg(m) { if (!m) return; if (m.sid && m.sid !== this.SID) return; if (m.type === 'state' && m.ship) { this.ship = m.ship; this.lastState = Date.now(); } else if (m.type === 'mini' && m.img) { if (this.miniImg) this.miniImg.src = m.img; if (this.miniWrap) this.miniWrap.style.display = 'block'; this._miniT = Date.now(); } }
+  postCmd() { if (!this.ch) return; const s = this.state; const ord = this.ORDERS[s.telegraph] || this.ORDERS[5]; try { this.ch.postMessage({ type: 'cmd', sid: this.SID, t: Date.now(), cmd: { active: s.active, rudder: s.rudder, orderedSpeed: ord.kn, telegraph: ord.label, ap: s.ap, apHeading: s.apHeading, bowThr: s.bowThr, sternThr: s.sternThr, mode: s.mode, mob: s.mob } }); } catch (e) {} }
+
+  set(ro, v) { const e = this.ros[ro]; if (e && e.textContent !== v) e.textContent = v; }
+  fmtPos(lat, lon) { if (lat == null) return '—'; const f = (v, p, n, d) => { const h = v >= 0 ? p : n; v = Math.abs(v); const dg = Math.floor(v); return String(dg).padStart(d, '0') + '°' + ((v - dg) * 60).toFixed(2).padStart(5, '0') + '′' + h; }; return f(lat, 'N', 'S', 2) + '  ' + f(lon, 'E', 'W', 3); }
+
+  // ---- lever ----
+  leverTop(i) { return (i / (this.ORDERS.length - 1)) * (this.TRACKH - this.HH); }
+  placeLever() { if (this.leverHandle && !this._leverDrag) { this.leverHandle.style.top = this.leverTop(this.state.telegraph) + 'px'; const o = this.ORDERS[this.state.telegraph]; const k = this.ros.leverKn; if (k) k.textContent = o.kn === 0 ? 'STOP' : (o.kn > 0 ? '+' + o.kn : '' + o.kn); } }
+  leverDown = (e) => { this._leverDrag = true; try { this.leverTrack.setPointerCapture(e.pointerId); } catch (_) {} this.leverMove(e); window.addEventListener('pointermove', this.leverMove); window.addEventListener('pointerup', this.leverUp); };
+  leverMove = (e) => { if (!this._leverDrag || !this.leverTrack) return; const r = this.leverTrack.getBoundingClientRect(); const usable = this.TRACKH - this.HH; let top = e.clientY - r.top - this.HH / 2; top = Math.max(0, Math.min(usable, top)); if (this.leverHandle) this.leverHandle.style.top = top + 'px'; const idx = Math.round(top / usable * (this.ORDERS.length - 1)); const o = this.ORDERS[idx]; const k = this.ros.leverKn; if (k) k.textContent = o.kn === 0 ? 'STOP' : (o.kn > 0 ? '+' + o.kn : '' + o.kn); if (idx !== this.state.telegraph) this.setState({ active: true, telegraph: idx }, () => this.postCmd()); };
+  leverUp = () => { this._leverDrag = false; window.removeEventListener('pointermove', this.leverMove); window.removeEventListener('pointerup', this.leverUp); const o = this.ORDERS[this.state.telegraph]; this.pushBell(o.label, o.kn); this.placeLever(); };
+
+  // ---- wheel drag ----
+  wheelDown = (e) => { if (this.state.ap) return; this._wheelDrag = true; this._wheelX = e.clientX; this._wheelR0 = this.state.rudder; try { this.wheelHit.setPointerCapture(e.pointerId); } catch (_) {} window.addEventListener('pointermove', this.wheelMove); window.addEventListener('pointerup', this.wheelUp); };
+  wheelMove = (e) => { if (!this._wheelDrag) return; const dx = e.clientX - this._wheelX; this.setRudder(this._wheelR0 + dx / 2.2); };
+  wheelUp = () => { this._wheelDrag = false; window.removeEventListener('pointermove', this.wheelMove); window.removeEventListener('pointerup', this.wheelUp); };
+
+  // ---- rudder bar drag ----
+  rudDown = (e) => { if (this.state.ap || !this.rudSurface) return; this._rudDrag = true; try { this.rudSurface.setPointerCapture(e.pointerId); } catch (_) {} this.rudMove(e); window.addEventListener('pointermove', this.rudMove); window.addEventListener('pointerup', this.rudUp); };
+  rudMove = (e) => { if (!this._rudDrag || !this.rudSurface) return; const r = this.rudSurface.getBoundingClientRect(); const frac = (e.clientX - r.left) / r.width - 0.5; this.setRudder(Math.max(-1, Math.min(1, frac / 0.45)) * 35); };
+  rudUp = () => { this._rudDrag = false; window.removeEventListener('pointermove', this.rudMove); window.removeEventListener('pointerup', this.rudUp); };
+
+  // ---- thruster drag ----
+  thrDown(e, key, el) { this._thrDrag = key; this._thrEl = el; try { el.setPointerCapture(e.pointerId); } catch (_) {} this.thrMove(e); window.addEventListener('pointermove', this.thrMove); window.addEventListener('pointerup', this.thrUp); }
+  thrMove = (e) => { if (!this._thrDrag || !this._thrEl) return; const r = this._thrEl.getBoundingClientRect(); const frac = (e.clientX - r.left) / r.width - 0.5; const v = Math.round(Math.max(-1, Math.min(1, frac * 2)) * 100 / 5) * 5; this.setThr(this._thrDrag, v); };
+  thrUp = () => { this._thrDrag = null; window.removeEventListener('pointermove', this.thrMove); window.removeEventListener('pointerup', this.thrUp); };
+
+  loop = () => { this._raf = requestAnimationFrame(this.loop); this.tickUI(); };
+  tickUI = () => {
+    const sh = this.ship || {}, s = this.state; const linked = (Date.now() - this.lastState) < 1500 && this.lastState > 0;
+    const ext = !!sh.autoNav && linked; if (ext !== this._ext) { this._ext = ext; this.setState({ extControl: ext }); }
+    const now = new Date(); this.set('clock', String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0'));
+    const hdg = sh.hdg, cog = sh.cog;
+    this.set('hdg', hdg != null ? hdg.toFixed(0).padStart(3, '0') : '---');
+    this.set('hdgc', hdg != null ? hdg.toFixed(0).padStart(3, '0') : '---');
+    this.set('cog', cog != null ? cog.toFixed(0).padStart(3, '0') : '---');
+    const sogV = sh.sog != null ? (Math.abs(sh.sog) < 0.05 ? 0 : sh.sog) : null;
+    this.set('sog', sogV != null ? sogV.toFixed(1) : '--');
+    this.set('sog2', sogV != null ? sogV.toFixed(1) + ' kn' : '-- kn');
+    const rot = Math.abs(sh.rot || 0) < 0.5 ? 0 : (sh.rot || 0); const rotR = Math.round(rot);
+    this.set('rot', sh.rot != null ? (rotR > 0 ? '+' : '') + rotR : '--');
+    this.set('rot2', sh.rot != null ? (rotR > 0 ? '+' : '') + rotR + ' °/min' : '-- °/min');
+    const rud = sh.rudder || 0;
+    this.set('rud', sh.rudder != null ? Math.abs(rud).toFixed(0) + '° ' + (rud < -0.5 ? 'P' : rud > 0.5 ? 'S' : '·') : '0°');
+    const ordL = this.ORDERS[s.telegraph] || this.ORDERS[5];
+    const ordEff = ext ? this.ORDERS[this.nearestOrder(sh.sog)] : ordL;
+    this.set('eng', ordEff.kn === 0 ? 'STOP' : (ordEff.kn > 0 ? '+' : '') + ordEff.kn);
+    this.set('dep', sh.depth != null ? sh.depth.toFixed(0) : '--');
+    this.set('ukc', sh.ukc != null ? sh.ukc.toFixed(1) : '--');
+    this.set('pos', this.fmtPos(sh.lat, sh.lon));
+    this.set('bowThr', (s.bowThr > 0 ? '+' : '') + s.bowThr + ' %');
+    this.set('sternThr', (s.sternThr > 0 ? '+' : '') + s.sternThr + ' %');
+    if (this.bowKnob) this.bowKnob.style.left = (50 + s.bowThr / 100 * 50) + '%';
+    if (this.sternKnob) this.sternKnob.style.left = (50 + s.sternThr / 100 * 50) + '%';
+    if (ext && this.leverHandle && !this._leverDrag) { const ti = this.nearestOrder(sh.sog); this.leverHandle.style.top = this.leverTop(ti) + 'px'; const oo = this.ORDERS[ti]; const lk = this.ros.leverKn; if (lk) lk.textContent = oo.kn === 0 ? 'STOP' : (oo.kn > 0 ? '+' + oo.kn : '' + oo.kn); } else { this.placeLever(); }
+    if (this.compassRot && hdg != null) this.compassRot.setAttribute('transform', 'rotate(' + (-hdg) + ' 110 110)');
+    if (this.cogBug && hdg != null && cog != null) this.cogBug.setAttribute('transform', 'rotate(' + (((cog - hdg + 540) % 360) - 180) + ' 110 110)');
+    if (this.apBug) { if (s.ap && hdg != null) { this.apBug.style.display = ''; this.apBug.setAttribute('transform', 'rotate(' + (((s.apHeading - hdg + 540) % 360) - 180) + ' 110 110)'); } else this.apBug.style.display = 'none'; }
+    const manual = !ext && (s.mode === 'hand' || s.mode === 'nfu');
+    const wr = manual ? s.rudder : rud;
+    if (this.wheel) this.wheel.setAttribute('transform', 'rotate(' + (wr * 7) + ' 60 60)');
+    if (this.rudPtr) this.rudPtr.style.left = (50 + Math.max(-1, Math.min(1, rud / 35)) * 45) + '%';
+    if (this.rudOrder) this.rudOrder.style.left = (50 + Math.max(-1, Math.min(1, ((s.ap || ext) ? rud : s.rudder) / 35)) * 45) + '%';
+    if (this.rotPtr) this.rotPtr.style.left = (50 + Math.max(-1, Math.min(1, rot / 60)) * 45) + '%';
+    if (this.sogBar) this.sogBar.style.width = Math.max(0, Math.min(100, Math.abs(sh.sog || 0) / 20 * 100)) + '%';
+
+    const rpmT = ordEff.kn / 19 * 145, pitT = ordEff.kn / 19 * 100, powT = Math.pow(Math.abs(ordEff.kn) / 19, 2) * 100;
+    this._rpm += (rpmT - this._rpm) * 0.08; this._pit += (pitT - this._pit) * 0.1; this._pow += (powT - this._pow) * 0.07;
+    const fuelT = this._pow / 100 * 2600 + (Math.abs(ordEff.kn) > 0.5 ? 90 : 55); this._fuel += (fuelT - this._fuel) * 0.07;
+    this.set('rpm', Math.round(this._rpm) + '');
+    this.set('pitch', (this._pit >= 0 ? '+' : '') + this._pit.toFixed(0) + ' %');
+    this.set('power', this._pow.toFixed(0) + ' %');
+    this.set('fuel', Math.round(this._fuel) + '');
+    if (this.rpmBar) this.rpmBar.style.width = Math.max(0, Math.min(100, Math.abs(this._rpm) / 150 * 100)) + '%';
+    if (this.powerBar) this.powerBar.style.width = Math.max(0, Math.min(100, this._pow)) + '%';
+    if (this.fuelBar) this.fuelBar.style.width = Math.max(0, Math.min(100, this._fuel / 2700 * 100)) + '%';
+    if (this.pitchPtr) this.pitchPtr.style.left = (50 + Math.max(-1, Math.min(1, this._pit / 100)) * 45) + '%';
+
+    if (this.windArrow) {
+      const ws = sh.windSpd, wd = sh.windDir;
+      if (ws != null && wd != null) {
+        const toR = Math.PI / 180; const wkn = ws * 1.94384;
+        const sog = sh.sog || 0, c = (cog != null ? cog : (hdg || 0)), h = (hdg != null ? hdg : c);
+        const Td = (wd + 180) * toR; const Wn = wkn * Math.cos(Td), We = wkn * Math.sin(Td);
+        const Sn = sog * Math.cos(c * toR), Se = sog * Math.sin(c * toR);
+        const An = Wn - Sn, Ae = We - Se; const appSpd = Math.hypot(An, Ae);
+        let appFrom = (Math.atan2(Ae, An) / toR + 180) % 360; if (appFrom < 0) appFrom += 360;
+        let rel = ((appFrom - h) % 360 + 360) % 360;
+        this.windArrow.style.opacity = '1'; this.windArrow.setAttribute('transform', 'rotate(' + rel.toFixed(1) + ' 60 60)');
+        const relD = rel > 180 ? 360 - rel : rel; const side = (rel > 1 && rel < 180) ? ' S' : (rel >= 180 && rel < 359 ? ' P' : '');
+        this.set('wApp', appSpd.toFixed(0) + ' kn'); this.set('wRel', relD.toFixed(0) + '°' + side);
+        this.set('wTrue', wd.toFixed(0).padStart(3, '0') + '° / ' + wkn.toFixed(0) + ' kn');
+      } else { this.windArrow.style.opacity = '0'; this.set('wApp', '—'); this.set('wRel', '—'); this.set('wTrue', '—'); }
+    }
+
+    if (this.linkEl) { const u = this.PAL[s.palette]; this.linkEl.textContent = linked ? 'LINKED' : 'NO LINK'; this.linkEl.style.color = linked ? u.green : u.red; if (this.linkDot) this.linkDot.style.background = linked ? u.green : u.red; }
+    if (this.alarmBar) { const u = this.PAL[s.palette]; const al = sh.alarm; if (al && linked && (al.level === 'alarm' || al.level === 'warning')) { this.alarmBar.style.display = 'flex'; this.alarmBar.style.background = al.level === 'alarm' ? u.red : u.amber; if (this.alarmTxt) this.alarmTxt.textContent = (al.time ? al.time + '  ·  ' : '') + al.text; } else { this.alarmBar.style.display = 'none'; } }
+    if (linked !== this._linked) { this._linked = linked; this.setState({ linked }); }
+  };
+
+  utc() { const n = new Date(); return String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0') + ':' + String(n.getSeconds()).padStart(2, '0'); }
+  pushBell(label, kn) { const P = this.PAL[this.state.palette]; const dot = kn > 0 ? P.green : kn < 0 ? P.red : P.muted; const entry = { t: this.utc(), label, kn: kn === 0 ? '—' : (kn > 0 ? '+' + kn : kn) + ' kn', dot }; this.setState({ bell: [entry, ...this.state.bell].slice(0, 7) }); }
+
+  setTelegraph(i, log) { const o = this.ORDERS[i]; this.setState({ active: true, telegraph: i }, () => { this.postCmd(); this.placeLever(); }); if (log !== false) this.pushBell(o.label, o.kn); }
+  setRudder(v) { if (this.state.ap) return; this.setState({ active: true, rudder: Math.max(-35, Math.min(35, Math.round(v))) }, () => this.postCmd()); }
+  setMode(m) { const ap = (m === 'auto' || m === 'track'); const ns = { mode: m, ap }; if (ap && !this.state.ap) ns.apHeading = Math.round(this.ship.hdg || this.state.apHeading || 0); this.setState(ns, () => this.postCmd()); }
+  toggleAp() { this.setMode((this.state.mode === 'auto' || this.state.mode === 'track') ? 'hand' : 'auto'); }
+  nudgeAp(d) { this.setState({ active: true, mode: 'auto', ap: true, apHeading: ((Math.round(this.state.apHeading) + d) % 360 + 360) % 360 }, () => this.postCmd()); }
+  apToCurrent() { this.setState({ active: true, mode: 'auto', ap: true, apHeading: Math.round(this.ship.hdg || 0) }, () => this.postCmd()); }
+  setThr(k, v) { this.setState({ active: true, [k]: Math.max(-100, Math.min(100, v)) }, () => this.postCmd()); }
+  nearestOrder(sog) { let bi = 5, bd = 1e9; for (let i = 0; i < this.ORDERS.length; i++) { const d = Math.abs(this.ORDERS[i].kn - (sog || 0)); if (d < bd) { bd = d; bi = i; } } return bi; }
+  toggleEngage() { const active = !this.state.active; if (active) { const ti = this.nearestOrder(this.ship && this.ship.sog); this.setState({ active: true, telegraph: ti, rudder: 0, mode: 'hand', ap: false }, () => { this.postCmd(); this.placeLever(); }); this.pushBell('Helm active · ' + this.ORDERS[ti].label, this.ORDERS[ti].kn); } else { this.setState({ active: false }, () => this.postCmd()); this.pushBell('Helm released', 0); } }
+  setPalette(p) { this.setState({ palette: p }, () => this.applyTheme()); }
+  setMiniZoom(dir) { let z = (this.state.miniZoom || 0.6) * (dir < 0 ? 0.72 : 1.4); z = Math.max(0.22, Math.min(1.0, z)); this.setState({ miniZoom: z }, () => this.postMiniZoom()); }
+  postMiniZoom() { if (this.ch) { try { this.ch.postMessage({ type: 'miniZoom', sid: this.SID, frac: this.state.miniZoom }); } catch (e) {} } }
+
+  nfuHold(dir) { this._nfuDir = dir; if (this._nfuT) return; this._nfuT = setInterval(() => { this.setRudder((this.state.rudder || 0) + this._nfuDir * 1.5); }, 70); }
+  nfuStop() { if (this._nfuT) { clearInterval(this._nfuT); this._nfuT = null; } }
+
+  crashStop() { this.setState({ active: true, telegraph: 9, rudder: 0, mode: 'hand', ap: false }, () => { this.postCmd(); this.placeLever(); }); this.pushBell('CRASH STOP · Full Astern', -10); }
+  hardOver(dir) { this.setState({ active: true, mode: 'hand', ap: false, rudder: dir * 35 }, () => this.postCmd()); this.pushBell('Hard-a-' + (dir < 0 ? 'port' : 'starboard'), this.ORDERS[this.state.telegraph].kn); }
+  williamson() { this.setState({ active: true, mode: 'hand', ap: false, rudder: 35 }, () => this.postCmd()); this.pushBell('Williamson turn (MOB)', this.ORDERS[this.state.telegraph].kn); }
+  allStop() { this.setState({ active: true, telegraph: 5, rudder: 0, bowThr: 0, sternThr: 0, mode: 'hand', ap: false }, () => { this.postCmd(); this.placeLever(); }); this.pushBell('ALL STOP', 0); }
+  toggleMob() { const mob = !this.state.mob; this.setState({ mob }, () => this.postCmd()); this.pushBell(mob ? 'MAN OVERBOARD' : 'MOB cancelled', 0); }
+
+  holdBegin(e, fn) { try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {} const fill = e.currentTarget.querySelector('[data-fill]'); this._holdFn = fn; this._holdFill = fill; if (fill) { fill.style.transition = 'none'; fill.style.width = '0%'; void fill.offsetWidth; fill.style.transition = 'width .85s linear'; fill.style.width = '100%'; } if (this._holdT) clearTimeout(this._holdT); this._holdT = setTimeout(() => this.holdDone(), 870); }
+  holdDone() { const fn = this._holdFn; if (this._holdFill) { this._holdFill.style.transition = 'width .12s'; this._holdFill.style.width = '100%'; } this._holdT = null; this._holdFn = null; const f = this._holdFill; this._holdFill = null; setTimeout(() => { if (f) { f.style.transition = 'width .25s'; f.style.width = '0%'; } }, 140); if (fn) fn(); }
+  clearHold() { if (this._holdT) { clearTimeout(this._holdT); this._holdT = null; } if (this._holdFill) { this._holdFill.style.transition = 'width .18s'; this._holdFill.style.width = '0%'; this._holdFill = null; } this._holdFn = null; }
+
+  css(str) { const o = {}; (str || '').split(';').forEach(p => { const i = p.indexOf(':'); if (i < 0) return; const k = p.slice(0, i).trim(); if (!k) return; o[k.replace(/-([a-z])/g, (m, c) => c.toUpperCase())] = p.slice(i + 1).trim(); }); return o; }
+  renderVals() {
+    const s = this.state, C = (x) => this.css(x);
+    const railCells = [
+      { label: 'HDG · GYRO', ro: 'hdg', unit: '°T', size: '22px', col: 'var(--ink,#1c1c1e)' },
+      { label: 'COG', ro: 'cog', unit: '°T', size: '22px', col: 'var(--green,#34C759)' },
+      { label: 'SOG', ro: 'sog', unit: 'kn', size: '22px', col: 'var(--ink,#1c1c1e)' },
+      { label: 'ROT', ro: 'rot', unit: '°/min', size: '22px', col: 'var(--accent,#0A84FF)' },
+      { label: 'RUDDER', ro: 'rud', unit: '', size: '22px', col: 'var(--ink,#1c1c1e)' },
+      { label: 'TELEGRAPH', ro: 'eng', unit: 'kn', size: '22px', col: 'var(--ink,#1c1c1e)' },
+      { label: 'DEPTH', ro: 'dep', unit: 'm', size: '22px', col: 'var(--ink,#1c1c1e)' },
+      { label: 'UKC', ro: 'ukc', unit: 'm', size: '22px', col: 'var(--accent,#0A84FF)' },
+      { label: 'POSITION', ro: 'pos', unit: '', size: '13px', col: 'var(--ink,#1c1c1e)' },
+    ].map(c => ({ label: c.label, ro: c.ro, unit: c.unit, wrap: C('flex:1;min-width:96px;' + (c.label === 'POSITION' ? 'flex:1.7;min-width:190px;' : '') + 'padding:9px 13px;background:var(--card,rgba(255,255,255,.55));border:.5px solid var(--hair,rgba(60,60,67,.12));border-radius:13px;box-shadow:var(--shadow,0 8px 30px rgba(0,40,80,.12));'), valStyle: C('font-variant-numeric:tabular-nums;font-size:' + c.size + ';font-weight:700;line-height:1.3;color:' + c.col + ';') }));
+
+    const palB = (a) => C('width:34px;height:32px;border-radius:11px;border:none;background:' + (a ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (a ? '#fff' : 'var(--muted,#8e8e93)') + ';font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;');
+    const segM = (a) => C('flex:1;padding:10px 4px;border-radius:9px;border:none;background:' + (a ? 'var(--segon,#fff)' : 'transparent') + ';color:' + (a ? 'var(--accent,#0A84FF)' : 'var(--muted,#8e8e93)') + ';font-size:11px;font-weight:700;letter-spacing:.3px;cursor:pointer;font-family:inherit;');
+
+    const n = this.ORDERS.length, usable = this.TRACKH - this.HH;
+    const orderRows = this.ORDERS.map((o, i) => { const sel = s.telegraph === i; const top = 22 + this.leverTop(i) - 15; const base = o.z === 'a' ? 'var(--green,#34C759)' : o.z === 'r' ? 'var(--red,#FF3B30)' : 'var(--muted,#8e8e93)'; return { label: o.label, kn: o.kn === 0 ? '—' : (o.kn > 0 ? '+' + o.kn : o.kn) + ' kn', set: () => this.setTelegraph(i), style: C('position:absolute;left:0;right:0;top:' + top + 'px;height:30px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 11px;border-radius:9px;border:none;background:' + (sel ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (sel ? '#fff' : 'var(--ink,#1c1c1e)') + ';font-size:11.5px;font-weight:' + (sel ? '700' : '600') + ';cursor:pointer;font-family:inherit;'), tick: C('width:8px;height:8px;border-radius:50%;flex:none;background:' + (sel ? '#fff' : base) + ';'), knStyle: C('font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:700;flex:none;opacity:' + (sel ? '1' : '.75') + ';') }; });
+    const notchTicks = this.ORDERS.map((o, i) => { const top = 22 + this.leverTop(i) - 1; const base = o.z === 'a' ? 'var(--green,#34C759)' : o.z === 'r' ? 'var(--red,#FF3B30)' : 'var(--muted,#8e8e93)'; return { style: C('position:absolute;left:9px;width:13px;height:2px;border-radius:1px;top:' + top + 'px;background:' + base + ';opacity:.9;') }; });
+
+    const cmd = [['P35', -35], ['P20', -20], ['P10', -10], ['MID', 0], ['S10', 10], ['S20', 20], ['S35', 35]];
+    const cmdBtns = cmd.map(([label, v]) => ({ label, set: () => this.setRudder(v), style: C('flex:1;padding:11px 2px;border-radius:10px;border:.5px solid var(--hair,rgba(60,60,67,.12));background:' + (!s.ap && s.rudder === v ? 'var(--accent,#0A84FF)' : 'var(--seg,rgba(118,118,128,.12))') + ';color:' + (!s.ap && s.rudder === v ? '#fff' : (v < 0 ? 'var(--red,#FF3B30)' : v > 0 ? 'var(--green,#34C759)' : 'var(--ink,#1c1c1e)')) + ';font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;') }));
+
+    const compassTicks = []; for (let d = 0; d < 360; d += 5) { const major = d % 30 === 0; const a = d * Math.PI / 180; const r1 = 106, r2 = major ? 90 : 99; compassTicks.push({ x1: +(110 + Math.sin(a) * r1).toFixed(1), y1: +(110 - Math.cos(a) * r1).toFixed(1), x2: +(110 + Math.sin(a) * r2).toFixed(1), y2: +(110 - Math.cos(a) * r2).toFixed(1), col: major ? 'var(--ink,#1c1c1e)' : 'var(--muted,#8e8e93)', w: major ? 1.8 : 1 }); }
+    const compassLabels = []; for (let d = 0; d < 360; d += 30) { const a = d * Math.PI / 180; const card = d % 90 === 0; const t = card ? ['N', 'E', 'S', 'W'][d / 90] : String(d / 10); compassLabels.push({ x: +(110 + Math.sin(a) * 80).toFixed(1), y: +(110 - Math.cos(a) * 80 + (card ? 4.5 : 3.5)).toFixed(1), t, size: card ? 13 : 9.5, col: card ? (d === 0 ? 'var(--red,#FF3B30)' : 'var(--ink,#1c1c1e)') : 'var(--muted,#8e8e93)' }); }
+    const wheelSpokes = []; for (let k = 0; k < 6; k++) { const a = k * 60 * Math.PI / 180; wheelSpokes.push({ x: +(60 + Math.sin(a) * 46).toFixed(1), y: +(60 - Math.cos(a) * 46).toFixed(1), hx: +(60 + Math.sin(a) * 53).toFixed(1), hy: +(60 - Math.cos(a) * 53).toFixed(1) }); }
+
+    const isAuto = (s.mode === 'auto' || s.mode === 'track'); const ext = !!s.extControl;
+    const safe = (active, col) => C('position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:11px 6px;border-radius:12px;border:.5px solid ' + (active ? 'transparent' : 'var(--hair,rgba(60,60,67,.12))') + ';background:' + (active ? col : 'var(--seg,rgba(118,118,128,.12))') + ';color:' + (active ? '#fff' : col) + ';font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.2px;-webkit-user-select:none;user-select:none;');
+
+    const st = {
+      palDay: palB(s.palette === 'day'), palDusk: palB(s.palette === 'dusk'), palNight: palB(s.palette === 'night'),
+      miniZoomBtn: C('width:30px;height:30px;border-radius:9px;border:none;background:rgba(18,22,28,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);color:#fff;font-size:17px;font-weight:700;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;'),
+      holdFill: C('position:absolute;left:0;top:0;bottom:0;width:0%;background:rgba(255,59,48,.55);z-index:0;pointer-events:none;'),
+      engage: C('height:36px;padding:0 16px;margin-right:4px;border:.5px solid ' + (s.active ? 'transparent' : 'var(--green,#34C759)') + ';border-radius:11px;background:' + (s.active ? 'var(--green,#34C759)' : 'transparent') + ';color:' + (s.active ? '#fff' : 'var(--green,#34C759)') + ';font-size:11px;font-weight:700;letter-spacing:.3px;cursor:pointer;font-family:inherit;'),
+      mHand: segM(!ext && s.mode === 'hand'), mNfu: segM(!ext && s.mode === 'nfu'), mAuto: segM(!ext && s.mode === 'auto'), mTrack: segM(ext || s.mode === 'track'),
+      apBtn: C('padding:8px 16px;border-radius:10px;background:' + (s.ap ? 'var(--green,#34C759)' : 'var(--seg,rgba(118,118,128,.12))') + ';color:' + (s.ap ? '#fff' : 'var(--muted,#8e8e93)') + ';font-size:11px;font-weight:700;letter-spacing:.4px;cursor:pointer;font-family:inherit;border:.5px solid ' + (s.ap ? 'transparent' : 'var(--hair,rgba(60,60,67,.12))') + ';'),
+      apStep: C('width:48px;height:48px;border-radius:12px;border:.5px solid var(--hair,rgba(60,60,67,.12));background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;font-variant-numeric:tabular-nums;'),
+      apSet: C('width:100%;padding:12px;border-radius:12px;border:.5px solid var(--hair,rgba(60,60,67,.12));background:var(--seg,rgba(118,118,128,.12));color:var(--accent,#0A84FF);font-size:10.5px;font-weight:700;letter-spacing:.3px;cursor:pointer;font-family:inherit;'),
+      thrZero: C('width:100%;padding:11px;border-radius:12px;border:.5px solid var(--hair,rgba(60,60,67,.12));background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);font-size:10.5px;font-weight:700;letter-spacing:.3px;cursor:pointer;font-family:inherit;'),
+      mob: safe(s.mob, 'var(--red,#FF3B30)'), crash: safe(false, 'var(--red,#FF3B30)'), hardP: safe(!s.ap && s.rudder === -35, 'var(--red,#FF3B30)'), hardS: safe(!s.ap && s.rudder === 35, 'var(--green,#34C759)'), willy: safe(false, 'var(--amber,#FF9F0A)'), allStop: safe(s.telegraph === 5 && s.rudder === 0, 'var(--ink,#1c1c1e)'),
+    };
+
+    const modeHints = { hand: 'Follow-up hand steering — drag the wheel or the rudder bar, or tap a preset angle.', nfu: 'Non-follow-up tiller — hold PORT/STBD to swing the rudder directly.', auto: 'Heading autopilot holds the set course. Adjust with the dial below.', track: 'Track control steers the vessel along the planned ECDIS route.' };
+
+    return {
+      rootRef: this.rootRef, roRef: this.roRef, miniWrapRef: this.miniWrapRef, miniImgRef: this.miniImgRef, alarmBarRef: this.alarmBarRef, alarmTxtRef: this.alarmTxtRef, compassRotRef: this.compassRotRef, cogBugRef: this.cogBugRef, apBugRef: this.apBugRef, wheelRef: this.wheelRef, rudPtrRef: this.rudPtrRef, rudOrderRef: this.rudOrderRef, rotPtrRef: this.rotPtrRef, sogBarRef: this.sogBarRef, linkRef: this.linkRef, linkDotRef: this.linkDotRef, rpmBarRef: this.rpmBarRef, pitchPtrRef: this.pitchPtrRef, powerBarRef: this.powerBarRef, fuelBarRef: this.fuelBarRef, windArrowRef: this.windArrowRef, leverHandleRef: this.leverHandleRef, leverTrackRef: this.leverTrackRef, wheelHitRef: this.wheelHitRef, rudSurfaceRef: this.rudSurfaceRef, bowThrRef: this.bowThrRef, bowThrKnobRef: this.bowThrKnobRef, sternThrRef: this.sternThrRef, sternThrKnobRef: this.sternThrKnobRef,
+      shipName: this.shipName || 'M/S MERIDIAN', st, railCells, orderRows, notchTicks, cmdBtns, compassTicks, compassLabels, wheelSpokes,
+      bellRows: s.bell.map(b => ({ t: b.t, label: b.label, kn: b.kn, dotStyle: C('width:7px;height:7px;border-radius:50%;flex:none;background:' + b.dot + ';') })), hasBell: s.bell.length > 0, noBell: s.bell.length === 0,
+      onPalDay: () => this.setPalette('day'), onPalDusk: () => this.setPalette('dusk'), onPalNight: () => this.setPalette('night'),
+      onGoChart: () => { try { window.dispatchEvent(new CustomEvent('mrd-view', { detail: 'chart' })); } catch (e) {} },
+      onMiniZoomIn: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.setMiniZoom(-1); },
+      onMiniZoomOut: (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.setMiniZoom(1); },
+      onEngage: () => this.toggleEngage(), engageLabel: s.active ? 'HELM ACTIVE' : 'TAKE THE HELM',
+      modeManual: !ext && s.mode === 'hand', modeNfu: !ext && s.mode === 'nfu', modeAutoCtl: ext || isAuto, autoCtlLabel: ext ? 'ECDIS auto-route (TRACK)' : (s.mode === 'track' ? 'track' : 'autopilot'),
+      onModeHand: () => this.setMode('hand'), onModeNfu: () => this.setMode('nfu'), onModeAuto: () => this.setMode('auto'), onModeTrack: () => this.setMode('track'), modeHint: ext ? 'Steering under ECDIS auto-route (TRACK). Cancel the route in the chart, or take the helm here, to steer manually.' : modeHints[s.mode],
+      onMid: () => this.setRudder(0), onNfuPortDown: () => this.nfuHold(-1), onNfuStbdDown: () => this.nfuHold(1), onNfuStop: () => this.nfuStop(),
+      onToggleAp: () => this.toggleAp(), apLabel: s.ap ? 'AUTO' : 'STANDBY',
+      apMin: !!s.apMin, apOpen: !s.apMin, apMinIcon: s.apMin ? '▢' : '—', apMinTitle: s.apMin ? 'Expand autopilot' : 'Minimise autopilot', onToggleApMin: () => this.setState({ apMin: !s.apMin }),
+      onApM10: () => this.nudgeAp(-10), onApM1: () => this.nudgeAp(-1), onApP1: () => this.nudgeAp(1), onApP10: () => this.nudgeAp(10), onApToCurrent: () => this.apToCurrent(),
+      apHeadingLabel: String(Math.round(s.apHeading)).padStart(3, '0'), apValColor: s.ap ? 'var(--green,#34C759)' : 'var(--muted,#8e8e93)',
+      apHint: s.ap ? 'Autopilot is steering the rudder toward the set course. Manual wheel disabled.' : 'Standby — steer by hand. Engage AUTO to hold a heading.',
+      onThrZero: () => this.setState({ bowThr: 0, sternThr: 0 }, () => this.postCmd()),
+      onMob: () => this.toggleMob(), mobLabel: s.mob ? 'MOB ACTIVE' : 'MOB', onHoldCrash: (e) => this.holdBegin(e, () => this.crashStop()), onHoldHardP: (e) => this.holdBegin(e, () => this.hardOver(-1)), onHoldHardS: (e) => this.holdBegin(e, () => this.hardOver(1)), onHoldWilly: (e) => this.holdBegin(e, () => this.williamson()), onHoldEnd: () => this.clearHold(), onAllStop: () => this.allStop(),
+      manHint: s.mob ? 'MOB marker dropped — tap MOB again to cancel. Consider a Williamson turn.' : 'Emergency orders need a press-and-hold to confirm. They post straight to engine, rudder & ECDIS.',
+    };
+  }
+}
+</script>
+</body>
+</html>

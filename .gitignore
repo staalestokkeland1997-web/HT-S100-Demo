@@ -1,0 +1,14 @@
+# test / tooling artifacts
+.playwright-mcp/
+.serena/
+
+# editor backups
+*.bak
+*.bak-*
+
+# nested, unrelated git project (its own history)
+HTS100Demo/
+
+# OS
+Thumbs.db
+.DS_Store
