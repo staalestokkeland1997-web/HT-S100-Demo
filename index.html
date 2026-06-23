@@ -12,7 +12,7 @@
     font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
   .load{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     text-align:center;padding:24px;transition:opacity .5s ease;}
-  .brand{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#8e8e93;margin-bottom:18px;}
+  .logo{height:34px;width:auto;margin-bottom:22px;filter:brightness(0) invert(1);opacity:.92;}
   h1{font-size:26px;font-weight:700;margin:0 0 28px;}
   .ring{width:46px;height:46px;border-radius:50%;border:3px solid #1f2530;border-top-color:#0A84FF;
     animation:spin .9s linear infinite;}
@@ -25,7 +25,7 @@
 </head>
 <body>
   <div class="load" id="load">
-    <div class="brand">Hatteland Technology</div>
+    <img class="logo" src="uploads/HT_Main_Logo_Black_Web.svg" alt="Hatteland Technology">
     <h1>Meridian ECDIS</h1>
     <div class="ring"></div>
     <div class="status" id="status">Loading chart engine…</div>
