@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hatteland Technology — Meridian ECDIS</title>
+<title>Hatteland Technology — HT ECDIS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -26,21 +26,21 @@
 <body>
   <div class="load" id="load">
     <img class="logo" src="uploads/HT_Main_Logo_Black_Web.svg" alt="Hatteland Technology">
-    <h1>Meridian ECDIS</h1>
+    <h1>HT ECDIS</h1>
     <div class="ring"></div>
     <div class="status" id="status">Loading chart engine…</div>
     <div class="alt">
-      or open the <a href="./Helm%20Console.dc.html">Helm Console</a> demo
+      or open the <a href="./helm-console.html">Helm Console</a> demo
     </div>
   </div>
 
 <script>
-  var TARGET = "./Meridian%20ECDIS.dc.html";
+  var TARGET = "./ht-ecdis.html";
   var steps = [
     "Loading chart engine…",
     "Connecting to live chart sources…",
     "Initialising ECDIS portrayal…",
-    "Opening Meridian ECDIS…"
+    "Opening HT ECDIS…"
   ];
   var i = 0, el = document.getElementById("status");
   var t = setInterval(function(){
