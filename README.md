@@ -1,8 +1,8 @@
-# MERIDIAN ECDIS — demo workstation (Hatteland Technology)
+# HT ECDIS — demo workstation (Hatteland Technology)
 
 A modern, iPad-style ECDIS **demonstrator** for Norwegian west-coast waters
 (Stavanger ↔ Bergen), built as a single streaming Design Component:
-`Meridian ECDIS.dc.html`. Open it directly in a browser.
+`ht-ecdis.html`. Open it directly in a browser.
 
 > ⚠️ **DEMO — NOT FOR NAVIGATION.** This is a faithful simulator of ECDIS look &
 > behaviour (IHO S-100 / S-52 presentation principles). It is **not** a
