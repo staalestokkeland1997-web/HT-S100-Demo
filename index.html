@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hatteland Technology — Meridian ECDIS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:#0a0e14;color:#f5f5f7;overflow:hidden;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  .load{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:24px;transition:opacity .5s ease;}
+  .logo{height:34px;width:auto;margin-bottom:22px;filter:brightness(0) invert(1);opacity:.92;}
+  h1{font-size:26px;font-weight:700;margin:0 0 28px;}
+  .ring{width:46px;height:46px;border-radius:50%;border:3px solid #1f2530;border-top-color:#0A84FF;
+    animation:spin .9s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .status{margin-top:20px;font-size:13px;color:#9aa0aa;min-height:18px;}
+  .alt{margin-top:34px;font-size:13px;}
+  .alt a{color:#0A84FF;text-decoration:none;}
+  .alt a:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+  <div class="load" id="load">
+    <img class="logo" src="uploads/HT_Main_Logo_Black_Web.svg" alt="Hatteland Technology">
+    <h1>Meridian ECDIS</h1>
+    <div class="ring"></div>
+    <div class="status" id="status">Loading chart engine…</div>
+    <div class="alt">
+      or open the <a href="./Helm%20Console.dc.html">Helm Console</a> demo
+    </div>
+  </div>
+
+<script>
+  var TARGET = "./Meridian%20ECDIS.dc.html";
+  var steps = [
+    "Loading chart engine…",
+    "Connecting to live chart sources…",
+    "Initialising ECDIS portrayal…",
+    "Opening Meridian ECDIS…"
+  ];
+  var i = 0, el = document.getElementById("status");
+  var t = setInterval(function(){
+    i++;
+    if (i < steps.length) el.textContent = steps[i];
+  }, 650);
+
+  // Warm the target so the heavy demo is cached before we navigate.
+  try { var p = new Image(); } catch(e){}
+  fetch(TARGET, { cache: "force-cache" }).catch(function(){});
+
+  function go(){
+    clearInterval(t);
+    var load = document.getElementById("load");
+    load.style.opacity = "0";
+    setTimeout(function(){ window.location.replace(TARGET); }, 480);
+  }
+  // Give the loading screen a moment, then navigate.
+  setTimeout(go, 2400);
+</script>
+</body>
+</html>
