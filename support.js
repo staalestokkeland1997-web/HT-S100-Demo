@@ -1287,20 +1287,26 @@
       const r = registry.get(name);
       if (r.fetched) return;
       r.fetched = true;
-      const url = COMPONENT_DIR + "/" + encodeURIComponent(name) + ".dc.html";
-      fetch(url).then((res) => {
-        if (!res.ok) {
+      // Try "<Name>.dc.html" first, then kebab-case "<name>.html" (this repo's
+      // files are renamed like "Helm Console.dc.html" -> "helm-console.html").
+      const slug = name.toLowerCase().replace(/\s+/g, "-");
+      const urls = [
+        COMPONENT_DIR + "/" + encodeURIComponent(name) + ".dc.html",
+        COMPONENT_DIR + "/" + encodeURIComponent(slug) + ".html"
+      ];
+      const tryFetch = (i) => {
+        if (i >= urls.length) {
           console.error(
             "[dc-runtime] sibling fetch for <" + name + "/> failed:",
-            url,
-            "returned",
-            res.status,
+            urls.join(", "),
             "\u2014 the reference renders as an empty placeholder."
           );
-          return "";
+          return Promise.resolve("");
         }
-        return res.text();
-      }).then((t) => {
+        return fetch(urls[i]).then((res) => res.ok ? res.text() : tryFetch(i + 1)).catch(() => tryFetch(i + 1));
+      };
+      const url = urls[0];
+      tryFetch(0).then((t) => {
         if (!t) return;
         const parsed = parseDcText(t);
         if (!parsed) {

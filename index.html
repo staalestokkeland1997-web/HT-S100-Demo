@@ -27,10 +27,11 @@
   <div class="load" id="load">
     <img class="logo" src="uploads/HT_Main_Logo_Black_Web.svg" alt="Hatteland Technology">
     <h1>HT ECDIS</h1>
-    <div class="ring"></div>
-    <div class="status" id="status">Loading chart engine…</div>
+    <div class="ring" aria-hidden="true"></div>
+    <div class="status" id="status" aria-live="polite">Loading chart engine…</div>
     <div class="alt">
-      or open the <a href="./helm-console.html">Helm Console</a> demo
+      <a href="./ht-ecdis.html">open now</a>
+      · or open the <a href="./helm-console.html">Helm Console</a> demo
     </div>
   </div>
 
@@ -49,7 +50,6 @@
   }, 650);
 
   // Warm the target so the heavy demo is cached before we navigate.
-  try { var p = new Image(); } catch(e){}
   fetch(TARGET, { cache: "force-cache" }).catch(function(){});
 
   function go(){
