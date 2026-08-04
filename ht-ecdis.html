@@ -1271,6 +1271,33 @@ class Component extends DCLogic {
     return { alter: 0, speedCap: Math.max(2.5, stw * 0.45) };   // confined → slow to a crawl (keep way on; the target is moving and will pass)
   }
   // is a straight course from own ship clear of land/shoal for `dist` nm (half-beam wide)?
+  // Free-running demo mode: no route loaded and nobody at the helm. Without
+  // this the ship holds ONE heading for ever and ploughs straight into the
+  // coast, parking the demo in a permanent LAND AHEAD alarm — guaranteed on a
+  // kiosk display that is left running. Look further ahead than the LAND AHEAD
+  // scan (1.8 nm) so the course alters before that alarm would ever fire.
+  freeSail(sdt) {
+    const o = this.ownShip;
+    const look = Math.max(2.6, o.sog * 15 / 60);
+    const now = performance.now();
+    if (now - (this._freeScan || 0) > 700) {
+      this._freeScan = now;
+      if (this.courseClear(o, o.hdg, look)) this._freeHdg = null;
+      else {
+        let best = null;
+        for (let a = 15; a <= 180 && best == null; a += 15) {
+          for (const sgn of [1, -1]) { const c = (o.hdg + sgn * a + 360) % 360; if (this.courseClear(o, c, look)) { best = c; break; } }
+        }
+        this._freeHdg = best != null ? best : (o.hdg + 180) % 360;
+      }
+    }
+    if (this._freeHdg != null) {
+      const err = ((this._freeHdg - o.hdg + 540) % 360) - 180;
+      if (Math.abs(err) < 1) { o.hdg = this._freeHdg; this._freeHdg = null; }
+      else o.hdg = (o.hdg + Math.max(-5 * sdt, Math.min(5 * sdt, err)) + 360) % 360;
+      o.cog = o.hdg;
+    }
+  }
   courseClear(o, course, dist) {
     const s = this.state, half = Math.max(0.04, (o.beam || 28) / 1852 / 2 + 0.03), n = Math.max(3, Math.ceil(dist / 0.05));
     for (let i = 1; i <= n; i++) { const c = this.moveLL(o.lat, o.lon, course, i / n * dist);
@@ -1298,7 +1325,7 @@ class Component extends DCLogic {
       this.simTime += sdt;
       if (this.helm && this.helm.active) { this.stepHelm(sdt); }
       else if (this.route && (this.autoNav || this._demoSail) && this.activeLeg < this.route.length) { this.stepAutoNav(sdt); }
-      else if (!this.route) { o.sog = Math.max(o.sog, 8); const nd = this.moveLL(o.lat, o.lon, o.hdg, o.sog / 3600 * sdt); o.lat = nd.lat; o.lon = nd.lon; }
+      else if (!this.route) { o.sog = Math.max(o.sog, 8); this.freeSail(sdt); const nd = this.moveLL(o.lat, o.lon, o.hdg, o.sog / 3600 * sdt); o.lat = nd.lat; o.lon = nd.lon; }
     }
     if (this.state.followShip && o) { this.view.lat = o.lat; this.view.lon = o.lon; }
     if (s.simRunning || this.gpsMode) { if (!this.track.length || this.distNm(this.track[this.track.length - 1], o) > 0.08) { this.track.push({ lat: o.lat, lon: o.lon, t: Date.now() }); const cut = Date.now() - 12 * 3600e3; while (this.track.length && (this.track[0].t || 0) < cut) this.track.shift(); if (this.track.length > 1200) this.track.shift(); if (performance.now() - (this._lastTrackSave || 0) > 8000) { this._lastTrackSave = performance.now(); this.persistTrack(); } } }
