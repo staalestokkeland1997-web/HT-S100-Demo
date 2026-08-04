@@ -1287,20 +1287,26 @@
       const r = registry.get(name);
       if (r.fetched) return;
       r.fetched = true;
-      const url = COMPONENT_DIR + "/" + encodeURIComponent(name) + ".dc.html";
-      fetch(url).then((res) => {
-        if (!res.ok) {
+      // Try "<Name>.dc.html" first, then kebab-case "<name>.html" (this repo's
+      // files are renamed like "Helm Console.dc.html" -> "helm-console.html").
+      const slug = name.toLowerCase().replace(/\s+/g, "-");
+      const urls = [
+        COMPONENT_DIR + "/" + encodeURIComponent(name) + ".dc.html",
+        COMPONENT_DIR + "/" + encodeURIComponent(slug) + ".html"
+      ];
+      const tryFetch = (i) => {
+        if (i >= urls.length) {
           console.error(
             "[dc-runtime] sibling fetch for <" + name + "/> failed:",
-            url,
-            "returned",
-            res.status,
+            urls.join(", "),
             "\u2014 the reference renders as an empty placeholder."
           );
-          return "";
+          return Promise.resolve("");
         }
-        return res.text();
-      }).then((t) => {
+        return fetch(urls[i]).then((res) => res.ok ? res.text() : tryFetch(i + 1)).catch(() => tryFetch(i + 1));
+      };
+      const url = urls[0];
+      tryFetch(0).then((t) => {
         if (!t) return;
         const parsed = parseDcText(t);
         if (!parsed) {
@@ -1430,26 +1436,39 @@
     s.textContent = "x-dc{display:none!important}";
     document.head.appendChild(s);
   }
+  var REACT_LOCAL_URL = "./vendor/react.production.min.js";
+  var REACT_DOM_LOCAL_URL = "./vendor/react-dom.production.min.js";
   function loadScript(src, integrity) {
     return new Promise((resolve2, reject) => {
       //! nosemgrep: create-script-element
       const s = document.createElement("script");
       s.src = src;
-      s.integrity = integrity;
-      s.crossOrigin = "anonymous";
+      if (integrity) {
+        s.integrity = integrity;
+        s.crossOrigin = "anonymous";
+      }
       s.async = false;
       s.onload = () => resolve2();
-      s.onerror = () => reject(new Error(`failed to load ${src}`));
+      s.onerror = () => {
+        s.remove();
+        reject(new Error(`failed to load ${src}`));
+      };
       document.head.appendChild(s);
     });
   }
   function loadReactUmd() {
     const w = window;
     if (w.React && w.ReactDOM) return Promise.resolve();
+    // Prefer the vendored copies in ./vendor (works offline / on a local
+    // machine with no CDN access); fall back to unpkg if they are missing.
+    // The local load skips SRI/crossOrigin so it also works from file://.
     return Promise.all([
+      loadScript(REACT_LOCAL_URL),
+      loadScript(REACT_DOM_LOCAL_URL)
+    ]).catch(() => Promise.all([
       loadScript(REACT_URL, REACT_SRI),
       loadScript(REACT_DOM_URL, REACT_DOM_SRI)
-    ]).then(() => void 0);
+    ])).then(() => void 0);
   }
   function init() {
     const runtime = createRuntime(document);

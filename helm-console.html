@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
+<script src="./kiosk.js"></script>
 </head>
 <body>
 <x-dc>
 <helmet>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="vendor/fonts/inter.css" rel="stylesheet">
 <style>
   *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
   html,body{margin:0;padding:0;min-height:100%;background:#cfe0e8;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
@@ -411,18 +411,16 @@ class Component extends DCLogic {
   };
 
   componentDidMount() {
-    if (this.props.defaultPalette) this.state.palette = this.props.defaultPalette;
+    if (this.props.defaultPalette) this.setState({ palette: this.props.defaultPalette }, () => this.applyTheme());
     this.shipName = this.props.shipName || 'M/S MERIDIAN';
-    this.SID = (window.__mrdSid || (window.__mrdSid = Math.random().toString(36).slice(2)));
     try { this.ch = new BroadcastChannel('meridian-helm'); this.ch.onmessage = (e) => this.onMsg(e.data); } catch (e) { this.ch = null; }
     this.applyTheme();
-    setTimeout(() => { this.applyTheme(); this.helloAndPost(); this.placeLever(); }, 40);
+    this._mountT = setTimeout(() => { this.applyTheme(); this.helloAndPost(); this.placeLever(); }, 40);
     this._raf = requestAnimationFrame(this.loop);
-    this._ui = setInterval(this.tickUI, 90); this.tickUI();
-    this._beat = setInterval(() => this.postCmd(), 600);
+    this.tickUI();
+    this._beat = setInterval(() => this.postCmd({ heartbeat: true }), 600);
   }
-  componentWillUnmount() { cancelAnimationFrame(this._raf); clearInterval(this._beat); clearInterval(this._ui); this.nfuStop(); if (this.ch) { try { this.ch.close(); } catch (e) {} } }
-  componentDidUpdate(pp, ps) { if (ps && ps.palette !== this.state.palette) this.applyTheme(); }
+  componentWillUnmount() { cancelAnimationFrame(this._raf); clearInterval(this._beat); clearTimeout(this._mountT); if (this._holdT) clearTimeout(this._holdT); this.nfuStop(); for (const [mv, up] of [[this.leverMove, this.leverUp], [this.wheelMove, this.wheelUp], [this.rudMove, this.rudUp], [this.thrMove, this.thrUp]]) { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); } if (this.ch) { try { this.ch.close(); } catch (e) {} } }
 
   rootRef = (el) => { this.root = el; if (el) this.applyTheme(); };
   miniWrapRef = (el) => { this.miniWrap = el; };
@@ -456,9 +454,13 @@ class Component extends DCLogic {
 
   applyTheme() { if (!this.root) return; const u = this.PAL[this.state.palette] || this.PAL.day; const st = this.root.style; for (const k in u) { if (k === 'logo') st.setProperty('--logofilter', u.logo); else st.setProperty('--' + k, u[k]); } try { document.body.style.background = u.bg; } catch (e) {} }
 
-  helloAndPost() { if (this.ch) { try { this.ch.postMessage({ type: 'helmHello', sid: this.SID, t: Date.now() }); } catch (e) {} } this.postCmd(); this.postMiniZoom(); }
-  onMsg(m) { if (!m) return; if (m.sid && m.sid !== this.SID) return; if (m.type === 'state' && m.ship) { this.ship = m.ship; this.lastState = Date.now(); } else if (m.type === 'mini' && m.img) { if (this.miniImg) this.miniImg.src = m.img; if (this.miniWrap) this.miniWrap.style.display = 'block'; this._miniT = Date.now(); } }
-  postCmd() { if (!this.ch) return; const s = this.state; const ord = this.ORDERS[s.telegraph] || this.ORDERS[5]; try { this.ch.postMessage({ type: 'cmd', sid: this.SID, t: Date.now(), cmd: { active: s.active, rudder: s.rudder, orderedSpeed: ord.kn, telegraph: ord.label, ap: s.ap, apHeading: s.apHeading, bowThr: s.bowThr, sternThr: s.sternThr, mode: s.mode, mob: s.mob } }); } catch (e) {} }
+  helloAndPost() { if (this.ch) { try { this.ch.postMessage({ type: 'helmHello', t: Date.now() }); } catch (e) {} } this.postCmd(); this.postMiniZoom(); }
+  // Role-based filtering: the helm only consumes ECDIS-originated types
+  // ('state'/'mini'), so the link also works across browser tabs.
+  onMsg(m) { if (!m) return; if (m.type === 'state' && m.ship) { this.ship = m.ship; this.lastState = Date.now(); } else if (m.type === 'mini' && m.img) { if (this.miniImg) this.miniImg.src = m.img; if (this.miniWrap) this.miniWrap.style.display = 'block'; this._miniT = Date.now(); } }
+  // `extra` carries one-shot flags (e.g. {takeover:true} when the USER takes the
+  // helm) so the ECDIS can tell real intent from the periodic heartbeat.
+  postCmd(extra) { if (!this.ch) return; const s = this.state; const ord = this.ORDERS[s.telegraph] || this.ORDERS[5]; try { this.ch.postMessage({ type: 'cmd', t: Date.now(), cmd: Object.assign({ active: s.active, rudder: s.rudder, orderedSpeed: ord.kn, telegraph: ord.label, ap: s.ap, apHeading: s.apHeading, bowThr: s.bowThr, sternThr: s.sternThr, mode: s.mode, mob: s.mob }, extra || null) }); } catch (e) {} }
 
   set(ro, v) { const e = this.ros[ro]; if (e && e.textContent !== v) e.textContent = v; }
   fmtPos(lat, lon) { if (lat == null) return '—'; const f = (v, p, n, d) => { const h = v >= 0 ? p : n; v = Math.abs(v); const dg = Math.floor(v); return String(dg).padStart(d, '0') + '°' + ((v - dg) * 60).toFixed(2).padStart(5, '0') + '′' + h; }; return f(lat, 'N', 'S', 2) + '  ' + f(lon, 'E', 'W', 3); }
@@ -488,12 +490,13 @@ class Component extends DCLogic {
   loop = () => { this._raf = requestAnimationFrame(this.loop); this.tickUI(); };
   tickUI = () => {
     const sh = this.ship || {}, s = this.state; const linked = (Date.now() - this.lastState) < 1500 && this.lastState > 0;
-    const ext = !!sh.autoNav && linked; if (ext !== this._ext) { this._ext = ext; this.setState({ extControl: ext }); }
+    const ext = !!sh.autoNav && linked; if (ext !== this._ext) { this._ext = ext; this.setState(ext ? { extControl: true, active: false, ap: false } : { extControl: false }); }
+    if (this.miniWrap && this._miniT && (!linked || Date.now() - this._miniT > 3000)) { this.miniWrap.style.display = 'none'; this._miniT = 0; }
     const now = new Date(); this.set('clock', String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0'));
-    const hdg = sh.hdg, cog = sh.cog;
-    this.set('hdg', hdg != null ? hdg.toFixed(0).padStart(3, '0') : '---');
-    this.set('hdgc', hdg != null ? hdg.toFixed(0).padStart(3, '0') : '---');
-    this.set('cog', cog != null ? cog.toFixed(0).padStart(3, '0') : '---');
+    const hdg = sh.hdg, cog = sh.cog; const f3 = (v) => String(Math.round(v) % 360).padStart(3, '0');
+    this.set('hdg', hdg != null ? f3(hdg) : '---');
+    this.set('hdgc', hdg != null ? f3(hdg) : '---');
+    this.set('cog', cog != null ? f3(cog) : '---');
     const sogV = sh.sog != null ? (Math.abs(sh.sog) < 0.05 ? 0 : sh.sog) : null;
     this.set('sog', sogV != null ? sogV.toFixed(1) : '--');
     this.set('sog2', sogV != null ? sogV.toFixed(1) + ' kn' : '-- kn');
@@ -505,6 +508,7 @@ class Component extends DCLogic {
     const ordL = this.ORDERS[s.telegraph] || this.ORDERS[5];
     const ordEff = ext ? this.ORDERS[this.nearestOrder(sh.sog)] : ordL;
     this.set('eng', ordEff.kn === 0 ? 'STOP' : (ordEff.kn > 0 ? '+' : '') + ordEff.kn);
+    this.set('leverOrder', ordEff.label); this.set('leverDir', ordEff.kn > 0 ? 'AHEAD' : ordEff.kn < 0 ? 'ASTERN' : 'STOPPED');
     this.set('dep', sh.depth != null ? sh.depth.toFixed(0) : '--');
     this.set('ukc', sh.ukc != null ? sh.ukc.toFixed(1) : '--');
     this.set('pos', this.fmtPos(sh.lat, sh.lon));
@@ -569,10 +573,10 @@ class Component extends DCLogic {
   apToCurrent() { this.setState({ active: true, mode: 'auto', ap: true, apHeading: Math.round(this.ship.hdg || 0) }, () => this.postCmd()); }
   setThr(k, v) { this.setState({ active: true, [k]: Math.max(-100, Math.min(100, v)) }, () => this.postCmd()); }
   nearestOrder(sog) { let bi = 5, bd = 1e9; for (let i = 0; i < this.ORDERS.length; i++) { const d = Math.abs(this.ORDERS[i].kn - (sog || 0)); if (d < bd) { bd = d; bi = i; } } return bi; }
-  toggleEngage() { const active = !this.state.active; if (active) { const ti = this.nearestOrder(this.ship && this.ship.sog); this.setState({ active: true, telegraph: ti, rudder: 0, mode: 'hand', ap: false }, () => { this.postCmd(); this.placeLever(); }); this.pushBell('Helm active · ' + this.ORDERS[ti].label, this.ORDERS[ti].kn); } else { this.setState({ active: false }, () => this.postCmd()); this.pushBell('Helm released', 0); } }
+  toggleEngage() { const active = !this.state.active; if (active) { const ti = this.nearestOrder(this.ship && this.ship.sog); this.setState({ active: true, extControl: false, telegraph: ti, rudder: 0, mode: 'hand', ap: false }, () => { this.postCmd(); this.placeLever(); }); this.pushBell('Helm active · ' + this.ORDERS[ti].label, this.ORDERS[ti].kn); } else { this.setState({ active: false }, () => this.postCmd()); this.pushBell('Helm released', 0); } }
   setPalette(p) { this.setState({ palette: p }, () => this.applyTheme()); }
   setMiniZoom(dir) { let z = (this.state.miniZoom || 0.6) * (dir < 0 ? 0.72 : 1.4); z = Math.max(0.22, Math.min(1.0, z)); this.setState({ miniZoom: z }, () => this.postMiniZoom()); }
-  postMiniZoom() { if (this.ch) { try { this.ch.postMessage({ type: 'miniZoom', sid: this.SID, frac: this.state.miniZoom }); } catch (e) {} } }
+  postMiniZoom() { if (this.ch) { try { this.ch.postMessage({ type: 'miniZoom', frac: this.state.miniZoom }); } catch (e) {} } }
 
   nfuHold(dir) { this._nfuDir = dir; if (this._nfuT) return; this._nfuT = setInterval(() => { this.setRudder((this.state.rudder || 0) + this._nfuDir * 1.5); }, 70); }
   nfuStop() { if (this._nfuT) { clearInterval(this._nfuT); this._nfuT = null; } }
@@ -605,8 +609,8 @@ class Component extends DCLogic {
     const palB = (a) => C('width:34px;height:32px;border-radius:11px;border:none;background:' + (a ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (a ? '#fff' : 'var(--muted,#8e8e93)') + ';font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;');
     const segM = (a) => C('flex:1;padding:10px 4px;border-radius:9px;border:none;background:' + (a ? 'var(--segon,#fff)' : 'transparent') + ';color:' + (a ? 'var(--accent,#0A84FF)' : 'var(--muted,#8e8e93)') + ';font-size:11px;font-weight:700;letter-spacing:.3px;cursor:pointer;font-family:inherit;');
 
-    const n = this.ORDERS.length, usable = this.TRACKH - this.HH;
-    const orderRows = this.ORDERS.map((o, i) => { const sel = s.telegraph === i; const top = 22 + this.leverTop(i) - 15; const base = o.z === 'a' ? 'var(--green,#34C759)' : o.z === 'r' ? 'var(--red,#FF3B30)' : 'var(--muted,#8e8e93)'; return { label: o.label, kn: o.kn === 0 ? '—' : (o.kn > 0 ? '+' + o.kn : o.kn) + ' kn', set: () => this.setTelegraph(i), style: C('position:absolute;left:0;right:0;top:' + top + 'px;height:30px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 11px;border-radius:9px;border:none;background:' + (sel ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (sel ? '#fff' : 'var(--ink,#1c1c1e)') + ';font-size:11.5px;font-weight:' + (sel ? '700' : '600') + ';cursor:pointer;font-family:inherit;'), tick: C('width:8px;height:8px;border-radius:50%;flex:none;background:' + (sel ? '#fff' : base) + ';'), knStyle: C('font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:700;flex:none;opacity:' + (sel ? '1' : '.75') + ';') }; });
+    // Non-interactive knot scale beside the telegraph lever (template: {{ scaleRows }}).
+    const scaleRows = this.ORDERS.map((o, i) => { const sel = s.telegraph === i; const top = 22 + this.leverTop(i) - 15; const base = o.z === 'a' ? 'var(--green,#34C759)' : o.z === 'r' ? 'var(--red,#FF3B30)' : 'var(--muted,#8e8e93)'; return { tag: o.label, kn: o.kn === 0 ? '—' : (o.kn > 0 ? '+' + o.kn : o.kn) + ' kn', dot: sel ? 'var(--accent,#0A84FF)' : base, knCol: sel ? 'var(--accent,#0A84FF)' : base, style: C('position:absolute;left:0;right:0;top:' + top + 'px;height:30px;display:flex;align-items:center;gap:8px;padding:0 11px;font-size:11px;border-radius:9px;' + (sel ? 'background:var(--seg,rgba(118,118,128,.16));' : '')) }; });
     const notchTicks = this.ORDERS.map((o, i) => { const top = 22 + this.leverTop(i) - 1; const base = o.z === 'a' ? 'var(--green,#34C759)' : o.z === 'r' ? 'var(--red,#FF3B30)' : 'var(--muted,#8e8e93)'; return { style: C('position:absolute;left:9px;width:13px;height:2px;border-radius:1px;top:' + top + 'px;background:' + base + ';opacity:.9;') }; });
 
     const cmd = [['P35', -35], ['P20', -20], ['P10', -10], ['MID', 0], ['S10', 10], ['S20', 20], ['S35', 35]];
@@ -636,7 +640,7 @@ class Component extends DCLogic {
 
     return {
       rootRef: this.rootRef, roRef: this.roRef, miniWrapRef: this.miniWrapRef, miniImgRef: this.miniImgRef, alarmBarRef: this.alarmBarRef, alarmTxtRef: this.alarmTxtRef, compassRotRef: this.compassRotRef, cogBugRef: this.cogBugRef, apBugRef: this.apBugRef, wheelRef: this.wheelRef, rudPtrRef: this.rudPtrRef, rudOrderRef: this.rudOrderRef, rotPtrRef: this.rotPtrRef, sogBarRef: this.sogBarRef, linkRef: this.linkRef, linkDotRef: this.linkDotRef, rpmBarRef: this.rpmBarRef, pitchPtrRef: this.pitchPtrRef, powerBarRef: this.powerBarRef, fuelBarRef: this.fuelBarRef, windArrowRef: this.windArrowRef, leverHandleRef: this.leverHandleRef, leverTrackRef: this.leverTrackRef, wheelHitRef: this.wheelHitRef, rudSurfaceRef: this.rudSurfaceRef, bowThrRef: this.bowThrRef, bowThrKnobRef: this.bowThrKnobRef, sternThrRef: this.sternThrRef, sternThrKnobRef: this.sternThrKnobRef,
-      shipName: this.shipName || 'M/S MERIDIAN', st, railCells, orderRows, notchTicks, cmdBtns, compassTicks, compassLabels, wheelSpokes,
+      shipName: this.shipName || 'M/S MERIDIAN', st, railCells, scaleRows, notchTicks, cmdBtns, compassTicks, compassLabels, wheelSpokes,
       bellRows: s.bell.map(b => ({ t: b.t, label: b.label, kn: b.kn, dotStyle: C('width:7px;height:7px;border-radius:50%;flex:none;background:' + b.dot + ';') })), hasBell: s.bell.length > 0, noBell: s.bell.length === 0,
       onPalDay: () => this.setPalette('day'), onPalDusk: () => this.setPalette('dusk'), onPalNight: () => this.setPalette('night'),
       onGoChart: () => { try { window.dispatchEvent(new CustomEvent('mrd-view', { detail: 'chart' })); } catch (e) {} },

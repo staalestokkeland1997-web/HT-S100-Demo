@@ -1,0 +1,33 @@
+/* Self-hosted Inter (SIL Open Font License 1.1 — see LICENSE.txt).
+   Served from this origin so the UI never depends on fonts.googleapis.com:
+   a stylesheet <link> inside the page body BLOCKS the HTML parser, so an
+   unreachable font host (offline machine, firewalled network, kiosk at sea)
+   would otherwise stop the demo from booting at all. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./inter-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./inter-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./inter-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./inter-latin-700-normal.woff2') format('woff2');
+}

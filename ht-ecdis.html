@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
+<script src="./kiosk.js"></script>
 </head>
 <body>
 <x-dc>
 <helmet>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="vendor/fonts/inter.css" rel="stylesheet">
 <style>
   *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
   html,body{margin:0;padding:0;height:100%;background:#0a0e14;overflow:hidden;}
@@ -137,6 +137,28 @@
               <button onClick="{{ onToggleGps }}" style="{{ gpsSwitch }}"><span style="{{ gpsKnob }}"></span></button>
             </div>
             <div style="font-size:9.5px;color:var(--muted,#8e8e93);">GPS status: <span style="color:var(--accent,#0A84FF);font-weight:600;">{{ gpsStatusLabel }}</span></div>
+            <div style="border-top:0.5px solid var(--hair,rgba(60,60,67,.12));padding-top:11px;">
+              <button onClick="{{ onToggleProxy }}" style="display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;padding:0;cursor:pointer;font-family:inherit;text-align:left;">
+                <span style="display:flex;align-items:center;gap:7px;min-width:0;"><span style="font-size:9px;color:var(--muted,#8e8e93);width:10px;flex:none;">{{ proxyChevron }}</span><span style="font-size:12px;font-weight:600;color:var(--ink,#1c1c1e);">Data proxy</span></span>
+                <span style="{{ proxyStatusStyle }}">{{ proxyStatusLabel }}</span>
+              </button>
+              <sc-if value="{{ proxyOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:6px;margin-top:9px;">
+                  <input type="text" placeholder="http://localhost:8000/proxy" defaultValue="{{ proxyVal }}" onInput="{{ onProxyInput }}" style="flex:1;min-width:0;background:var(--seg,rgba(118,118,128,.14));border:0.5px solid var(--hair,rgba(60,60,67,.15));border-radius:9px;padding:7px 10px;font-size:11px;color:var(--ink,#1c1c1e);font-family:inherit;outline:none;"/>
+                  <button onClick="{{ onProxySave }}" style="padding:7px 12px;border-radius:9px;border:none;background:var(--accent,#0A84FF);color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;">Save</button>
+                </div>
+                <div style="font-size:9.5px;color:var(--muted,#8e8e93);margin-top:5px;line-height:1.4;">Routes yr/MET and Kartverket tide requests through a CORS proxy. Auto-detected at <b>/proxy</b> when the demo runs via <b>run-local</b> / server.js. Leave empty for direct calls.</div>
+              </sc-if>
+            </div>
+            <div style="border-top:0.5px solid var(--hair,rgba(60,60,67,.12));padding-top:11px;display:flex;flex-direction:column;gap:7px;">
+              <div style="font-size:9px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;">PROVIDER STATUS</div>
+              <sc-for list="{{ srcRows }}" as="sr" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <span style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="width:6px;height:6px;border-radius:50%;background:{{ sr.dot }};flex:none;"></span><span style="font-size:11px;color:var(--ink,#1c1c1e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ sr.name }}</span></span>
+                  <span style="font-size:9.5px;color:var(--muted,#8e8e93);flex:none;">{{ sr.status }}</span>
+                </div>
+              </sc-for>
+            </div>
           </div>
 
           <div style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;padding:15px 2px 8px;display:flex;justify-content:space-between;align-items:center;">
@@ -181,7 +203,7 @@
 
           <div style="{{ cardInner }}padding:11px 13px;margin-top:14px;font-size:10.5px;line-height:1.5;color:var(--muted,#8e8e93);">
             <div style="display:flex;justify-content:space-between;color:var(--ink,#1c1c1e);font-weight:600;margin-bottom:4px;"><span>Data provenance</span><span style="color:#34C759;">● Live charts</span></div>
-            Charts &amp; imagery are live official APIs (Kartverket · OpenSeaMap · EMODnet · Esri). Own-ship, AIS &amp; currents are simulated — live AIS/tide feeds need a server with API credentials (browser CORS-blocked).
+            Charts &amp; imagery are live official APIs (Kartverket · OpenSeaMap · EMODnet · Esri). Weather &amp; currents are live MET/yr. AIS is simulated until an aisstream.io key is added; Kartverket tide needs the data proxy (auto-detected when running locally).
           </div>
         </div>
       </sc-if>
@@ -195,6 +217,15 @@
               <button onClick="{{ onPlanToggle }}" style="{{ st.planBtn }}">{{ planBtnLabel }}</button>
               <button onClick="{{ onLoadDemo }}" style="{{ st.demoBtn }}">Sample voyage</button>
               <button onClick="{{ onClearRoute }}" title="Clear" style="{{ st.clearBtn }}">✕</button>
+            </div>
+          </div>
+          <div style="{{ cardInner }}padding:10px 13px;margin-bottom:11px;display:flex;align-items:center;gap:10px;">
+            <button onClick="{{ onToggleSim }}" title="Start / pause simulation" style="{{ st.playBtn }}">{{ playIcon }}</button>
+            <div style="flex:1;min-width:0;line-height:1.25;"><div style="font-size:9.5px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:600;">SIMULATION</div><div style="font-size:12px;font-weight:600;color:var(--ink,#1c1c1e);">{{ simStateLabel }}</div></div>
+            <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:10px;padding:2px;flex:none;">
+              <button onClick="{{ onSpeed1 }}" style="{{ st.spd1 }}">1×</button>
+              <button onClick="{{ onSpeed8 }}" style="{{ st.spd8 }}">8×</button>
+              <button onClick="{{ onSpeed30 }}" style="{{ st.spd30 }}">30×</button>
             </div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:11px;">
@@ -296,7 +327,6 @@
     </button>
     <button onClick="{{ onToolRoute }}" title="Plan route — tap chart" style="{{ toolRouteStyle }}">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="7.5" y1="16.5" x2="16.5" y2="7.5" stroke-dasharray="3 2.5"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="6" r="2.4"/></svg>
-    </button>
     </button>
     <!-- auto-route moved to bottom dock -->
     <button onClick="{{ onToolPick }}" title="Object info" style="{{ toolPickStyle }}">
@@ -580,14 +610,14 @@
 <script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:&quot;100%&quot;,&quot;height&quot;:&quot;100%&quot;},&quot;productName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;HT ECDIS&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#0A84FF&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;defaultPalette&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;day&quot;,&quot;dusk&quot;,&quot;night&quot;],&quot;default&quot;:&quot;day&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
 class Component extends DCLogic {
   state = {
-    palette: 'day', base: 'sjokart', orient: 'north',
+    palette: (this.props && this.props.defaultPalette) || 'day', base: 'sjokart', orient: 'north',
     shallowC: 2, safetyC: 10, deepC: 20, safetyD: 7,
     tool: 'pan', planning: false, rightTab: 'chart', rightOpen: true,
     simRunning: true, simSpeed: 1, displayCat: 'all',
     sensorFail: { gnss: false, gyro: false }, replay: { on: false, playing: false, pos: 1 }, routeChkVer: 0, predMin: 6, hazardWarn: true, voyOpen: false, cpaLimit: 0.5, tcpaLimit: 12,
     layers: { s101: true, s102: false, s104: true, s111: true, s124: true, s129: true, ais: true, route: true, wind: false, waves: false, radar: false, trails: true, lights: true, temp: false, clouds: true, density: false, precip: false },
     alarms: [], aisSummary: [], routeVer: 0, pick: null, metVer: 0,
-    wxOpen: false, tideOpen: false, gyroOpen: false, conningOpen: false, shipUnlocked: false, autoMin: false, autoOpen: false, followShip: false, aisKeyOpen: false, aisMode: 'sim', aisStatus: 'off', gpsStatus: 'off',
+    wxOpen: false, tideOpen: false, gyroOpen: false, conningOpen: false, shipUnlocked: false, autoMin: false, autoOpen: false, followShip: false, aisKeyOpen: false, aisMode: 'sim', aisStatus: 'off', gpsStatus: 'off', proxyOpen: false, srcVer: 0,
   };
   ros = {}; ownShip = { lat: 60.06, lon: 5.00, hdg: 18, cog: 18, sog: 0, len: 180, beam: 28, rudder: 0 }; channel = 0.2; route = null; activeLeg = 1; met = {}; tiles = (typeof window !== 'undefined' ? (window.__mrdTiles = window.__mrdTiles || {}) : {}); tileLoading = (typeof window !== 'undefined' ? (window.__mrdTileLoading = window.__mrdTileLoading || {}) : {});
   kv(L, z, x, y) { return `https://cache.kartverket.no/v1/wmts/1.0.0/${L}/default/webmercator/${z}/${y}/${x}.png`; }
@@ -600,7 +630,6 @@ class Component extends DCLogic {
   componentDidMount() {
     this.brandName = this.props.productName || 'HT ECDIS';
     this.accent = this.props.accentColor || '#0A84FF';
-    if (this.props.defaultPalette) this.state.palette = this.props.defaultPalette;
     this.bbox = { latMin: 56.0, latMax: 64.0, lonMin: 0.5, lonMax: 10.5 };
     this.aisBox = { latMin: 57.0, latMax: 71.8, lonMin: 1.5, lonMax: 31.5 };
     this.cosMid = Math.cos(60.0 * Math.PI / 180);
@@ -618,19 +647,21 @@ class Component extends DCLogic {
     this.lights = [ { lat: 60.1175, lon: 5.012, col: 'W', per: 4, on: 2, label: 'Iso W 4s' }, { lat: 60.398, lon: 5.305, col: 'R', per: 3, on: 0.4, label: 'Fl R 3s' }, { lat: 59.95, lon: 5.18, col: 'G', per: 5, on: 0.5, label: 'Fl G 5s' }, { lat: 60.27, lon: 5.205, col: 'W', per: 6, on: 0.6, label: 'Fl W 6s' }, { lat: 59.43, lon: 5.27, col: 'W', per: 10, on: 1, label: 'Oc W 10s' }, { lat: 60.50, lon: 4.95, col: 'R', per: 8, on: 0.5, label: 'Fl R 8s' } ];
     this.carveShoals(); this.routeDepth = this.depth; this.initShip(); this.initParticles(); this.initClouds(); this.recomputeSafety(); this.buildTempField(); this.buildPrecipField(); this.applyTheme();
     this.fetchLandMask();
+    this.fetchDepth();
     this.loadTrack();
     this.loadRoute();
     this.initHelm();
     this.aisLive = null; this.gpsMode = false;
-    this._aisKeyInput = '1359f173a821db5d3b6b8278a865a3eeae17dfdc';
-    setTimeout(() => this.connectAis(this._aisKeyInput), 400);
+    this.loadSrcCfg();
+    if (this._aisKeyInput) setTimeout(() => this.connectAis(this._aisKeyInput), 400);
+    this.detectProxy();
     this.fetchMet(); this.fetchCurrentField(); this.fetchTide(); this.fetchAlerts(); this.ensureCoastline(); this._metTimer = setInterval(() => { this.fetchMet(); this.fetchAlerts(); }, 600000); this.buildSpeedField('wind'); this._fieldTimer = setInterval(() => { if (document.hidden) return; const L = this.state.layers; if (L.wind) this.buildSpeedField('wind'); if (L.s111) this.buildSpeedField('cur'); if (L.precip) this.buildPrecipField(); }, 4000); this._cfTimer = setInterval(() => this.fetchCurrentField(), 1800000); this._tideTimer = setInterval(() => this.fetchTide(), 900000);
     this._raf = requestAnimationFrame(this.frame);
     setTimeout(() => this.resize(), 60); setTimeout(() => this.resize(), 320);
     this._lastWall = performance.now();
     this._watch = setInterval(() => { if (!document.hidden && performance.now() - (this._lastWall || 0) > 300) this.frame(performance.now()); }, 250);
   }
-  componentWillUnmount() { cancelAnimationFrame(this._raf); clearInterval(this._watch); clearInterval(this._metTimer); clearInterval(this._cfTimer); clearInterval(this._tideTimer); clearInterval(this._fieldTimer); clearInterval(this._shipPost); clearInterval(this._depthTimer); clearInterval(this._miniTimer); window.removeEventListener('mrd-view', this._navClose); if (this.helmCh) { try { this.helmCh.close(); } catch (e) {} } this.disconnectAis(); this.stopGps(); if (this._ro) this._ro.disconnect(); if (this.canvas) { this.canvas.removeEventListener('wheel', this.onWheel); this.canvas.removeEventListener('pointerdown', this.onDown); } window.removeEventListener('pointermove', this.onMove); window.removeEventListener('pointerup', this.onUp); }
+  componentWillUnmount() { cancelAnimationFrame(this._raf); clearInterval(this._watch); clearInterval(this._metTimer); clearInterval(this._cfTimer); clearInterval(this._tideTimer); clearInterval(this._fieldTimer); clearInterval(this._shipPost); clearInterval(this._depthTimer); clearInterval(this._miniTimer); clearInterval(this._planRetry); window.removeEventListener('mrd-view', this._navClose); if (this.helmCh) { try { this.helmCh.close(); } catch (e) {} } this.disconnectAis(); this.stopGps(); if (this._ro) this._ro.disconnect(); if (this.canvas) { this.canvas.removeEventListener('wheel', this.onWheel); this.canvas.removeEventListener('pointerdown', this.onDown); } window.removeEventListener('pointermove', this.onMove); window.removeEventListener('pointerup', this.onUp); }
   componentDidUpdate() { const p = this._prev, s = this.state; if (p.palette !== s.palette) this.applyTheme(); if (p.safetyC !== s.safetyC || p.shallowC !== s.shallowC || p.deepC !== s.deepC) { this.recomputeSafety(); this.groundFired = false; } this._prev = { palette: s.palette, safetyC: s.safetyC, shallowC: s.shallowC, deepC: s.deepC }; }
 
   rootRef = (el) => { this.root = el; };
@@ -641,7 +672,7 @@ class Component extends DCLogic {
   gyroNeedleRef = (el) => { this.gyroNeedle = el; };
   gyroCardRef = (el) => { this.gyroCard = el; };
   mapWrapRef = (el) => { this.wrap = el; };
-  canvasRef = (el) => { if (!el || el === this.canvas) return; this.canvas = el; this.ctx = el.getContext('2d'); el.addEventListener('wheel', this.onWheel, { passive: false }); el.addEventListener('pointerdown', this.onDown); window.addEventListener('pointermove', this.onMove); window.addEventListener('pointerup', this.onUp); this._ro = new ResizeObserver(() => this.resize()); this._ro.observe(this.wrap || el); this.resize(); };
+  canvasRef = (el) => { if (!el || el === this.canvas) return; if (this._ro) this._ro.disconnect(); if (this.canvas) { this.canvas.removeEventListener('wheel', this.onWheel); this.canvas.removeEventListener('pointerdown', this.onDown); } this.canvas = el; this.ctx = el.getContext('2d'); el.addEventListener('wheel', this.onWheel, { passive: false }); el.addEventListener('pointerdown', this.onDown); window.addEventListener('pointermove', this.onMove); window.addEventListener('pointerup', this.onUp); this._ro = new ResizeObserver(() => this.resize()); this._ro.observe(this.wrap || el); this.resize(); };
   resize() { if (!this.canvas) return; const w = this.canvas.clientWidth || (this.wrap && this.wrap.clientWidth) || window.innerWidth, h = this.canvas.clientHeight || (this.wrap && this.wrap.clientHeight) || window.innerHeight; if (!w || !h) return; this.W = w; this.H = h; this.canvas.width = Math.round(w * this.dpr); this.canvas.height = Math.round(h * this.dpr); this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); }
   applyTheme() { const P = this.PAL[this.state.palette], u = P.ui; if (!this.root) return; const st = this.root.style; st.setProperty('--bg', u.bg); st.setProperty('--ink', u.ink); st.setProperty('--muted', u.muted); st.setProperty('--glassbg', u.glassBg); st.setProperty('--glassbd', u.glassBd); st.setProperty('--seg', u.seg); st.setProperty('--hair', u.hair); st.setProperty('--card', u.card); st.setProperty('--shadow', u.shadow); st.setProperty('--attr', u.attr); st.setProperty('--attrbg', u.attrbg); st.setProperty('--accent', this.accent); st.setProperty('--logoFilter', P.logo); }
 
@@ -667,7 +698,7 @@ class Component extends DCLogic {
     const B = this.bbox, W = this.GW, H = this.GH;
     const url = `https://ows.emodnet-bathymetry.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:mean_multicolour&styles=&format=image/png&transparent=true&crs=EPSG:4326&width=${W}&height=${H}&bbox=${B.latMin},${B.lonMin},${B.latMax},${B.lonMax}`;
     const img = new Image(); img.crossOrigin = 'anonymous';
-    img.onload = () => { try { const c = document.createElement('canvas'); c.width = W; c.height = H; const cx = c.getContext('2d'); cx.drawImage(img, 0, 0, W, H); const dt = cx.getImageData(0, 0, W, H).data; const f = new Float32Array(W * H); for (let i = 0; i < W * H; i++) { const r = dt[i * 4], g = dt[i * 4 + 1], b = dt[i * 4 + 2], a = dt[i * 4 + 3]; if (a < 40) { f[i] = -6; continue; } let d = ((b - r) + 50) * 2.4 + (g - r) * 0.4; f[i] = Math.max(0.5, Math.min(500, d)); } for (let pass = 0; pass < 2; pass++) { const cp = f.slice(); for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; if (cp[i] <= 0) continue; let s = 0, n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = i + dy * W + dx; if (cp[j] > 0) { s += cp[j]; n++; } } if (n) f[i] = s / n; } } this.depth = f; this.carveShoals(); this.recomputeSafety(); if (this.ros.depthSrc) this.ros.depthSrc.textContent = 'EMODnet ✓'; } catch (e) { if (this.ros.depthSrc) this.ros.depthSrc.textContent = 'modelled'; } };
+    img.onload = () => { try { const c = document.createElement('canvas'); c.width = W; c.height = H; const cx = c.getContext('2d'); cx.drawImage(img, 0, 0, W, H); const dt = cx.getImageData(0, 0, W, H).data; const f = new Float32Array(W * H); for (let i = 0; i < W * H; i++) { const r = dt[i * 4], g = dt[i * 4 + 1], b = dt[i * 4 + 2], a = dt[i * 4 + 3]; if (a < 40) { f[i] = -6; continue; } let d = ((b - r) + 50) * 2.4 + (g - r) * 0.4; f[i] = Math.max(0.5, Math.min(500, d)); } for (let pass = 0; pass < 2; pass++) { const cp = f.slice(); for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; if (cp[i] <= 0) continue; let s = 0, n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = i + dy * W + dx; if (cp[j] > 0) { s += cp[j]; n++; } } if (n) f[i] = s / n; } } this.depth = f; this.routeDepth = f; this._gridCache = null; this.carveShoals(); this.recomputeSafety(); this._depthLive = true; if (this.ros.depthSrc) this.ros.depthSrc.textContent = 'EMODnet ✓'; } catch (e) { if (this.ros.depthSrc) this.ros.depthSrc.textContent = 'modelled'; } };
     img.onerror = () => { if (this.ros.depthSrc) this.ros.depthSrc.textContent = 'modelled'; };
     img.src = url;
   }
@@ -680,7 +711,7 @@ class Component extends DCLogic {
     img.src = url;
   }
   landAt(lat, lon) { if (!this.landMask) return false; const [fx, fy] = this.gi(lat, lon); const x = Math.round(fx), y = Math.round(fy); if (x < 0 || y < 0 || x >= this.GW || y >= this.GH) return false; return this.landMask[y * this.GW + x] === 1; }
-  tilePixData(z, x, y) { const n = Math.pow(2, z); x = ((x % n) + n) % n; const key = z + '/' + x + '/' + y; this._tpx = this._tpx || {}; if (key in this._tpx) return this._tpx[key]; const img = this.tiles['sjokart/' + z + '/' + x + '/' + y]; if (!img) return null; try { const c = this._tpxC || (this._tpxC = document.createElement('canvas')); c.width = 256; c.height = 256; const cx = c.getContext('2d', { willReadFrequently: true }); cx.clearRect(0, 0, 256, 256); cx.drawImage(img, 0, 0, 256, 256); this._tpx[key] = cx.getImageData(0, 0, 256, 256).data; } catch (e) { this._tpx[key] = null; } return this._tpx[key]; }
+  tilePixData(z, x, y) { const n = Math.pow(2, z); x = ((x % n) + n) % n; const key = z + '/' + x + '/' + y; this._tpx = this._tpx || {}; if (key in this._tpx) return this._tpx[key]; const img = this.tiles['sjokart/' + z + '/' + x + '/' + y]; if (!img) return null; try { const c = this._tpxC || (this._tpxC = document.createElement('canvas')); c.width = 256; c.height = 256; const cx = c.getContext('2d', { willReadFrequently: true }); cx.clearRect(0, 0, 256, 256); cx.drawImage(img, 0, 0, 256, 256); this._tpx[key] = cx.getImageData(0, 0, 256, 256).data; } catch (e) { this._tpx[key] = null; } const ks = this._tpxKeys || (this._tpxKeys = []); ks.push(key); while (ks.length > 300) delete this._tpx[ks.shift()]; return this._tpx[key]; }
   chartLandAt(lat, lon, Z) { Z = Z || 12; const [px, py] = this.project(lat, lon, Z); const xt = Math.floor(px / 256), yt = Math.floor(py / 256); const data = this.tilePixData(Z, xt, yt); if (!data) { this.tileImg('sjokart', Z, xt, yt); return null; } const ix = Math.min(255, Math.max(0, Math.floor(px - xt * 256))), iy = Math.min(255, Math.max(0, Math.floor(py - yt * 256))); const o = (iy * 256 + ix) * 4; const r = data[o], g = data[o + 1], b = data[o + 2], a = data[o + 3]; if (a < 10) return null; return (r > 190 && g > 178 && b < 214 && (r - b) > 17 && (g - b) > 3); }
   recomputeSafety() {
     const s = this.state, B = this.bbox; const mx = (lon) => (lon + 180) / 360, my = (lat) => 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI);
@@ -716,8 +747,8 @@ class Component extends DCLogic {
     const mk = (lat, lon, name, type, hdg, sog, col) => ({ lat, lon, name, type, hdg, cog: hdg, sog, col, dangerous: false });
     this.ais = [ mk(60.18, 5.00, 'NORDIC STAR', 'Cargo', 245, 12.5, '#0A84FF'), mk(60.05, 5.05, 'BERGEN PEARL', 'HSC', 30, 22, '#34C759'), mk(59.80, 4.78, 'GAS PIONEER', 'Tanker', 150, 11, '#FF9F0A'), mk(59.40, 5.10, 'HAVFISK', 'Fishing', 95, 5.5, '#BF5AF2'), mk(60.33, 4.85, 'FJORD PILOT', 'Pilot', 200, 14, '#FF375F'), mk(59.55, 4.62, 'STENA LINK', 'Ro-Ro', 75, 18, '#30B0C7') ];
   }
-  loadDemoRoute() { const r = (lat, lon) => ({ lat, lon }); this.route = [r(59.985, 4.66), r(60.04, 4.78), r(60.075, 4.90), r(60.115, 5.00), r(60.165, 5.08), r(60.225, 5.17), r(60.30, 5.235), r(60.345, 5.27)]; this.channel = 0.2; this.activeLeg = 1; this.groundFired = false; this.track = []; const o = this.ownShip; o.lat = this.route[0].lat; o.lon = this.route[0].lon; o.sog = 0; const b = this.bearingDeg(this.route[0], this.route[1]); o.hdg = b; o.cog = b; this.view.lat = o.lat; this.view.lon = o.lon; this.view.zoom = 11.2; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1, simRunning: true, simSpeed: 1, rightTab: 'route', planning: false, tool: 'pan' }); }
-  clearRoute() { this.route = null; this.track = []; this.activeLeg = 1; this.routeCheck = null; this.autoNav = false; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1, simRunning: false }); }
+  loadDemoRoute() { const r = (lat, lon) => ({ lat, lon }); this.route = [r(59.985, 4.66), r(60.04, 4.78), r(60.075, 4.90), r(60.115, 5.00), r(60.165, 5.08), r(60.225, 5.17), r(60.30, 5.235), r(60.345, 5.27)]; this._demoSail = true; this.channel = 0.2; this.activeLeg = 1; this.groundFired = false; this.track = []; const o = this.ownShip; o.lat = this.route[0].lat; o.lon = this.route[0].lon; o.sog = 0; const b = this.bearingDeg(this.route[0], this.route[1]); o.hdg = b; o.cog = b; this.view.lat = o.lat; this.view.lon = o.lon; this.view.zoom = 11.2; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1, simRunning: true, simSpeed: 1, rightTab: 'route', planning: false, tool: 'pan' }); }
+  clearRoute() { clearInterval(this._planRetry); this._planDest = null; this._planWorking = false; this._demoSail = false; this.route = null; this.track = []; this.activeLeg = 1; this.routeCheck = null; this.autoNav = false; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1, simRunning: false }); }
   cellLL(x, y) { const B = this.bbox; return { lat: B.latMax - y / (this.GH - 1) * (B.latMax - B.latMin), lon: B.lonMin + x / (this.GW - 1) * (B.lonMax - B.lonMin) }; }
   ensureCoastline() {
     if (this._coast || this._coastLoading) return; this._coastLoading = true;
@@ -800,7 +831,7 @@ class Component extends DCLogic {
   routeStats() { const R = this.route; if (!R || R.length < 2) return null; const o = this.ownShip; let rem = this.distNm(o, R[Math.min(this.activeLeg, R.length - 1)]); for (let i = this.activeLeg + 1; i < R.length; i++) rem += this.distNm(R[i - 1], R[i]); const total = R.reduce((a, p, i) => i ? a + this.distNm(R[i - 1], p) : 0, 0); const spd = (this.autoNav && o.sog > 0.3) ? o.sog : 14; return { rem, total, legs: R.length - 1, eta: rem / Math.max(6, spd) * 60 }; }
   startAutoNav() { if (!this.route) return; this.routePending = false; this.autoNav = true; this.helm = Object.assign(this.helm || {}, { active: false, ap: false }); this.saveRoute(); this.setState({ simRunning: true, routeVer: this.state.routeVer + 1 }); const st = this.routeStats(); this.addAlarm('info', 'Autonom seilas startet — ' + (st ? st.legs + ' legs · ' + st.total.toFixed(1) + ' nm · ≥ ' + (this._routeClr || this.state.safetyC).toFixed(0) + ' m UKC · ETA ~' + Math.round(st.eta) + ' min.' : 'styrer mot mål.')); }
   pauseAutoNav() { this.setState({ simRunning: !this.state.simRunning }); }
-  cancelAutoNav() { this.route = null; this.routePending = false; this.autoNav = false; this.activeLeg = 1; this.routeCheck = null; this.saveRoute(); this.setState({ simRunning: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonom seilas avbrutt — manuell styring.'); }
+  cancelAutoNav() { clearInterval(this._planRetry); this._planDest = null; this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false; this.activeLeg = 1; this.routeCheck = null; this.saveRoute(); this.setState({ simRunning: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonom seilas avbrutt — manuell styring.'); }
   planRoute(lat0, lon0, lat1, lon1, clr, noAis, div, padK, dil) {
     try {
     div = div || 340; padK = padK || 1; dil = dil || 0;
@@ -814,8 +845,9 @@ class Component extends DCLogic {
     const cLL = (x, y) => ({ lat: Lt1 - (y / (H - 1)) * (Lt1 - Lt0), lon: Ln0 + (x / (W - 1)) * (Ln1 - Ln0) });
     const cIdxOf = (lat, lon) => [Math.round((lon - Ln0) / (Ln1 - Ln0) * (W - 1)), Math.round((Lt1 - lat) / (Lt1 - Lt0) * (H - 1))];
     // --- LAND + DEPTH grid, built ONCE per corridor and cached (independent of clr) so the per-clearance retries in _doPlan don't rebuild the whole ~100k-cell grid 14x ---
-    const tileN = this.tiles ? Object.keys(this.tiles).length : 0;
-    const ckey = [Lt0.toFixed(3), Lt1.toFixed(3), Ln0.toFixed(3), Ln1.toFixed(3), W, H, !!this._coast, !!this.routeDepth, Math.min(tileN, 400)].join('|');
+    // key on how much of THIS corridor's chart data is decoded (not the global tile count, which saturates and would freeze the cache while corridor tiles stream in)
+    const corridorReady = Math.round(this.corridorTilesReady({ lat: Lt0, lon: Ln0 }, { lat: Lt1, lon: Ln1 }) * 100);
+    const ckey = [Lt0.toFixed(3), Lt1.toFixed(3), Ln0.toFixed(3), Ln1.toFixed(3), W, H, !!this._coast, !!this.routeDepth, corridorReady].join('|');
     let GC = this._gridCache;
     if (!GC || GC.key !== ckey) {
       const landA = new Uint8Array(N), depthA = new Float32Array(N);
@@ -910,12 +942,47 @@ class Component extends DCLogic {
   windColor(s) { return this.rampRGB([[0, [130, 205, 255]], [5, [80, 210, 185]], [9, [120, 222, 120]], [13, [236, 220, 95]], [18, [245, 150, 55]], [24, [240, 80, 70]], [32, [212, 70, 180]]], s); }
   curColor(s) { return this.rampRGB([[0, [40, 125, 215]], [0.8, [45, 185, 215]], [1.6, [70, 215, 185]], [2.6, [150, 226, 120]], [3.6, [246, 222, 110]]], s); }
   stepWind(dt) { if (!this.state.layers.wind) return; const B = this.bbox; for (const p of this.windParticles) { p.plat = p.lat; p.plon = p.lon; const w = this.windAt(p.lat, p.lon); p.spd = w.spd; const nd = this.moveLL(p.lat, p.lon, w.ang * 180 / Math.PI, w.spd * dt * 0.06); p.lat = nd.lat; p.lon = nd.lon; (p.hist || (p.hist = [])).push({ lat: p.lat, lon: p.lon }); if (p.hist.length > 6) p.hist.shift(); p.life -= dt * 11; if (p.life <= 0 || p.lat < B.latMin || p.lat > B.latMax || p.lon < B.lonMin || p.lon > B.lonMax) Object.assign(p, this.spawnP(false)); } }
+  // ---- data-source (provider) configuration -------------------------------
+  // Per-provider settings live in localStorage `mrd_sources`:
+  //   { aisKey, proxyUrl, metBase, tideBase }
+  // metBase/tideBase let the user point at an alternative endpoint (e.g. a
+  // commercial mirror or own gateway); proxyUrl routes CORS-blocked feeds
+  // (Kartverket tide, and MET/yr with a proper User-Agent) through a proxy —
+  // auto-detected at /proxy when the demo is served by the bundled server.js.
+  loadSrcCfg() {
+    let cfg = {};
+    try { cfg = JSON.parse(localStorage.getItem('mrd_sources') || 'null') || {}; } catch (e) {}
+    if (!cfg.aisKey) { try { const old = localStorage.getItem('mrd_ais_key'); if (old) { cfg.aisKey = old; localStorage.removeItem('mrd_ais_key'); } } catch (e) {} }
+    this.srcCfg = cfg;
+    this._aisKeyInput = cfg.aisKey || '';
+    this._proxyInput = cfg.proxyUrl || '';
+    this.proxyUrl = cfg.proxyUrl || '';
+    this.srcStatus = { chart: 'wait', met: 'wait', tide: 'wait' };
+  }
+  saveSrcCfg() { try { this.srcCfg = { ...(this.srcCfg || {}), aisKey: this._aisKeyInput || '', proxyUrl: (this._proxyInput || '').trim() }; localStorage.setItem('mrd_sources', JSON.stringify(this.srcCfg)); } catch (e) {} }
+  metBase() { return ((this.srcCfg && this.srcCfg.metBase) || 'https://api.met.no').replace(/\/$/, ''); }
+  tideBase() { return ((this.srcCfg && this.srcCfg.tideBase) || 'https://vannstand.kartverket.no').replace(/\/$/, ''); }
+  detectProxy() {
+    if (this.proxyUrl || !/^https?:$/.test(location.protocol)) return;
+    const cand = location.origin + '/proxy';
+    // Require the exact `ok` body our own server.js returns — a static host
+    // that answers unknown paths with an HTML page (or a rewrite-to-index) must
+    // NOT be mistaken for a proxy, or every MET/yr call would be routed into
+    // HTML and live weather would break in production.
+    fetch(cand + '?ping=1').then(r => r.ok ? r.text() : null).then(t => {
+      if (t && t.trim() === 'ok') { this.proxyUrl = cand; this.setState({ srcVer: (this.state.srcVer || 0) + 1 }); this.fetchTide(); }
+    }).catch(() => {});
+  }
+  viaProxy(url) { const p = (this.proxyUrl || '').trim(); if (!p) return url; return p + (p.includes('?') ? '&' : '?') + 'url=' + encodeURIComponent(url); }
+  setSrc(k, v) { this.srcStatus = this.srcStatus || {}; if (this.srcStatus[k] !== v) { this.srcStatus[k] = v; this.setState({ srcVer: (this.state.srcVer || 0) + 1 }); } }
+
   async fetchMet() {
-    const lat = this.view.lat.toFixed(3), lon = this.view.lon.toFixed(3);
+    // Weather is presented as "own-ship position" — fetch at the ship, not the panned view center.
+    const lat = this.ownShip.lat.toFixed(3), lon = this.ownShip.lon.toFixed(3);
     try {
       const [w, o] = await Promise.all([
-        fetch(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat}&lon=${lon}`).then(r => r.json()),
-        fetch(`https://api.met.no/weatherapi/oceanforecast/2.0/complete?lat=${lat}&lon=${lon}`).then(r => r.json()),
+        fetch(this.viaProxy(`${this.metBase()}/weatherapi/locationforecast/2.0/compact?lat=${lat}&lon=${lon}`)).then(r => r.json()),
+        fetch(this.viaProxy(`${this.metBase()}/weatherapi/oceanforecast/2.0/complete?lat=${lat}&lon=${lon}`)).then(r => r.json()),
       ]);
       const wd = w.properties.timeseries[0].data.instant.details || {};
       const od = o.properties.timeseries[0].data.instant.details || {};
@@ -928,11 +995,12 @@ class Component extends DCLogic {
         this.met.forecast = days.map(day => { const D = byDay[day]; const dt = new Date(day + 'T12:00:00Z'); return { date: day, label: ['Søn', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør'][dt.getUTCDay()], dnum: dt.getUTCDate(), symbol: D.noon || D.syms[Math.floor(D.syms.length / 2)] || D.syms[0] || '', tMin: D.temps.length ? Math.min(...D.temps) : null, tMax: D.temps.length ? Math.max(...D.temps) : null, windMax: D.winds.length ? Math.max(...D.winds) : null, gustMax: D.gusts.length ? Math.max(...D.gusts) : null, windDir: D.dirs.length ? D.dirs[Math.floor(D.dirs.length / 2)] : null, precip: D.precip }; });
       } catch (e) {}
       this.buildTempField();
+      this.setSrc('met', 'ok');
       this.setState({ metVer: (this.state.metVer || 0) + 1 });
-    } catch (e) {}
+    } catch (e) { this.setSrc('met', 'error'); }
     try {
       const d = new Date().toISOString().slice(0, 10);
-      const sr = await fetch(`https://api.met.no/weatherapi/sunrise/3.0/sun?lat=${lat}&lon=${lon}&date=${d}`).then(r => r.json());
+      const sr = await fetch(this.viaProxy(`${this.metBase()}/weatherapi/sunrise/3.0/sun?lat=${lat}&lon=${lon}&date=${d}`)).then(r => r.json());
       const p = sr.properties || {}; this.met = this.met || {}; this.met.sunrise = (p.sunrise && p.sunrise.time || '').slice(11, 16); this.met.sunset = (p.sunset && p.sunset.time || '').slice(11, 16);
       this.setState({ metVer: (this.state.metVer || 0) + 1 });
     } catch (e) {}
@@ -940,7 +1008,7 @@ class Component extends DCLogic {
   async fetchAlerts() {
     try {
       const o = this.ownShip;
-      const r = await fetch(`https://api.met.no/weatherapi/metalerts/2.0/current.json?lat=${o.lat.toFixed(3)}&lon=${o.lon.toFixed(3)}`).then(r => r.json());
+      const r = await fetch(this.viaProxy(`${this.metBase()}/weatherapi/metalerts/2.0/current.json?lat=${o.lat.toFixed(3)}&lon=${o.lon.toFixed(3)}`)).then(r => r.json());
       const feats = (r && r.features) || [];
       this.metAlerts = feats.map(f => { const p = f.properties || {}; const al = (p.awareness_level || '').toLowerCase(); const color = /red|^3|; 3/.test(al) ? '#FF3B30' : /orange|^2|; 2/.test(al) ? '#FF9F0A' : '#FFD60A'; return { event: p.eventAwarenessName || p.event || 'Varsel', level: (p.awareness_level || '').split(';').map(s => s.trim()).filter(Boolean).pop() || '', color, area: p.area || '', title: p.title || '', desc: (p.description || '').slice(0, 220), from: p.eventStartingTime, to: p.eventEndingTime, instr: p.instruction || '' }; });
       this.setState({ metVer: (this.state.metVer || 0) + 1 });
@@ -950,7 +1018,7 @@ class Component extends DCLogic {
     const B = this.bbox, cols = 4, rows = 5; const pts = [];
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) { const lon = B.lonMin + (i + 0.5) / cols * (B.lonMax - B.lonMin); const lat = B.latMin + (j + 0.5) / rows * (B.latMax - B.latMin); pts.push({ i, j, lat, lon }); }
     const grid = { cols, rows, B, u: new Float32Array(cols * rows), v: new Float32Array(cols * rows), ready: false };
-    let idx = 0; const worker = async () => { while (idx < pts.length) { const p = pts[idx++]; try { const o = await fetch(`https://api.met.no/weatherapi/oceanforecast/2.0/complete?lat=${p.lat.toFixed(3)}&lon=${p.lon.toFixed(3)}`).then(r => r.json()); const d = o.properties.timeseries[0].data.instant.details || {}; const spd = d.sea_water_speed || 0; const dir = (d.sea_water_to_direction || 0) * Math.PI / 180; grid.u[p.j * cols + p.i] = spd * Math.sin(dir); grid.v[p.j * cols + p.i] = spd * Math.cos(dir); } catch (e) {} } };
+    let idx = 0; const worker = async () => { while (idx < pts.length) { const p = pts[idx++]; try { const o = await fetch(this.viaProxy(`${this.metBase()}/weatherapi/oceanforecast/2.0/complete?lat=${p.lat.toFixed(3)}&lon=${p.lon.toFixed(3)}`)).then(r => r.json()); const d = o.properties.timeseries[0].data.instant.details || {}; const spd = d.sea_water_speed || 0; const dir = (d.sea_water_to_direction || 0) * Math.PI / 180; grid.u[p.j * cols + p.i] = spd * Math.sin(dir); grid.v[p.j * cols + p.i] = spd * Math.cos(dir); } catch (e) {} } };
     await Promise.all([worker(), worker(), worker(), worker()]);
     grid.ready = true; this.curGrid = grid; this.setState({ metVer: (this.state.metVer || 0) + 1 });
   }
@@ -964,8 +1032,8 @@ class Component extends DCLogic {
     const from = fmt(new Date(now.getTime() - 13 * 3600e3)), to = fmt(new Date(now.getTime() + 13 * 3600e3));
     for (const st of stations) {
       try {
-        const url = `https://vannstand.kartverket.no/tideapi.php?lat=${st.lat.toFixed(4)}&lon=${st.lon.toFixed(4)}&fromtime=${from}&totime=${to}&datatype=pre&refcode=msl&lang=nb&interval=10&dst=0&tzone=0&tide_request=locationdata`;
-        const txt = await fetch(url).then(r => r.text());
+        const url = `${this.tideBase()}/tideapi.php?lat=${st.lat.toFixed(4)}&lon=${st.lon.toFixed(4)}&fromtime=${from}&totime=${to}&datatype=pre&refcode=msl&lang=nb&interval=10&dst=0&tzone=0&tide_request=locationdata`;
+        const txt = await fetch(this.viaProxy(url)).then(r => r.text());
         const doc = new DOMParser().parseFromString(txt, 'text/xml');
         const nodes = [...doc.querySelectorAll('waterlevel')];
         if (nodes.length < 4) continue;
@@ -973,10 +1041,12 @@ class Component extends DCLogic {
         const pts = nodes.map(n => ({ t: new Date(n.getAttribute('time')).getTime(), v: parseFloat(n.getAttribute('value')) / 100 })).filter(p => !isNaN(p.v)).sort((a, b) => a.t - b.t);
         if (pts.length < 4) continue;
         this.tide = { station: (loc && loc.getAttribute('name')) || st.name, atShip: st.name === 'Egen posisjon', pts, t: Date.now(), lat: o.lat, lon: o.lon };
+        this.setSrc('tide', 'ok');
         this.setState({ metVer: (this.state.metVer || 0) + 1 });
         return;
       } catch (e) {}
     }
+    this.setSrc('tide', this.proxyUrl ? 'error' : 'blocked');
   }
   tideNow() { const T = this.tide; if (!T || !T.pts.length) return null; const p = T.pts, now = Date.now(); if (now <= p[0].t) return { v: p[0].v, rate: 1 }; for (let i = 1; i < p.length; i++) { if (now <= p[i].t) { const f = (now - p[i - 1].t) / (p[i].t - p[i - 1].t || 1); return { v: p[i - 1].v + (p[i].v - p[i - 1].v) * f, rate: p[i].v - p[i - 1].v }; } } return { v: p[p.length - 1].v, rate: -1 }; }
   tideExtremes() { const p = (this.tide && this.tide.pts) || [], ex = []; for (let i = 1; i < p.length - 1; i++) { if (p[i].v > p[i - 1].v && p[i].v >= p[i + 1].v) ex.push({ type: 'high', t: p[i].t, v: p[i].v }); else if (p[i].v < p[i - 1].v && p[i].v <= p[i + 1].v) ex.push({ type: 'low', t: p[i].t, v: p[i].v }); } return ex; }
@@ -989,7 +1059,7 @@ class Component extends DCLogic {
     this.aisKey = key; this.aisLive = {}; const B = this.aisBox || this.bbox;
     try {
       const ws = new WebSocket('wss://stream.aisstream.io/v0/stream'); this.aisWs = ws;
-      ws.onopen = () => { ws.send(JSON.stringify({ APIKey: key, BoundingBoxes: [[[B.latMin, B.lonMin], [B.latMax, B.lonMax]]], FilterMessageTypes: ['PositionReport', 'ShipStaticData'] })); this.setState({ aisStatus: 'connected', aisMode: 'live' }); };
+      ws.onopen = () => { ws.send(JSON.stringify({ APIKey: key, BoundingBoxes: [[[B.latMin, B.lonMin], [B.latMax, B.lonMax]]], FilterMessageTypes: ['PositionReport', 'ShipStaticData'] })); this._aisKeyInput = key; this.saveSrcCfg(); this.setState({ aisStatus: 'connected', aisMode: 'live' }); };
       ws.onmessage = async (ev) => { let txt; try { txt = (ev.data && typeof ev.data.text === 'function') ? await ev.data.text() : (ev.data instanceof ArrayBuffer ? new TextDecoder().decode(ev.data) : ev.data); } catch (e) { return; } let m; try { m = JSON.parse(txt); } catch (e) { return; } if (m.error) { this.setState({ aisStatus: 'key error' }); return; } this._aisLastMsg = Date.now(); const meta = m.MetaData || {}; const mmsi = meta.MMSI || (m.Message && m.Message.PositionReport && m.Message.PositionReport.UserID); if (!mmsi) return; const t = this.aisLive[mmsi] || (this.aisLive[mmsi] = { mmsi, name: 'MMSI ' + mmsi, type: 'Vessel', col: this.aisColor(mmsi) }); if (m.MessageType === 'PositionReport') { const pr = m.Message.PositionReport || {}; t.lat = meta.latitude != null ? meta.latitude : pr.Latitude; t.lon = meta.longitude != null ? meta.longitude : pr.Longitude; t.sog = pr.Sog || 0; t.cog = pr.Cog || 0; t.hdg = (pr.TrueHeading != null && pr.TrueHeading < 360) ? pr.TrueHeading : t.cog; if (pr.NavigationalStatus != null) t.navStatus = pr.NavigationalStatus; t.last = Date.now(); if (meta.ShipName && meta.ShipName.trim()) t.name = meta.ShipName.trim(); } else if (m.MessageType === 'ShipStaticData') { const sd = m.Message.ShipStaticData || {}; const clean = (v) => (v || '').replace(/[@\s]+$/, '').trim(); if (meta.ShipName && meta.ShipName.trim()) t.name = meta.ShipName.trim(); t.type = this.shipTypeName(sd.Type); const cs = clean(sd.CallSign); if (cs) t.callsign = cs; if (sd.ImoNumber) t.imo = sd.ImoNumber; const ds = clean(sd.Destination); if (ds) t.dest = ds; if (sd.MaximumStaticDraught) t.draught = sd.MaximumStaticDraught; const dm = sd.Dimension; if (dm) t.dim = { l: (dm.A || 0) + (dm.B || 0), b: (dm.C || 0) + (dm.D || 0) }; } };
       ws.onerror = () => { this.setState({ aisStatus: 'error' }); };
       ws.onclose = () => { if (this.aisKey && this.state.aisStatus !== 'key error') { this.setState({ aisStatus: 'reconnecting' }); clearTimeout(this._aisReWS); this._aisReWS = setTimeout(() => this.connectAis(this.aisKey), 4000); } };
@@ -1007,9 +1077,27 @@ class Component extends DCLogic {
     try {
       this.SID = (window.__mrdSid || (window.__mrdSid = Math.random().toString(36).slice(2)));
       this.helmCh = new BroadcastChannel('meridian-helm');
+      // Role-based filtering (the ECDIS only consumes helm-originated types), so
+      // the link also works when the Helm Console runs in ANOTHER TAB — a
+      // sender-SID equality check would drop every cross-tab message.
       this.helmCh.onmessage = (e) => {
-        const m = e.data; if (!m) return; if (m.sid && m.sid !== this.SID) return;
-        if (m.type === 'cmd' && m.cmd) { this.helm = Object.assign(this.helm, m.cmd); if (this.helm.active) { this.gpsMode = false; if (!this.state.simRunning) this.setState({ simRunning: true }); } this.postShipState(true); }
+        const m = e.data; if (!m) return;
+        if (m.type === 'cmd' && m.cmd) {
+          // MOB is always honoured, even while the autonomous controller owns the actuators.
+          const prevMob = !!(this.helm && this.helm.mob);
+          if ('mob' in m.cmd) { this.helm.mob = m.cmd.mob; if (!prevMob && m.cmd.mob) this.dropMOB(); else if (prevMob && !m.cmd.mob) { this.mob = null; this.addAlarm('info', 'MOB cancelled from Helm Console.'); } }
+          // While autoNav owns rudder/telegraph, the helm's 600 ms heartbeat must
+          // not stomp the controller — only an active, user-initiated command
+          // (non-heartbeat with the helm engaged) counts as a takeover.
+          const takeover = m.cmd.active && !m.cmd.heartbeat;
+          if (this.autoNav && !takeover) { this.postShipState(true); return; }
+          if (this.autoNav && takeover) { this.autoNav = false; this.addAlarm('info', 'Helm Console har tatt over — autonom seilas frakoblet.'); this.setState({ routeVer: this.state.routeVer + 1 }); }
+          this.helm = Object.assign(this.helm, m.cmd);
+          if (this.helm.active) { this.gpsMode = false; if (!this.state.simRunning) this.setState({ simRunning: true }); }
+          // TRACK mode engages the ECDIS route controller when a route exists.
+          if (m.cmd.mode === 'track' && this.route && !this.autoNav && this.activeLeg < this.route.length) { this.startAutoNav(); }
+          this.postShipState(true);
+        }
         else if (m.type === 'helmHello') { this.postShipState(true); }
         else if (m.type === 'miniZoom') { this._miniZoomFrac = Math.max(0.16, Math.min(1.1, m.frac)); this.postMini(); }
       };
@@ -1209,13 +1297,13 @@ class Component extends DCLogic {
     if (!this.gpsMode && s.simRunning) {
       this.simTime += sdt;
       if (this.helm && this.helm.active) { this.stepHelm(sdt); }
-      else if (this.route && this.activeLeg < this.route.length) { this.stepAutoNav(sdt); }
+      else if (this.route && (this.autoNav || this._demoSail) && this.activeLeg < this.route.length) { this.stepAutoNav(sdt); }
       else if (!this.route) { o.sog = Math.max(o.sog, 8); const nd = this.moveLL(o.lat, o.lon, o.hdg, o.sog / 3600 * sdt); o.lat = nd.lat; o.lon = nd.lon; }
     }
     if (this.state.followShip && o) { this.view.lat = o.lat; this.view.lon = o.lon; }
     if (s.simRunning || this.gpsMode) { if (!this.track.length || this.distNm(this.track[this.track.length - 1], o) > 0.08) { this.track.push({ lat: o.lat, lon: o.lon, t: Date.now() }); const cut = Date.now() - 12 * 3600e3; while (this.track.length && (this.track[0].t || 0) < cut) this.track.shift(); if (this.track.length > 1200) this.track.shift(); if (performance.now() - (this._lastTrackSave || 0) > 8000) { this._lastTrackSave = performance.now(); this.persistTrack(); } } }
     const B = this.bbox, live = s.aisMode === 'live'; const arr = this.aisArr();
-    for (const t of arr) { if (t.sog) { const nd = this.moveLL(t.lat, t.lon, (t.cog != null ? t.cog : t.hdg), t.sog / 3600 * sdt); t.lat = nd.lat; t.lon = nd.lon; } if (!live) { if (t.lon < B.lonMin) t.lon = B.lonMax - .02; if (t.lon > B.lonMax) t.lon = B.lonMin + .02; if (t.lat < B.latMin) t.lat = B.latMax - .02; if (t.lat > B.latMax) t.lat = B.latMin + .02; } }
+    for (const t of arr) { if (t.sog) { const adv = live ? dt : sdt; const nd = this.moveLL(t.lat, t.lon, (t.cog != null ? t.cog : t.hdg), t.sog / 3600 * adv); t.lat = nd.lat; t.lon = nd.lon; } if (!live) { if (t.lon < B.lonMin) t.lon = B.lonMax - .02; if (t.lon > B.lonMax) t.lon = B.lonMin + .02; if (t.lat < B.latMin) t.lat = B.latMax - .02; if (t.lat > B.latMax) t.lat = B.latMin + .02; } }
     if (s.layers.trails) { for (const t of arr) { if (!t._trail) t._trail = []; const last = t._trail[t._trail.length - 1]; if (!last || this.distNm(last, t) > 0.02) { t._trail.push({ lat: t.lat, lon: t.lon }); if (t._trail.length > 50) t._trail.shift(); } } }
     if (live && this.aisLive) { const now = Date.now(); for (const k in this.aisLive) if (now - (this.aisLive[k].last || 0) > 300000) delete this.aisLive[k]; }
     if (performance.now() - (this._lastAlarmWall || 0) > 1500) { this._lastAlarmWall = performance.now(); this.checkAlarms(); }
@@ -1232,7 +1320,7 @@ class Component extends DCLogic {
     { const pm = s.predMin || 6; const dir = (o.cog != null ? o.cog : o.hdg); const reach = Math.max(1.5, o.sog * pm / 60); const half = Math.max(0.05, (o.beam || 28) / 1852 / 2 + 0.04); let hz = null; if (s.hazardWarn) { outer: for (let i = 1; i <= 72; i++) { const dnm = i / 72 * reach; const c = this.moveLL(o.lat, o.lon, dir, dnm); for (let k = -2; k <= 2; k++) { const p = k === 0 ? c : this.moveLL(c.lat, c.lon, (dir + 90) % 360, k * half); const cl = this.chartLandAt(p.lat, p.lon); const land = cl === true || (cl == null && this.landAt && this.landAt(p.lat, p.lon)); if (land || this.depthAt(p.lat, p.lon) < s.safetyC) { hz = { lat: c.lat, lon: c.lon, d: dnm, land, dir }; break outer; } } } } this.hazardPt = hz; if (hz && o.sog > 1) { if (!this._hzFired) { this._hzFired = true; this.addAlarm('warning', (hz.land ? 'LAND' : 'GRUNNE / SKJÆR') + ' i predikert kurs — ' + hz.d.toFixed(1) + ' nm forut i kurs ' + dir.toFixed(0) + '°.'); } } else if (!hz) this._hzFired = false; }
   }
   crossTrack(a, b, p) { const ax = a.lon * this.cosMid, ay = a.lat, bx = b.lon * this.cosMid, by = b.lat, px = p.lon * this.cosMid, py = p.lat; const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1; return ((px - ax) * dy - (py - ay) * dx) / L * 60; }
-  cpa(o, t) { const ov = [Math.sin(o.hdg * Math.PI / 180) * o.sog, Math.cos(o.hdg * Math.PI / 180) * o.sog]; const tv = [Math.sin(t.hdg * Math.PI / 180) * t.sog, Math.cos(t.hdg * Math.PI / 180) * t.sog]; const rx = (t.lon - o.lon) * 60 * this.cosMid, ry = (t.lat - o.lat) * 60, rvx = tv[0] - ov[0], rvy = tv[1] - ov[1], rv2 = rvx * rvx + rvy * rvy; let tc = rv2 < 1e-6 ? 0 : -(rx * rvx + ry * rvy) / rv2; if (tc < 0) tc = 0; return { cpa: Math.hypot(rx + rvx * tc, ry + rvy * tc), tcpa: tc * 60 }; }
+  cpa(o, t) { const oc = (o.cog != null ? o.cog : o.hdg) * Math.PI / 180, tc2 = (t.cog != null ? t.cog : t.hdg) * Math.PI / 180; const ov = [Math.sin(oc) * o.sog, Math.cos(oc) * o.sog]; const tv = [Math.sin(tc2) * t.sog, Math.cos(tc2) * t.sog]; const rx = (t.lon - o.lon) * 60 * this.cosMid, ry = (t.lat - o.lat) * 60, rvx = tv[0] - ov[0], rvy = tv[1] - ov[1], rv2 = rvx * rvx + rvy * rvy; let tc = rv2 < 1e-6 ? 0 : -(rx * rvx + ry * rvy) / rv2; if (tc < 0) tc = 0; return { cpa: Math.hypot(rx + rvx * tc, ry + rvy * tc), tcpa: tc * 60 }; }
   addAlarm(level, text) { const n = new Date(); const al = { id: 'a' + Date.now() + Math.floor(Math.random() * 999), level, text, time: this.fmtClock(n.getUTCHours() * 3600 + n.getUTCMinutes() * 60 + n.getUTCSeconds()), ack: false }; this.setState(st => ({ alarms: [al, ...st.alarms].slice(0, 40), rightTab: level === 'alarm' ? 'alarms' : st.rightTab })); }
 
   frame = (ts) => { cancelAnimationFrame(this._raf); this._lastWall = performance.now(); try { this._frameBody(ts || performance.now()); } catch (e) {} this._raf = requestAnimationFrame(this.frame); };
@@ -1279,7 +1367,7 @@ class Component extends DCLogic {
   }
   TILE(layer) { const M = { sjokart: { f: (z, x, y) => this.kv('sjokartraster', z, x, y), max: 18 }, topo: { f: (z, x, y) => this.kv('topo', z, x, y), max: 18 }, flyfoto: { f: (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`, max: 19 }, dark: { f: (z, x, y) => `https://${'abc'[(x + y) % 3]}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`, max: 19 }, light: { f: (z, x, y) => `https://${'abc'[(x + y) % 3]}.basemaps.cartocdn.com/light_all/${z}/${x}/${y}.png`, max: 19 }, seamark: { f: (z, x, y) => `https://tiles.openseamap.org/seamark/${z}/${x}/${y}.png`, max: 18 }, bathy: { f: (z, x, y) => { const h = 20037508.342789244, ts = 2 * h / Math.pow(2, z); const minx = -h + x * ts, maxx = minx + ts, maxy = h - y * ts, miny = maxy - ts; return `https://ows.emodnet-bathymetry.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:mean_multicolour&styles=&format=image/png&transparent=true&crs=EPSG:3857&width=256&height=256&bbox=${minx},${miny},${maxx},${maxy}`; }, max: 13 } }; return M[layer]; }
   thumbUrl(layer) { const z = 9, x = 263, y = 148; return this.TILE(layer).f(z, x, y); }
-  tileImg(layer, z, x, y) { const n = Math.pow(2, z); if (y < 0 || y >= n) return null; x = ((x % n) + n) % n; const key = layer + '/' + z + '/' + x + '/' + y; if (this.tiles[key]) return this.tiles[key]; if (this.tileLoading[key]) return null; this.tileLoading[key] = 1; const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { this.tiles[key] = img; delete this.tileLoading[key]; }; img.onerror = () => { delete this.tileLoading[key]; const tr = this._tileTries || (this._tileTries = {}); const t = (tr[key] = (tr[key] || 0) + 1); if (t <= 4) setTimeout(() => { if (!this.tiles[key] && !this.tileLoading[key]) this.tileImg(layer, z, x, y); }, Math.min(8000, 400 * Math.pow(2, t - 1))); }; img.src = this.TILE(layer).f(z, x, y); return null; }
+  tileImg(layer, z, x, y) { const n = Math.pow(2, z); if (y < 0 || y >= n) return null; x = ((x % n) + n) % n; const key = layer + '/' + z + '/' + x + '/' + y; if (this.tiles[key]) return this.tiles[key]; if (this.tileLoading[key]) return null; this.tileLoading[key] = 1; const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { this.tiles[key] = img; delete this.tileLoading[key]; const ks = this._tileKeys || (this._tileKeys = []); ks.push(key); while (ks.length > 1400) { const old = ks.shift(); if (old !== key) delete this.tiles[old]; } if (layer === 'sjokart') this.setSrc('chart', 'ok'); }; img.onerror = () => { delete this.tileLoading[key]; const tr = this._tileTries || (this._tileTries = {}); const t = (tr[key] = (tr[key] || 0) + 1); if (t <= 4) setTimeout(() => { if (!this.tiles[key] && !this.tileLoading[key]) this.tileImg(layer, z, x, y); }, Math.min(8000, 400 * Math.pow(2, t - 1))); else if (layer === 'sjokart' && (!this.srcStatus || this.srcStatus.chart !== 'ok')) this.setSrc('chart', 'error'); }; img.src = this.TILE(layer).f(z, x, y); return null; }
   drawTiles(ctx, layer, op) { const L = this.TILE(layer); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; const z = this.view.zoom; const Zt = Math.max(2, Math.min(L.max, Math.round(z))); const f = Math.pow(2, z - Zt); const ts = 256 * f; const cw = this._cw; const n = Math.pow(2, Zt); const [cpx, cpy] = this.project(this.view.lat, this.view.lon, Zt); const ctx0 = cpx / 256, cty0 = cpy / 256; const reach = Math.hypot(this.W, this.H) / ts / 2 + 1; const x0 = Math.floor(ctx0 - reach), x1 = Math.ceil(ctx0 + reach), y0 = Math.max(0, Math.floor(cty0 - reach)), y1 = Math.min(n - 1, Math.ceil(cty0 + reach)); ctx.globalAlpha = op; for (let xt = x0; xt <= x1; xt++) for (let yt = y0; yt <= y1; yt++) { const dx = xt * 256 * f - cw[0], dy = yt * 256 * f - cw[1]; const img = this.tileImg(layer, Zt, xt, yt); if (img) ctx.drawImage(img, dx, dy, ts + 0.6, ts + 0.6); else this.drawTileFallback(ctx, layer, Zt, xt, yt, dx, dy, ts + 0.6, ts + 0.6); } ctx.globalAlpha = 1; }
   // While the target-zoom tile streams in, fill its rect from the nearest cached
   // coarser-zoom (ancestor) tile so the map is never blank — it shows immediately
@@ -1348,7 +1436,7 @@ class Component extends DCLogic {
     this.set('orient', s.orient === 'north' ? 'N-UP' : s.orient === 'course' ? 'C-UP' : 'H-UP');
     if (this.compassRot) this.compassRot.setAttribute('transform', 'rotate(' + (this.view.bearing * 180 / Math.PI) + ' 14 14)');
     if (this.cursor) this.set('cursor', this.fmtPos(this.cursor.lat, this.cursor.lon));
-    if (this.route && this.activeLeg < this.route.length) { const a = this.route[this.activeLeg - 1], b = this.route[this.activeLeg]; const xtd = this.crossTrack(a, b, o); this.set('activeWp', String(this.activeLeg).padStart(2, '0')); const xe = this.ros.xtd; if (xe) { xe.textContent = (xtd >= 0 ? 'R' : 'L') + Math.abs(xtd).toFixed(2); xe.style.color = Math.abs(xtd) > this.channel ? '#FF3B30' : 'var(--ink,#1c1c1e)'; } let dtg = this.distNm(o, b); for (let i = this.activeLeg + 1; i < this.route.length; i++) dtg += this.distNm(this.route[i - 1], this.route[i]); this.set('dtg', dtg.toFixed(1) + ' · ' + this.bearingDeg(o, b).toFixed(0) + '°'); const ttg = o.sog > 0.5 ? dtg / o.sog : 0; this.set('ttg', (ttg * 60).toFixed(0) + 'm · ' + this.fmtClock(this.simTime + ttg * 3600).slice(0, 5)); this._wop = null; if (this.activeLeg + 1 < this.route.length) { const nxt = this.route[this.activeLeg + 1]; const inBrg = this.bearingDeg(a, b), outBrg = this.bearingDeg(b, nxt); const turn = Math.abs(((outBrg - inBrg + 540) % 360) - 180); const wod = this.wheelOverDist(turn, o.sog); this._wop = this.moveLL(b.lat, b.lon, (inBrg + 180) % 360, wod); const dWop = Math.max(0, this.distNm(o, b) - wod); const ttw = o.sog > 0.5 ? dWop / o.sog * 60 : 0; this.set('wop', dWop.toFixed(2) + 'nm · ' + ttw.toFixed(0) + 'm'); } else this.set('wop', 'last leg'); }
+    if (this.route && this.activeLeg < this.route.length) { const a = this.route[this.activeLeg - 1], b = this.route[this.activeLeg]; const xtd = this.crossTrack(a, b, o); this.set('activeWp', String(this.activeLeg).padStart(2, '0')); const xe = this.ros.xtd; if (xe) { xe.textContent = (xtd >= 0 ? 'R' : 'L') + Math.abs(xtd).toFixed(2); xe.style.color = Math.abs(xtd) > this.channel ? '#FF3B30' : 'var(--ink,#1c1c1e)'; } let dtg = this.distNm(o, b); for (let i = this.activeLeg + 1; i < this.route.length; i++) dtg += this.distNm(this.route[i - 1], this.route[i]); this.set('dtg', dtg.toFixed(1) + ' · ' + this.bearingDeg(o, b).toFixed(0) + '°'); const ttg = o.sog > 0.5 ? dtg / o.sog : 0; const eta = new Date(Date.now() + ttg * 3600e3); this.set('ttg', (ttg * 60).toFixed(0) + 'm · ' + String(eta.getHours()).padStart(2, '0') + ':' + String(eta.getMinutes()).padStart(2, '0')); this._wop = null; if (this.activeLeg + 1 < this.route.length) { const nxt = this.route[this.activeLeg + 1]; const inBrg = this.bearingDeg(a, b), outBrg = this.bearingDeg(b, nxt); const turn = Math.abs(((outBrg - inBrg + 540) % 360) - 180); const wod = this.wheelOverDist(turn, o.sog); this._wop = this.moveLL(b.lat, b.lon, (inBrg + 180) % 360, wod); const dWop = Math.max(0, this.distNm(o, b) - wod); const ttw = o.sog > 0.5 ? dWop / o.sog * 60 : 0; this.set('wop', dWop.toFixed(2) + 'nm · ' + ttw.toFixed(0) + 'm'); } else this.set('wop', 'last leg'); }
     else if (!this.route) { this.set('activeWp', '—'); this.set('xtd', '—'); this.set('dtg', '—'); this.set('ttg', '—'); this.set('wop', '—'); this._wop = null; }
     if (ts - this.lastAisPush > 950) { this.lastAisPush = ts; this.setState({ aisSummary: this.aisArr().map(t => { const cp = this.cpa(o, t); return { name: t.name, type: t.type, col: t.col, dangerous: t.dangerous, rng: this.distNm(o, t).toFixed(1) + 'nm', brg: this.bearingDeg(o, t).toFixed(0) + '°', cpa: cp.cpa.toFixed(2), tcpa: cp.tcpa.toFixed(0) + 'm' }; }) }); }
   }
@@ -1356,8 +1444,8 @@ class Component extends DCLogic {
   // events
   onWheel = (e) => { e.preventDefault(); const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; const before = this.s2ll(mx, my); this.view.zoom = Math.max(4.5, Math.min(16, this.view.zoom - Math.sign(e.deltaY) * 0.32)); this._cw = this.project(this.view.lat, this.view.lon, this.view.zoom); this._cos = Math.cos(this.view.bearing); this._sin = Math.sin(this.view.bearing); const after = this.s2ll(mx, my); this.view.lat += before[0] - after[0]; this.view.lon += before[1] - after[1]; };
   onDown = (e) => { const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; this.drag = { sx: mx, sy: my, lat: this.view.lat, lon: this.view.lon, moved: false, wp: -1, ship: false }; if (this.route && (this.state.tool === 'pan' || this.state.tool === 'route')) { for (let i = 0; i < this.route.length; i++) { const [wx, wy] = this.ll2s(this.route[i].lat, this.route[i].lon); if (Math.hypot(wx - mx, wy - my) < 13) { this.drag.wp = i; break; } } } if (this.drag.wp < 0 && this.state.shipUnlocked && this.state.tool === 'pan') { const os = this.ll2s(this.ownShip.lat, this.ownShip.lon); if (Math.hypot(os[0] - mx, os[1] - my) < 20) { this.drag.ship = true; this._preSim = this.state.simRunning; if (this.state.simRunning) this.setState({ simRunning: false }); } } try { this.canvas.setPointerCapture(e.pointerId); } catch (x) {} };
-  onMove = (e) => { if (!this.canvas) return; const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; const w = this.s2ll(mx, my); this.cursor = { lat: w[0], lon: w[1] }; if (this.drag) { const dx = mx - this.drag.sx, dy = my - this.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) this.drag.moved = true; if (this.drag.wp >= 0) { this.route[this.drag.wp] = { lat: w[0], lon: w[1] }; this.routeCheck = null; this.setState({ routeVer: this.state.routeVer + 1 }); return; } if (this.drag.ship) { this.ownShip.lat = w[0]; this.ownShip.lon = w[1]; this.ownShip.sog = 0; this._rot = 0; this.setState({ routeVer: this.state.routeVer + 1 }); return; } if (this.state.tool === 'route') return; const c = Math.cos(-this.view.bearing), s = Math.sin(-this.view.bearing); const z = this.view.zoom; const wdx = dx * c - dy * s, wdy = dx * s + dy * c; const [cx, cy] = this.project(this.drag.lat, this.drag.lon, z); const ll = this.unproject(cx - wdx, cy - wdy, z); this.view.lat = ll[0]; this.view.lon = ll[1]; } };
-  onUp = (e) => { if (!this.drag) return; const moved = this.drag.moved, wp = this.drag.wp, ship = this.drag.ship; const r = this.canvas.getBoundingClientRect(); const w = this.s2ll(e.clientX - r.left, e.clientY - r.top); this.drag = null; if (ship) { this.track = []; this.groundFired = false; this.setState({ shipUnlocked: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Own-ship repositioned to ' + this.fmtPos(this.ownShip.lat, this.ownShip.lon) + ' — drag-lock re-engaged.'); return; } if (wp >= 0) { if (moved) this.saveRoute(); return; } if (moved) return; const pt = { lat: w[0], lon: w[1] }; const t = this.state.tool; if (t === 'route') { if (!this.route) { this.route = []; this.channel = 0.2; this.activeLeg = 1; } this.route.push(pt); this.routeCheck = null; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1 }); } else if (t === 'mob') { this.dropMOB(); } else if (t === 'autoroute') { this.autoRouteTo(pt); } else { this.doPick(pt, e.clientX - r.left, e.clientY - r.top); } };
+  onMove = (e) => { if (!this.canvas) return; const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; const w = this.s2ll(mx, my); this.cursor = { lat: w[0], lon: w[1] }; if (this.drag) { const dx = mx - this.drag.sx, dy = my - this.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) this.drag.moved = true; if (this.drag.wp >= 0) { this.route[this.drag.wp] = { lat: w[0], lon: w[1] }; this.routeCheck = null; this.setState({ routeVer: this.state.routeVer + 1 }); return; } if (this.drag.ship) { this.ownShip.lat = w[0]; this.ownShip.lon = w[1]; this.ownShip.sog = 0; this._rot = 0; this.setState({ routeVer: this.state.routeVer + 1 }); return; } if (this.state.tool === 'route') return; if (this.state.followShip && this.drag.moved) this.setState({ followShip: false }); const c = Math.cos(-this.view.bearing), s = Math.sin(-this.view.bearing); const z = this.view.zoom; const wdx = dx * c - dy * s, wdy = dx * s + dy * c; const [cx, cy] = this.project(this.drag.lat, this.drag.lon, z); const ll = this.unproject(cx - wdx, cy - wdy, z); this.view.lat = ll[0]; this.view.lon = ll[1]; } };
+  onUp = (e) => { if (!this.drag) return; const moved = this.drag.moved, wp = this.drag.wp, ship = this.drag.ship; const r = this.canvas.getBoundingClientRect(); const w = this.s2ll(e.clientX - r.left, e.clientY - r.top); this.drag = null; if (ship) { this.track = []; this.groundFired = false; this.setState({ shipUnlocked: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Own-ship repositioned to ' + this.fmtPos(this.ownShip.lat, this.ownShip.lon) + ' — drag-lock re-engaged.'); return; } if (wp >= 0) { if (moved) this.saveRoute(); return; } if (moved) return; const pt = { lat: w[0], lon: w[1] }; const t = this.state.tool; if (t === 'route') { if (!this.route) { this.route = []; this.channel = 0.2; this.activeLeg = 1; } this.route.push(pt); this.routeCheck = null; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1 }); } else if (t === 'autoroute') { this.autoRouteTo(pt); } else { this.doPick(pt, e.clientX - r.left, e.clientY - r.top); } };
   saveRoute() { try { if (this.route && this.route.length) localStorage.setItem('mrd_route', JSON.stringify({ route: this.route, channel: this.channel, activeLeg: this.activeLeg })); else localStorage.removeItem('mrd_route'); } catch (e) {} }
   loadRoute() { try { const raw = localStorage.getItem('mrd_route'); if (raw) { const d = JSON.parse(raw); if (d && d.route && d.route.length) { this.route = d.route; this.channel = d.channel || 0.2; this.activeLeg = d.activeLeg || 1; } } } catch (e) {} }
   doPick(pt, mx, my) { let best = null, bd = 16; const test = (lat, lon, obj) => { const [x, y] = this.ll2s(lat, lon); const d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = obj; } }; for (const t of this.aisArr()) test(t.lat, t.lon, this.aisPickInfo(t)); for (const sh of this.shoals) test(sh.lat, sh.lon, { title: sh.name, cls: 'Charted danger · UWTROC', rows: [['Least depth', sh.d.toFixed(1) + ' m'], ['Vs safety contour', sh.d < this.state.safetyC ? 'SHALLOWER ⚠' : 'clear'], ['Source', 'Kartverket sjøkart']] }); if (best) { this.setState({ pick: best }); return; } const dep = this.depthAt(pt.lat, pt.lon); const land = dep <= 0; const pid = 'p' + Date.now(); this.setState({ pick: { id: pid, lat: pt.lat, lon: pt.lon, title: land ? 'Land area' : 'Sounding', cls: 'S-102 / EMODnet bathymetry', rows: [['Position', this.fmtPos(pt.lat, pt.lon)], ['Depth', land ? '— (land)' : dep.toFixed(1) + ' m'], ['Band', land ? 'land' : dep >= this.state.deepC ? 'deep water' : dep >= this.state.safetyC ? 'safe' : 'UNSAFE'], ['Source', land ? '—' : 'henter EMODnet…']] } }); if (!land) this.fetchPointDepth(pt, pid); }
@@ -1419,7 +1507,7 @@ class Component extends DCLogic {
 
     const st = {
       palDay: palB(s.palette === 'day'), palDusk: palB(s.palette === 'dusk'), palNight: palB(s.palette === 'night'),
-      layersBtn: C(glass + `width:38px;height:38px;border-radius:13px;color:${s.leftOpen ? A : 'var(--ink,#1c1c1e)'};cursor:pointer;display:flex;align-items:center;justify-content:center;`),
+      layersBtn: C(glass + `width:38px;height:38px;border-radius:13px;color:${s.rightOpen ? A : 'var(--ink,#1c1c1e)'};cursor:pointer;display:flex;align-items:center;justify-content:center;`),
       baseSjo: seg(s.base === 'sjokart'), baseTopo: seg(s.base === 'topo'), baseDark: seg(s.base === 'dark'),
       tabChart: seg(s.rightTab === 'chart'), tabRoute: seg(s.rightTab === 'route'), tabTargets: seg(s.rightTab === 'targets'), tabAlarms: seg(s.rightTab === 'alarms'),
       zbtn: zb,
@@ -1562,7 +1650,7 @@ class Component extends DCLogic {
       noWaypoints: !R.length, alarmCount: s.alarms.filter(a => !a.ack).length, noAlarms: !s.alarms.length, onAckAll: () => this.setState({ alarms: s.alarms.map(a => ({ ...a, ack: true })) }),
       onZoomIn: () => { this.view.zoom = Math.min(16, this.view.zoom + 0.6); }, onZoomOut: () => { this.view.zoom = Math.max(4.5, this.view.zoom - 0.6); },
       onCenterShip: () => { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; }, onToggleFollow: () => { const f = !this.state.followShip; if (f) { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; } this.setState({ followShip: f }); }, followTitle: s.followShip ? 'Følger skipet — trykk for å låse opp' : 'Følg skipet (kartet sentreres på skipet)', followStyle: C('width:34px;height:34px;border:none;background:' + (s.followShip ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (s.followShip ? '#fff' : 'var(--accent,#0A84FF)') + ';cursor:pointer;border-radius:11px;display:flex;align-items:center;justify-content:center;'), onCycleOrient: () => this.setState({ orient: s.orient === 'north' ? 'course' : s.orient === 'course' ? 'head' : 'north' }),
-      onToggleSim: () => this.setState({ simRunning: !s.simRunning }), playIcon: s.simRunning ? '❚❚' : '▶',
+      onToggleSim: () => this.setState({ simRunning: !s.simRunning }), playIcon: s.simRunning ? '❚❚' : '▶', simStateLabel: (s.simRunning ? 'Running' : 'Paused') + ' · ' + s.simSpeed + '×',
       onSpeed1: () => this.setState({ simSpeed: 1 }), onSpeed8: () => this.setState({ simSpeed: 8 }), onSpeed30: () => this.setState({ simSpeed: 30 }),
       pick: s.pick ? { title: s.pick.title, cls: s.pick.cls, rows: (s.pick.rows || []).map(r => Array.isArray(r) ? { k: r[0], v: r[1] } : r) } : null, onClosePick: () => this.setState({ pick: null }),
       onToggleWx: () => this.setState({ wxOpen: !s.wxOpen, tideOpen: false, voyOpen: false, gyroOpen: false }), wxOpen: s.wxOpen,
@@ -1597,9 +1685,17 @@ class Component extends DCLogic {
       aisBtnLabel: s.aisMode === 'live' ? 'Stop' : 'Connect', aisBtnStyle: C(`padding:7px 12px;border-radius:9px;border:none;background:${s.aisMode === 'live' ? '#FF3B30' : A};color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;`),
       aisStatusLabel: ({ off: 'simulated', connecting: 'connecting…', connected: 'live', reconnecting: 'reconnecting…', error: 'error', 'key error': 'invalid key' }[s.aisStatus] || s.aisStatus), aisStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${s.aisStatus === 'connected' ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${s.aisStatus === 'connected' ? '#34C759' : 'var(--muted,#8e8e93)'};`),
       onToggleGps: () => { (this.gpsMode || s.gpsStatus === 'acquiring') ? this.stopGps() : this.startGps(); }, gpsSwitch: C(`width:42px;height:25px;border-radius:13px;border:none;background:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;cursor:pointer;padding:0;`), gpsKnob: C(`position:absolute;top:2px;left:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`), gpsStatusLabel: ({ off: 'off', acquiring: 'acquiring…', fix: 'position fix', denied: 'permission denied', unavailable: 'unavailable' }[s.gpsStatus] || s.gpsStatus),
+      proxyOpen: s.proxyOpen, onToggleProxy: () => this.setState({ proxyOpen: !s.proxyOpen }), proxyChevron: s.proxyOpen ? '▾' : '▸',
+      proxyVal: this._proxyInput || '', onProxyInput: (e) => { this._proxyInput = e.target.value; },
+      onProxySave: () => { this.proxyUrl = (this._proxyInput || '').trim(); this.saveSrcCfg(); this.setState({ srcVer: (s.srcVer || 0) + 1 }); this.fetchMet(); this.fetchAlerts(); this.fetchTide(); },
+      proxyStatusLabel: this.proxyUrl ? 'active' : 'direct', proxyStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${this.proxyUrl ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${this.proxyUrl ? '#34C759' : 'var(--muted,#8e8e93)'};`),
+      srcRows: (() => { const st = this.srcStatus || {}; const lab = { ok: 'live', wait: 'waiting…', error: 'error', blocked: 'CORS-blocked · needs proxy' }; const dot = { ok: '#34C759', wait: '#FF9F0A', error: '#FF3B30', blocked: '#FF3B30' };
+        const aisK = s.aisMode === 'live' ? (s.aisStatus === 'connected' ? 'ok' : 'wait') : 'sim';
+        return [ { name: 'Kartverket · sea charts', k: st.chart || 'wait' }, { name: 'MET Norway · yr weather', k: st.met || 'wait' }, { name: 'Kartverket · tide levels', k: st.tide || 'wait' }, { name: 'aisstream.io · live AIS', k: aisK } ]
+          .map(r => ({ name: r.name, dot: r.k === 'sim' ? 'var(--muted,#8e8e93)' : (dot[r.k] || '#FF9F0A'), status: r.k === 'sim' ? 'simulated · add API key' : (lab[r.k] || r.k) })); })(),
     };
   }
-  setSafety(k, v) { this.setState({ [k]: v }); const lbl = { shallowC: 'vShallow', safetyC: 'vSafety', deepC: 'vDeep', safetyD: 'vSafetyD' }[k]; if (this.ros[lbl]) this.ros[lbl].textContent = v + ' m'; }
+  setSafety(k, v) { const s = this.state; if (k === 'safetyC') v = Math.min(Math.max(v, s.shallowC), s.deepC); else if (k === 'shallowC') v = Math.min(v, s.safetyC); else if (k === 'deepC') v = Math.max(v, s.safetyC); this.setState({ [k]: v }); const lbl = { shallowC: 'vShallow', safetyC: 'vSafety', deepC: 'vDeep', safetyD: 'vSafetyD' }[k]; if (this.ros[lbl]) this.ros[lbl].textContent = v + ' m'; }
   toggleLayer(k) { if (this.BASE_LOCK.includes(k)) return; this.setState(st => ({ layers: { ...st.layers, [k]: !st.layers[k] } })); }
   setTool(k) { this.setState({ tool: k, planning: k === 'route' }); }
   ackAlarm(id) { this.setState(st => ({ alarms: st.alarms.map(a => a.id === id ? { ...a, ack: true } : a) })); }

@@ -4,6 +4,67 @@ A modern, iPad-style ECDIS **demonstrator** for Norwegian west-coast waters
 (Stavanger ↔ Bergen), built as a single streaming Design Component:
 `ht-ecdis.html`. Open it directly in a browser.
 
+## Run locally (kjøre lokalt)
+The demo is a static site — no build step, no backend. React/ReactDOM and the
+Inter font are vendored in `vendor/`, so the UI itself needs **no CDN access
+and boots fully offline**; only the live chart/weather layers need internet.
+
+**Easiest** — from the repo folder:
+
+| Platform | Command |
+|----------|---------|
+| Linux / macOS | `./run-local.sh` (optional port: `./run-local.sh 9000`) |
+| Windows | double-click `run-local.bat` (or `run-local.bat 9000` in a terminal) |
+
+The script starts a small local web server (Python or Node.js, whichever is
+installed) and opens `http://localhost:8000/` in your browser.
+
+### Kiosk mode (true fullscreen, no exit button)
+For a demo stand, bridge display or trade show:
+
+| Platform | Command |
+|----------|---------|
+| Linux / macOS | `./run-kiosk.sh` (optional port: `./run-kiosk.sh 9000`) |
+| Windows | double-click `run-kiosk.bat` |
+
+This starts the server and opens the demo in Chrome/Chromium/Edge with
+`--kiosk`: **real fullscreen — no tab strip, no address bar, no “press Esc to
+exit” hint and no close button.** Quit with **Alt+F4** (Linux/Windows) or
+**Cmd+Q** (macOS); closing the browser also stops the server.
+
+The page itself also keeps the screen awake (Wake Lock), hides the mouse
+pointer after 6 s of stillness, and disables the right-click menu whenever it
+is opened with `?kiosk=1`. Browser state lives in a private `.kiosk-profile/`
+folder, so an aisstream API key and a granted GPS permission survive restarts.
+Opening any URL with `?kiosk=1` enables the in-page behaviour on its own, but
+only the launch scripts give hint-free fullscreen — the Fullscreen API cannot
+suppress the browser's exit UI.
+
+**Manual alternatives** (any static server works):
+```sh
+python3 -m http.server 8000      # then open http://localhost:8000/
+node server.js 8000              # zero-dependency bundled server
+npx http-server -p 8000
+```
+Serving over `http://localhost` (rather than opening the file directly) is
+recommended: it enables device-GPS (“Own-ship GPS”), correct font loading and
+the Helm Console ↔ ECDIS BroadcastChannel link between browser tabs.
+
+## Connecting live data providers (API keys & feeds)
+Open **Chart › Live sources** in the right panel:
+
+| Provider | What you get | How to connect |
+|----------|--------------|----------------|
+| **aisstream.io** | Real AIS vessels (MMSI, name, SOG/COG…) | Paste a free API key under *Live AIS* → Connect. Stored in `localStorage` on your device and auto-reconnects. |
+| **MET Norway / yr** | Wind, waves, temps, currents, forecast, alerts | No key needed — fetched automatically. Routed via the data proxy when available (adds the User-Agent MET's ToS asks for). |
+| **Kartverket tide** | Real water-level predictions at ship position | CORS-blocked for direct browser calls — works automatically when running locally via `run-local` / `server.js` (the bundled `/proxy`), or set a proxy URL under *Data proxy*. |
+| **Kartverket / OpenSeaMap / EMODnet charts** | Chart imagery & bathymetry | No key needed — always live. |
+
+A **Provider status** list in the same panel shows live/simulated/error state
+per source. Advanced: endpoint overrides can be set in `localStorage`
+`mrd_sources` as `{ "metBase": "...", "tideBase": "...", "proxyUrl": "..." }`
+for pointing at your own gateway or commercial mirrors.
+
 > ⚠️ **DEMO — NOT FOR NAVIGATION.** This is a faithful simulator of ECDIS look &
 > behaviour (IHO S-100 / S-52 presentation principles). It is **not** a
 > type-approved ECDIS (IEC 61174) and must never be used for real navigation.
@@ -41,7 +102,7 @@ Tiles are Web-Mercator (EPSG:3857) z/x/y; EMODnet is requested per-tile via WMS.
 - **Live weather & ocean (MET Norway / YR):** wind, gusts, air pressure, air & sea temperature, wave height, **real sea-surface current**, and sunrise/sunset — fetched live at own-ship position (api.met.no, no key). The S-111 current layer is driven by a real MET current field sampled across the area.
 - **Live AIS (aisstream.io):** paste a free aisstream.io API key in Chart › Live sources and the app opens a WebSocket and shows **real vessels** in the area (MMSI, name, type, SOG/COG/heading). Without a key, AIS is simulated.
 - **Own-ship position (device GPS):** toggle “Own-ship GPS” to drive own ship from this device's geolocation — making it usable as a live (non-type-approved) navigation display.
-- **Simulated only when no feed:** own-ship voyage simulator (when GPS off), and the S-124 nav-warning / S-104 tide-station demo features (no open browser API). BarentsWatch AIS and Kartverket tide APIs are CORS-blocked for keyless browsers (would need a server proxy).
+- **Simulated only when no feed:** own-ship voyage simulator (when GPS off), and the S-124 nav-warning demo features (no open browser API). Kartverket tide is CORS-blocked for direct browser calls but works through the bundled local proxy (see *Connecting live data providers*); BarentsWatch AIS would still need server-side credentials.
 
 
 - **Full / real:** chart imagery (Kartverket sjøkart, OpenSeaMap seamarks,
