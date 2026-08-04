@@ -965,7 +965,13 @@ class Component extends DCLogic {
   detectProxy() {
     if (this.proxyUrl || !/^https?:$/.test(location.protocol)) return;
     const cand = location.origin + '/proxy';
-    fetch(cand + '?ping=1').then(r => { if (r.ok) { this.proxyUrl = cand; this.setState({ srcVer: (this.state.srcVer || 0) + 1 }); this.fetchTide(); } }).catch(() => {});
+    // Require the exact `ok` body our own server.js returns — a static host
+    // that answers unknown paths with an HTML page (or a rewrite-to-index) must
+    // NOT be mistaken for a proxy, or every MET/yr call would be routed into
+    // HTML and live weather would break in production.
+    fetch(cand + '?ping=1').then(r => r.ok ? r.text() : null).then(t => {
+      if (t && t.trim() === 'ok') { this.proxyUrl = cand; this.setState({ srcVer: (this.state.srcVer || 0) + 1 }); this.fetchTide(); }
+    }).catch(() => {});
   }
   viaProxy(url) { const p = (this.proxyUrl || '').trim(); if (!p) return url; return p + (p.includes('?') ? '&' : '?') + 'url=' + encodeURIComponent(url); }
   setSrc(k, v) { this.srcStatus = this.srcStatus || {}; if (this.srcStatus[k] !== v) { this.srcStatus[k] = v; this.setState({ srcVer: (this.state.srcVer || 0) + 1 }); } }
