@@ -4,6 +4,31 @@ A modern, iPad-style ECDIS **demonstrator** for Norwegian west-coast waters
 (Stavanger ↔ Bergen), built as a single streaming Design Component:
 `ht-ecdis.html`. Open it directly in a browser.
 
+## Run locally (kjøre lokalt)
+The demo is a static site — no build step, no backend. React/ReactDOM are
+vendored in `vendor/`, so the UI itself needs **no CDN access**; only the live
+chart/weather layers need internet.
+
+**Easiest** — from the repo folder:
+
+| Platform | Command |
+|----------|---------|
+| Linux / macOS | `./run-local.sh` (optional port: `./run-local.sh 9000`) |
+| Windows | double-click `run-local.bat` (or `run-local.bat 9000` in a terminal) |
+
+The script starts a small local web server (Python or Node.js, whichever is
+installed) and opens `http://localhost:8000/` in your browser.
+
+**Manual alternatives** (any static server works):
+```sh
+python3 -m http.server 8000      # then open http://localhost:8000/
+node server.js 8000              # zero-dependency bundled server
+npx http-server -p 8000
+```
+Serving over `http://localhost` (rather than opening the file directly) is
+recommended: it enables device-GPS (“Own-ship GPS”), correct font loading and
+the Helm Console ↔ ECDIS BroadcastChannel link between browser tabs.
+
 > ⚠️ **DEMO — NOT FOR NAVIGATION.** This is a faithful simulator of ECDIS look &
 > behaviour (IHO S-100 / S-52 presentation principles). It is **not** a
 > type-approved ECDIS (IEC 61174) and must never be used for real navigation.
