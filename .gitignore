@@ -2,6 +2,9 @@
 .playwright-mcp/
 .serena/
 
+# kiosk-mode browser profile (created by run-kiosk.sh / run-kiosk.bat)
+.kiosk-profile/
+
 # editor backups
 *.bak
 *.bak-*

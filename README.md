@@ -5,9 +5,9 @@ A modern, iPad-style ECDIS **demonstrator** for Norwegian west-coast waters
 `ht-ecdis.html`. Open it directly in a browser.
 
 ## Run locally (kjøre lokalt)
-The demo is a static site — no build step, no backend. React/ReactDOM are
-vendored in `vendor/`, so the UI itself needs **no CDN access**; only the live
-chart/weather layers need internet.
+The demo is a static site — no build step, no backend. React/ReactDOM and the
+Inter font are vendored in `vendor/`, so the UI itself needs **no CDN access
+and boots fully offline**; only the live chart/weather layers need internet.
 
 **Easiest** — from the repo folder:
 
@@ -18,6 +18,27 @@ chart/weather layers need internet.
 
 The script starts a small local web server (Python or Node.js, whichever is
 installed) and opens `http://localhost:8000/` in your browser.
+
+### Kiosk mode (true fullscreen, no exit button)
+For a demo stand, bridge display or trade show:
+
+| Platform | Command |
+|----------|---------|
+| Linux / macOS | `./run-kiosk.sh` (optional port: `./run-kiosk.sh 9000`) |
+| Windows | double-click `run-kiosk.bat` |
+
+This starts the server and opens the demo in Chrome/Chromium/Edge with
+`--kiosk`: **real fullscreen — no tab strip, no address bar, no “press Esc to
+exit” hint and no close button.** Quit with **Alt+F4** (Linux/Windows) or
+**Cmd+Q** (macOS); closing the browser also stops the server.
+
+The page itself also keeps the screen awake (Wake Lock), hides the mouse
+pointer after 6 s of stillness, and disables the right-click menu whenever it
+is opened with `?kiosk=1`. Browser state lives in a private `.kiosk-profile/`
+folder, so an aisstream API key and a granted GPS permission survive restarts.
+Opening any URL with `?kiosk=1` enables the in-page behaviour on its own, but
+only the launch scripts give hint-free fullscreen — the Fullscreen API cannot
+suppress the browser's exit UI.
 
 **Manual alternatives** (any static server works):
 ```sh
