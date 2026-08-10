@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- HT ECDIS demo favicon: compass rose on chart-blue disc -->
+  <circle cx="32" cy="32" r="30" fill="#0A84FF"/>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width="2.5"/>
+  <path d="M32 10 L37.5 32 L32 26.6 L26.5 32 Z" fill="#ffffff"/>
+  <path d="M32 54 L37.5 32 L32 37.4 L26.5 32 Z" fill="#ffffff" fill-opacity=".45"/>
+  <circle cx="32" cy="32" r="3.2" fill="#ffffff"/>
+</svg>

@@ -39,8 +39,10 @@
     var fn = root.requestFullscreen || root.webkitRequestFullscreen;
     if (fn) { try { fn.call(root); } catch (e) {} }
   }
-  window.addEventListener('pointerdown', goFullscreen, { once: true });
-  window.addEventListener('keydown', goFullscreen, { once: true });
+  // Not {once:true}: a rejected request or an Esc exit must be recoverable by
+  // the next interaction. goFullscreen no-ops while already fullscreen.
+  window.addEventListener('pointerdown', goFullscreen);
+  window.addEventListener('keydown', goFullscreen);
 
   // --- hide the pointer after 6 s of stillness ------------------------------
   var idleT = null, hidden = false;

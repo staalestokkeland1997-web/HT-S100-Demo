@@ -2,7 +2,12 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>HT ECDIS — Hatteland Technology</title>
+<meta name="description" content="Interactive ECDIS demonstrator for Norwegian west-coast waters — not for navigation.">
+<meta name="theme-color" content="#0a0e14">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="apple-touch-icon" href="favicon.svg">
 <script src="./support.js"></script>
 <script src="./kiosk.js"></script>
 </head>
@@ -12,7 +17,9 @@
 <link href="vendor/fonts/inter.css" rel="stylesheet">
 <style>
   *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
-  html,body{margin:0;padding:0;height:100%;background:#0a0e14;overflow:hidden;}
+  html,body{margin:0;padding:0;height:100%;background:#0a0e14;overflow:hidden;-webkit-tap-highlight-color:transparent;touch-action:manipulation;-webkit-user-select:none;user-select:none;}
+  input,textarea{-webkit-user-select:text;user-select:text;}
+  button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
   @keyframes mrdPulse{0%,100%{opacity:1;}50%{opacity:.4;}}
   .mrd-scroll::-webkit-scrollbar{width:0;height:0;}
 </style>
@@ -24,6 +31,10 @@
   </div>
 
   <div style="position:absolute;left:50%;bottom:5px;transform:translateX(-50%);z-index:4;font-size:9px;color:var(--attr,rgba(70,80,90,.8));background:var(--attrbg,rgba(255,255,255,.55));padding:2px 9px;border-radius:7px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none;">© Kartverket charts · OpenSeaMap · EMODnet Bathymetry</div>
+
+  <sc-if value="{{ showIntro }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;{{ glass }}padding:10px 18px;border-radius:15px;font-size:11.5px;font-weight:600;color:var(--ink,#1c1c1e);white-space:nowrap;pointer-events:none;">Dra for å panorere · Knip eller scroll for å zoome · <b style="color:var(--accent,#0A84FF);">Plan route</b> + trykk i kartet legger rute</div>
+  </sc-if>
 
   <!-- brand -->
   <div style="position:absolute;left:16px;top:14px;z-index:14;display:flex;align-items:center;gap:12px;{{ glass }}padding:10px 16px;border-radius:17px;">
@@ -614,10 +625,11 @@ class Component extends DCLogic {
     shallowC: 2, safetyC: 10, deepC: 20, safetyD: 7,
     tool: 'pan', planning: false, rightTab: 'chart', rightOpen: true,
     simRunning: true, simSpeed: 1, displayCat: 'all',
-    sensorFail: { gnss: false, gyro: false }, replay: { on: false, playing: false, pos: 1 }, routeChkVer: 0, predMin: 6, hazardWarn: true, voyOpen: false, cpaLimit: 0.5, tcpaLimit: 12,
+    sensorFail: { gnss: false, gyro: false }, replay: { on: false, playing: false, pos: 1 }, routeChkVer: 0, predMin: 5, hazardWarn: true, voyOpen: false, cpaLimit: 0.5, tcpaLimit: 12,
     layers: { s101: true, s102: false, s104: true, s111: true, s124: true, s129: true, ais: true, route: true, wind: false, waves: false, radar: false, trails: true, lights: true, temp: false, clouds: true, density: false, precip: false },
     alarms: [], aisSummary: [], routeVer: 0, pick: null, metVer: 0,
     wxOpen: false, tideOpen: false, gyroOpen: false, conningOpen: false, shipUnlocked: false, autoMin: false, autoOpen: false, followShip: false, aisKeyOpen: false, aisMode: 'sim', aisStatus: 'off', gpsStatus: 'off', proxyOpen: false, srcVer: 0,
+    showIntro: (() => { try { return /[?&]kiosk=1(&|$)/.test(location.search) || !localStorage.getItem('mrd_seen'); } catch (e) { return true; } })(),
   };
   ros = {}; ownShip = { lat: 60.06, lon: 5.00, hdg: 18, cog: 18, sog: 0, len: 180, beam: 28, rudder: 0 }; channel = 0.2; route = null; activeLeg = 1; met = {}; tiles = (typeof window !== 'undefined' ? (window.__mrdTiles = window.__mrdTiles || {}) : {}); tileLoading = (typeof window !== 'undefined' ? (window.__mrdTileLoading = window.__mrdTileLoading || {}) : {});
   kv(L, z, x, y) { return `https://cache.kartverket.no/v1/wmts/1.0.0/${L}/default/webmercator/${z}/${y}/${x}.png`; }
@@ -653,15 +665,26 @@ class Component extends DCLogic {
     this.initHelm();
     this.aisLive = null; this.gpsMode = false;
     this.loadSrcCfg();
-    if (this._aisKeyInput) setTimeout(() => this.connectAis(this._aisKeyInput), 400);
+    if (this._aisKeyInput) this._aisBootT = setTimeout(() => this.connectAis(this._aisKeyInput), 400);
     this.detectProxy();
+    // Kiosk attract mode: on an unattended booth display, start the sample
+    // voyage a few seconds after boot so the screen shows a live passage
+    // instead of a parked ship. Any real interaction (helm/GPS/route) wins.
+    this._kiosk = /[?&]kiosk=1(&|$)/.test(location.search);
+    if (this._kiosk) this._attractT = setTimeout(() => {
+      if (this.gpsMode || (this.helm && this.helm.active) || this.autoNav) return;
+      if (this.route && this.activeLeg < this.route.length) { this._demoSail = true; this.setState({ simRunning: true }); }
+      else this.loadDemoRoute();
+    }, 6000);
     this.fetchMet(); this.fetchCurrentField(); this.fetchTide(); this.fetchAlerts(); this.ensureCoastline(); this._metTimer = setInterval(() => { this.fetchMet(); this.fetchAlerts(); }, 600000); this.buildSpeedField('wind'); this._fieldTimer = setInterval(() => { if (document.hidden) return; const L = this.state.layers; if (L.wind) this.buildSpeedField('wind'); if (L.s111) this.buildSpeedField('cur'); if (L.precip) this.buildPrecipField(); }, 4000); this._cfTimer = setInterval(() => this.fetchCurrentField(), 1800000); this._tideTimer = setInterval(() => this.fetchTide(), 900000);
+    this._onlineH = () => { this._tileTries = {}; if (this.srcStatus && this.srcStatus.chart === 'error') this.setSrc('chart', 'wait'); };
+    window.addEventListener('online', this._onlineH);
     this._raf = requestAnimationFrame(this.frame);
     setTimeout(() => this.resize(), 60); setTimeout(() => this.resize(), 320);
     this._lastWall = performance.now();
     this._watch = setInterval(() => { if (!document.hidden && performance.now() - (this._lastWall || 0) > 300) this.frame(performance.now()); }, 250);
   }
-  componentWillUnmount() { cancelAnimationFrame(this._raf); clearInterval(this._watch); clearInterval(this._metTimer); clearInterval(this._cfTimer); clearInterval(this._tideTimer); clearInterval(this._fieldTimer); clearInterval(this._shipPost); clearInterval(this._depthTimer); clearInterval(this._miniTimer); clearInterval(this._planRetry); window.removeEventListener('mrd-view', this._navClose); if (this.helmCh) { try { this.helmCh.close(); } catch (e) {} } this.disconnectAis(); this.stopGps(); if (this._ro) this._ro.disconnect(); if (this.canvas) { this.canvas.removeEventListener('wheel', this.onWheel); this.canvas.removeEventListener('pointerdown', this.onDown); } window.removeEventListener('pointermove', this.onMove); window.removeEventListener('pointerup', this.onUp); }
+  componentWillUnmount() { cancelAnimationFrame(this._raf); clearInterval(this._watch); clearInterval(this._metTimer); clearInterval(this._cfTimer); clearInterval(this._tideTimer); clearInterval(this._fieldTimer); clearInterval(this._shipPost); clearInterval(this._depthTimer); clearInterval(this._miniTimer); clearInterval(this._planRetry); clearTimeout(this._aisBootT); clearTimeout(this._attractT); window.removeEventListener('online', this._onlineH); window.removeEventListener('pointercancel', this.onCancel); window.removeEventListener('mrd-view', this._navClose); if (this.helmCh) { try { this.helmCh.close(); } catch (e) {} } this.disconnectAis(); this.stopGps(); if (this._ro) this._ro.disconnect(); if (this.canvas) { this.canvas.removeEventListener('wheel', this.onWheel); this.canvas.removeEventListener('pointerdown', this.onDown); } window.removeEventListener('pointermove', this.onMove); window.removeEventListener('pointerup', this.onUp); }
   componentDidUpdate() { const p = this._prev, s = this.state; if (p.palette !== s.palette) this.applyTheme(); if (p.safetyC !== s.safetyC || p.shallowC !== s.shallowC || p.deepC !== s.deepC) { this.recomputeSafety(); this.groundFired = false; } this._prev = { palette: s.palette, safetyC: s.safetyC, shallowC: s.shallowC, deepC: s.deepC }; }
 
   rootRef = (el) => { this.root = el; };
@@ -672,7 +695,7 @@ class Component extends DCLogic {
   gyroNeedleRef = (el) => { this.gyroNeedle = el; };
   gyroCardRef = (el) => { this.gyroCard = el; };
   mapWrapRef = (el) => { this.wrap = el; };
-  canvasRef = (el) => { if (!el || el === this.canvas) return; if (this._ro) this._ro.disconnect(); if (this.canvas) { this.canvas.removeEventListener('wheel', this.onWheel); this.canvas.removeEventListener('pointerdown', this.onDown); } this.canvas = el; this.ctx = el.getContext('2d'); el.addEventListener('wheel', this.onWheel, { passive: false }); el.addEventListener('pointerdown', this.onDown); window.addEventListener('pointermove', this.onMove); window.addEventListener('pointerup', this.onUp); this._ro = new ResizeObserver(() => this.resize()); this._ro.observe(this.wrap || el); this.resize(); };
+  canvasRef = (el) => { if (!el || el === this.canvas) return; if (this._ro) this._ro.disconnect(); if (this.canvas) { this.canvas.removeEventListener('wheel', this.onWheel); this.canvas.removeEventListener('pointerdown', this.onDown); } this.canvas = el; this.ctx = el.getContext('2d'); el.addEventListener('wheel', this.onWheel, { passive: false }); el.addEventListener('pointerdown', this.onDown); window.addEventListener('pointermove', this.onMove); window.addEventListener('pointerup', this.onUp); window.addEventListener('pointercancel', this.onCancel); this._ro = new ResizeObserver(() => this.resize()); this._ro.observe(this.wrap || el); this.resize(); };
   resize() { if (!this.canvas) return; const w = this.canvas.clientWidth || (this.wrap && this.wrap.clientWidth) || window.innerWidth, h = this.canvas.clientHeight || (this.wrap && this.wrap.clientHeight) || window.innerHeight; if (!w || !h) return; this.W = w; this.H = h; this.canvas.width = Math.round(w * this.dpr); this.canvas.height = Math.round(h * this.dpr); this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); }
   applyTheme() { const P = this.PAL[this.state.palette], u = P.ui; if (!this.root) return; const st = this.root.style; st.setProperty('--bg', u.bg); st.setProperty('--ink', u.ink); st.setProperty('--muted', u.muted); st.setProperty('--glassbg', u.glassBg); st.setProperty('--glassbd', u.glassBd); st.setProperty('--seg', u.seg); st.setProperty('--hair', u.hair); st.setProperty('--card', u.card); st.setProperty('--shadow', u.shadow); st.setProperty('--attr', u.attr); st.setProperty('--attrbg', u.attrbg); st.setProperty('--accent', this.accent); st.setProperty('--logoFilter', P.logo); }
 
@@ -952,14 +975,17 @@ class Component extends DCLogic {
   loadSrcCfg() {
     let cfg = {};
     try { cfg = JSON.parse(localStorage.getItem('mrd_sources') || 'null') || {}; } catch (e) {}
-    if (!cfg.aisKey) { try { const old = localStorage.getItem('mrd_ais_key'); if (old) { cfg.aisKey = old; localStorage.removeItem('mrd_ais_key'); } } catch (e) {} }
+    if (!cfg.aisKey) { try { const old = localStorage.getItem('mrd_ais_key'); if (old) { cfg.aisKey = old; localStorage.setItem('mrd_sources', JSON.stringify(cfg)); localStorage.removeItem('mrd_ais_key'); } } catch (e) {} }
     this.srcCfg = cfg;
     this._aisKeyInput = cfg.aisKey || '';
     this._proxyInput = cfg.proxyUrl || '';
     this.proxyUrl = cfg.proxyUrl || '';
     this.srcStatus = { chart: 'wait', met: 'wait', tide: 'wait' };
   }
-  saveSrcCfg() { try { this.srcCfg = { ...(this.srcCfg || {}), aisKey: this._aisKeyInput || '', proxyUrl: (this._proxyInput || '').trim() }; localStorage.setItem('mrd_sources', JSON.stringify(this.srcCfg)); } catch (e) {} }
+  // Persist the COMMITTED proxy value, not the raw input field — otherwise a
+  // half-typed proxy URL gets silently persisted whenever the AIS socket
+  // opens, changing request routing on the next reload without a Save.
+  saveSrcCfg() { try { const stored = (this.srcCfg && this.srcCfg.proxyUrl) || ''; this.srcCfg = { ...(this.srcCfg || {}), aisKey: this._aisKeyInput || '', proxyUrl: this._proxySaved ? (this._proxyInput || '').trim() : stored }; this._proxySaved = false; localStorage.setItem('mrd_sources', JSON.stringify(this.srcCfg)); } catch (e) {} }
   metBase() { return ((this.srcCfg && this.srcCfg.metBase) || 'https://api.met.no').replace(/\/$/, ''); }
   tideBase() { return ((this.srcCfg && this.srcCfg.tideBase) || 'https://vannstand.kartverket.no').replace(/\/$/, ''); }
   detectProxy() {
@@ -1241,7 +1267,7 @@ class Component extends DCLogic {
     // the ship rolls onto the next leg inside the corridor (wod computed above).
     if (dToWp < Math.max(wod, 0.05)) {
       this.activeLeg++;
-      if (this.activeLeg >= R.length) { this.addAlarm('info', 'Rute fullført — ankommet siste veipunkt.'); o.sog = 0; this.setState({ simRunning: false }); }
+      if (this.activeLeg >= R.length) { this.addAlarm('info', 'Rute fullført — ankommet siste veipunkt.'); o.sog = 0; this.autoNav = false; const demo = this._demoSail; this._demoSail = false; this.setState({ simRunning: false, routeVer: this.state.routeVer + 1 }); if (demo && this._kiosk) { clearTimeout(this._attractT); this._attractT = setTimeout(() => { if (!this.gpsMode && !(this.helm && this.helm.active)) this.loadDemoRoute(); }, 25000); } }
     }
   }
   // Shared turn geometry — single source for the autonomous controller AND the
@@ -1271,6 +1297,45 @@ class Component extends DCLogic {
     return { alter: 0, speedCap: Math.max(2.5, stw * 0.45) };   // confined → slow to a crawl (keep way on; the target is moving and will pass)
   }
   // is a straight course from own ship clear of land/shoal for `dist` nm (half-beam wide)?
+  // Free-running demo mode: no route loaded and nobody at the helm. Without
+  // this the ship holds ONE heading for ever and ploughs straight into the
+  // coast, parking the demo in a permanent LAND AHEAD alarm — guaranteed on a
+  // kiosk display that is left running. Look further ahead than the LAND AHEAD
+  // scan (1.8 nm) so the course alters before that alarm would ever fire.
+  // The clearance test must be at least as strict as checkAlarms' predicates
+  // (its ±16° land cone and the anti-grounding depth scan), otherwise freeSail
+  // holds a course the alarm system objects to and the kiosk parks in a
+  // latched LAND AHEAD anyway — just in coastal channels instead of head-on.
+  coneClear(hdg) {
+    const o = this.ownShip, s = this.state;
+    for (let i = 1; i <= 18; i++) { const dnm = i / 18 * 1.8; for (let k = 0; k < 9; k++) { const p = this.moveLL(o.lat, o.lon, hdg + (k - 4) * 4, dnm); if (this.coastLandAt(p.lat, p.lon) || this.landAt(p.lat, p.lon)) return false; if (this.depthAt(p.lat, p.lon) < s.safetyC) return false; } }
+    return true;
+  }
+  freeSail(sdt) {
+    const o = this.ownShip;
+    const look = Math.max(2.6, o.sog * 15 / 60);
+    const now = performance.now();
+    if (now - (this._freeScan || 0) > 700) {
+      this._freeScan = now;
+      const clear = (c) => this.coneClear(c) && this.courseClear(o, c, look);
+      if (clear(o.hdg)) { this._freeHdg = null; this._freeStop = false; }
+      else {
+        let best = null;
+        for (let a = 15; a <= 180 && best == null; a += 15) {
+          for (const sgn of [1, -1]) { const c = (o.hdg + sgn * a + 360) % 360; if (clear(c)) { best = c; break; } }
+        }
+        // Fully enclosed (e.g. ship dragged onto land, or every direction
+        // shoal): STOP instead of steaming a blind reciprocal in circles.
+        this._freeHdg = best; this._freeStop = best == null;
+      }
+    }
+    if (this._freeHdg != null) {
+      const err = ((this._freeHdg - o.hdg + 540) % 360) - 180;
+      if (Math.abs(err) < 1) { o.hdg = this._freeHdg; this._freeHdg = null; }
+      else o.hdg = (o.hdg + Math.max(-5 * sdt, Math.min(5 * sdt, err)) + 360) % 360;
+      o.cog = o.hdg;
+    }
+  }
   courseClear(o, course, dist) {
     const s = this.state, half = Math.max(0.04, (o.beam || 28) / 1852 / 2 + 0.03), n = Math.max(3, Math.ceil(dist / 0.05));
     for (let i = 1; i <= n; i++) { const c = this.moveLL(o.lat, o.lon, course, i / n * dist);
@@ -1298,7 +1363,11 @@ class Component extends DCLogic {
       this.simTime += sdt;
       if (this.helm && this.helm.active) { this.stepHelm(sdt); }
       else if (this.route && (this.autoNav || this._demoSail) && this.activeLeg < this.route.length) { this.stepAutoNav(sdt); }
-      else if (!this.route) { o.sog = Math.max(o.sog, 8); const nd = this.moveLL(o.lat, o.lon, o.hdg, o.sog / 3600 * sdt); o.lat = nd.lat; o.lon = nd.lon; }
+      else if (!this.route) { this.freeSail(sdt); if (this._freeStop) { o.sog = Math.max(0, o.sog - 0.6 * sdt); } else o.sog = Math.max(o.sog, 8); if (o.sog > 0) { const nd = this.moveLL(o.lat, o.lon, o.hdg, o.sog / 3600 * sdt); o.lat = nd.lat; o.lon = nd.lon; } }
+      // Route present but nobody steering (e.g. a persisted route restored on
+      // boot, or a completed voyage): come to a stop so readouts stay honest
+      // instead of freezing at the last SOG.
+      else { o.sog = Math.max(0, o.sog - 0.5 * sdt); }
     }
     if (this.state.followShip && o) { this.view.lat = o.lat; this.view.lon = o.lon; }
     if (s.simRunning || this.gpsMode) { if (!this.track.length || this.distNm(this.track[this.track.length - 1], o) > 0.08) { this.track.push({ lat: o.lat, lon: o.lon, t: Date.now() }); const cut = Date.now() - 12 * 3600e3; while (this.track.length && (this.track[0].t || 0) < cut) this.track.shift(); if (this.track.length > 1200) this.track.shift(); if (performance.now() - (this._lastTrackSave || 0) > 8000) { this._lastTrackSave = performance.now(); this.persistTrack(); } } }
@@ -1321,15 +1390,16 @@ class Component extends DCLogic {
   }
   crossTrack(a, b, p) { const ax = a.lon * this.cosMid, ay = a.lat, bx = b.lon * this.cosMid, by = b.lat, px = p.lon * this.cosMid, py = p.lat; const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1; return ((px - ax) * dy - (py - ay) * dx) / L * 60; }
   cpa(o, t) { const oc = (o.cog != null ? o.cog : o.hdg) * Math.PI / 180, tc2 = (t.cog != null ? t.cog : t.hdg) * Math.PI / 180; const ov = [Math.sin(oc) * o.sog, Math.cos(oc) * o.sog]; const tv = [Math.sin(tc2) * t.sog, Math.cos(tc2) * t.sog]; const rx = (t.lon - o.lon) * 60 * this.cosMid, ry = (t.lat - o.lat) * 60, rvx = tv[0] - ov[0], rvy = tv[1] - ov[1], rv2 = rvx * rvx + rvy * rvy; let tc = rv2 < 1e-6 ? 0 : -(rx * rvx + ry * rvy) / rv2; if (tc < 0) tc = 0; return { cpa: Math.hypot(rx + rvx * tc, ry + rvy * tc), tcpa: tc * 60 }; }
-  addAlarm(level, text) { const n = new Date(); const al = { id: 'a' + Date.now() + Math.floor(Math.random() * 999), level, text, time: this.fmtClock(n.getUTCHours() * 3600 + n.getUTCMinutes() * 60 + n.getUTCSeconds()), ack: false }; this.setState(st => ({ alarms: [al, ...st.alarms].slice(0, 40), rightTab: level === 'alarm' ? 'alarms' : st.rightTab })); }
+  addAlarm(level, text) { const n = new Date(); const al = { id: 'a' + Date.now() + Math.floor(Math.random() * 999), level, text, time: this.fmtClock(n.getHours() * 3600 + n.getMinutes() * 60 + n.getSeconds()), ack: false }; this.setState(st => ({ alarms: [al, ...st.alarms].slice(0, 40), rightTab: level === 'alarm' ? 'alarms' : st.rightTab })); }
 
   frame = (ts) => { cancelAnimationFrame(this._raf); this._lastWall = performance.now(); try { this._frameBody(ts || performance.now()); } catch (e) {} this._raf = requestAnimationFrame(this.frame); };
-  _frameBody = (ts) => { if (!this._last) this._last = ts; let dt = (ts - this._last) / 1000; this._last = ts; if (dt > 0.1) dt = 0.1; if (this.canvas && (!this.W || this.canvas.width !== Math.round(this.canvas.clientWidth * this.dpr))) this.resize(); const tr = this.state.orient === 'head' ? -this.ownShip.hdg * Math.PI / 180 : this.state.orient === 'course' ? -this.ownShip.cog * Math.PI / 180 : 0; let dr = ((tr - this.view.bearing + Math.PI * 3) % (Math.PI * 2)) - Math.PI; this.view.bearing += dr * Math.min(1, dt * 6); this.tick(dt); this.stepParticles(dt); this.stepWind(dt); this.stepClouds(dt); if (this.state.layers.density && ts - (this._lastDens || 0) > 900) { this._lastDens = ts; this.stepDensity(); } this.draw(); this.updateReadouts(ts); };
+  _frameBody = (ts) => { if (!this._last) this._last = ts; let dt = (ts - this._last) / 1000; this._last = ts; if (dt > 0.1) dt = 0.1; if (this.canvas && (!this.W || this.canvas.width !== Math.round(this.canvas.clientWidth * this.dpr))) this.resize(); const tr = this.state.orient === 'head' ? -this.ownShip.hdg * Math.PI / 180 : this.state.orient === 'course' ? -this.ownShip.cog * Math.PI / 180 : 0; let dr = ((tr - this.view.bearing + Math.PI * 3) % (Math.PI * 2)) - Math.PI; this.view.bearing += dr * Math.min(1, dt * 6); this.tick(dt); this.stepParticles(dt); this.stepWind(dt); this.stepClouds(dt); if (this.state.layers.density && ts - (this._lastDens || 0) > 900) { this._lastDens = ts; this.stepDensity(); } this.draw(); this.pumpTiles(); this.updateReadouts(ts); };
   stepParticles(dt) { if (!this.state.layers.s111) return; const B = this.bbox; for (const p of this.particles) { p.plat = p.lat; p.plon = p.lon; const c = this.currentAt(p.lat, p.lon); p.spd = c.spd; const nd = this.moveLL(p.lat, p.lon, c.ang * 180 / Math.PI, c.spd * dt * 6); p.lat = nd.lat; p.lon = nd.lon; (p.hist || (p.hist = [])).push({ lat: p.lat, lon: p.lon }); if (p.hist.length > 6) p.hist.shift(); p.life -= dt * 14; if (p.life <= 0 || p.lat < B.latMin || p.lat > B.latMax || p.lon < B.lonMin || p.lon > B.lonMax) Object.assign(p, this.spawnP(false)); } }
 
   draw() {
     const ctx = this.ctx; if (!ctx || !this.W) return; const s = this.state, P = this.PAL[s.palette]; const wide = this.view.zoom < 7.5;
     this._cos = Math.cos(this.view.bearing); this._sin = Math.sin(this.view.bearing); this._cw = this.project(this.view.lat, this.view.lon, this.view.zoom);
+    this._tileSeq = (this._tileSeq || 0) + 1;
     ctx.clearRect(0, 0, this.W, this.H); ctx.fillStyle = P.ui.bg; ctx.fillRect(0, 0, this.W, this.H);
     ctx.save(); ctx.translate(this.W / 2, this.H / 2); ctx.rotate(this.view.bearing);
     if (s.base === 'flyfoto') ctx.filter = 'brightness(1.22) saturate(1.15)';
@@ -1364,15 +1434,74 @@ class Component extends DCLogic {
     if (this.cursor && this.state.tool === 'route') this.drawCursor(ctx);
     if (this.cursor && this.state.tool === 'ebl') this.drawEBL(ctx);
     if (this.mob) this.drawMOB(ctx);
+    if (this.srcStatus && this.srcStatus.chart === 'error') this.drawTileError(ctx);
+  }
+  // On-map notice when the chart tile host is unreachable — without it the
+  // demo shows silently blank sea and only the buried provider panel hints why.
+  drawTileError(ctx) {
+    const msg = 'CHART TILES UNAVAILABLE — CHECK CONNECTION'; const y = 96;
+    ctx.save(); ctx.font = '700 10.5px Inter, sans-serif'; const w = ctx.measureText(msg).width + 30;
+    const x = this.W / 2 - w / 2;
+    ctx.fillStyle = 'rgba(255,59,48,.92)'; ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, 26, 13); else ctx.rect(x, y, w, 26);
+    ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(msg, this.W / 2, y + 13.5); ctx.restore();
   }
   TILE(layer) { const M = { sjokart: { f: (z, x, y) => this.kv('sjokartraster', z, x, y), max: 18 }, topo: { f: (z, x, y) => this.kv('topo', z, x, y), max: 18 }, flyfoto: { f: (z, x, y) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`, max: 19 }, dark: { f: (z, x, y) => `https://${'abc'[(x + y) % 3]}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`, max: 19 }, light: { f: (z, x, y) => `https://${'abc'[(x + y) % 3]}.basemaps.cartocdn.com/light_all/${z}/${x}/${y}.png`, max: 19 }, seamark: { f: (z, x, y) => `https://tiles.openseamap.org/seamark/${z}/${x}/${y}.png`, max: 18 }, bathy: { f: (z, x, y) => { const h = 20037508.342789244, ts = 2 * h / Math.pow(2, z); const minx = -h + x * ts, maxx = minx + ts, maxy = h - y * ts, miny = maxy - ts; return `https://ows.emodnet-bathymetry.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:mean_multicolour&styles=&format=image/png&transparent=true&crs=EPSG:3857&width=256&height=256&bbox=${minx},${miny},${maxx},${maxy}`; }, max: 13 } }; return M[layer]; }
   thumbUrl(layer) { const z = 9, x = 263, y = 148; return this.TILE(layer).f(z, x, y); }
-  tileImg(layer, z, x, y) { const n = Math.pow(2, z); if (y < 0 || y >= n) return null; x = ((x % n) + n) % n; const key = layer + '/' + z + '/' + x + '/' + y; if (this.tiles[key]) return this.tiles[key]; if (this.tileLoading[key]) return null; this.tileLoading[key] = 1; const img = new Image(); img.crossOrigin = 'anonymous'; img.onload = () => { this.tiles[key] = img; delete this.tileLoading[key]; const ks = this._tileKeys || (this._tileKeys = []); ks.push(key); while (ks.length > 1400) { const old = ks.shift(); if (old !== key) delete this.tiles[old]; } if (layer === 'sjokart') this.setSrc('chart', 'ok'); }; img.onerror = () => { delete this.tileLoading[key]; const tr = this._tileTries || (this._tileTries = {}); const t = (tr[key] = (tr[key] || 0) + 1); if (t <= 4) setTimeout(() => { if (!this.tiles[key] && !this.tileLoading[key]) this.tileImg(layer, z, x, y); }, Math.min(8000, 400 * Math.pow(2, t - 1))); else if (layer === 'sjokart' && (!this.srcStatus || this.srcStatus.chart !== 'ok')) this.setSrc('chart', 'error'); }; img.src = this.TILE(layer).f(z, x, y); return null; }
-  drawTiles(ctx, layer, op) { const L = this.TILE(layer); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; const z = this.view.zoom; const Zt = Math.max(2, Math.min(L.max, Math.round(z))); const f = Math.pow(2, z - Zt); const ts = 256 * f; const cw = this._cw; const n = Math.pow(2, Zt); const [cpx, cpy] = this.project(this.view.lat, this.view.lon, Zt); const ctx0 = cpx / 256, cty0 = cpy / 256; const reach = Math.hypot(this.W, this.H) / ts / 2 + 1; const x0 = Math.floor(ctx0 - reach), x1 = Math.ceil(ctx0 + reach), y0 = Math.max(0, Math.floor(cty0 - reach)), y1 = Math.min(n - 1, Math.ceil(cty0 + reach)); ctx.globalAlpha = op; for (let xt = x0; xt <= x1; xt++) for (let yt = y0; yt <= y1; yt++) { const dx = xt * 256 * f - cw[0], dy = yt * 256 * f - cw[1]; const img = this.tileImg(layer, Zt, xt, yt); if (img) ctx.drawImage(img, dx, dy, ts + 0.6, ts + 0.6); else this.drawTileFallback(ctx, layer, Zt, xt, yt, dx, dy, ts + 0.6, ts + 0.6); } ctx.globalAlpha = 1; }
+  MAX_TILE_INFLIGHT = 6;
+  // `counted` = started by the pumpTiles scheduler. Direct fetches (land
+  // sampling, route pre-load) must NOT count against the scheduler's budget:
+  // the autoroute preload alone fires up to 400 requests at once, and if
+  // those consumed the budget, pumpTiles would start ZERO visible tiles until
+  // the whole preload drained — the exact starvation the scheduler exists to
+  // prevent, inverted.
+  _startTile(layer, z, x, y, key, counted) {
+    this.tileLoading[key] = 1; if (counted) this._tileInflight = (this._tileInflight || 0) + 1;
+    const done = () => { delete this.tileLoading[key]; if (counted) this._tileInflight = Math.max(0, (this._tileInflight || 1) - 1); };
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => { this.tiles[key] = img; done(); if (this._tileTries) delete this._tileTries[key]; const ks = this._tileKeys || (this._tileKeys = []); ks.push(key); while (ks.length > 1000) { const old = ks.shift(); if (old !== key) delete this.tiles[old]; } if (layer === 'sjokart' || layer === this.state.base) this.setSrc('chart', 'ok'); };
+    img.onerror = () => { done(); const tr = this._tileTries || (this._tileTries = {}); const t = (tr[key] = (tr[key] || 0) + 1); if (!counted && t <= 4) setTimeout(() => { if (!this.tiles[key] && !this.tileLoading[key]) this.tileImg(layer, z, x, y); }, Math.min(8000, 400 * Math.pow(2, t - 1))); if (t > 4 && (layer === 'sjokart' || layer === this.state.base) && (!this.srcStatus || this.srcStatus.chart !== 'ok')) this.setSrc('chart', 'error'); };
+    img.src = this.TILE(layer).f(z, x, y);
+  }
+  // `pri` (a distance-from-screen-centre score) marks a request as coming from
+  // the draw loop, so it goes through the scheduler in pumpTiles(). Callers
+  // without it (land sampling, route pre-load) still fetch immediately.
+  // Scheduled tiles that keep failing are retried by the draw loop re-queueing
+  // them each frame, so the tries cap here is what stops an offline machine
+  // from turning the rAF loop into a request storm.
+  tileImg(layer, z, x, y, pri) { const n = Math.pow(2, z); if (y < 0 || y >= n) return null; x = ((x % n) + n) % n; const key = layer + '/' + z + '/' + x + '/' + y; if (this.tiles[key]) return this.tiles[key]; if (this.tileLoading[key]) return null; if ((this._tileTries || {})[key] > 4) return null; if (pri != null) { (this._tileQ || (this._tileQ = new Map())).set(key, { layer, z, x, y, pri, seq: this._tileSeq || 0 }); return null; } this._startTile(layer, z, x, y, key); return null; }
+  // Only the tiles the NEWEST frame still wants are worth fetching. While
+  // panning, the visible set turns over every frame; firing a request per
+  // newly-visible tile buries the browser's ~6 connections per host under
+  // tiles that have already scrolled off screen, so the ones actually on
+  // screen queue behind them. Heavy aerial JPEGs make that stall obvious.
+  // Stale entries are dropped and the rest are started centre-outwards.
+  pumpTiles() {
+    const q = this._tileQ; if (!q || !q.size) return;
+    const seq = this._tileSeq || 0;
+    for (const [k, v] of q) if (v.seq !== seq) q.delete(k);
+    if (!q.size) return;
+    const budget = this.MAX_TILE_INFLIGHT - (this._tileInflight || 0);
+    if (budget <= 0) return;
+    const wanted = [...q.entries()].sort((a, b) => a[1].pri - b[1].pri);
+    for (let i = 0; i < wanted.length && i < budget; i++) {
+      const [k, v] = wanted[i]; q.delete(k);
+      if (this.tiles[k] || this.tileLoading[k]) continue;
+      this._startTile(v.layer, v.z, v.x, v.y, k, true);
+    }
+  }
+  // 'high' resampling on photographic tiles at fractional zoom is costly —
+  // roughly a third of the frame budget when the aerial basemap is up. Drop to
+  // 'low' while the chart is actually moving and restore full quality ~250 ms
+  // after the gesture ends, where the difference is actually visible.
+  gesturing() { return performance.now() - (this._gestureT || 0) < 250; }
+  drawTiles(ctx, layer, op) { const L = this.TILE(layer); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = this.gesturing() ? 'low' : 'high'; const z = this.view.zoom; const Zt = Math.max(2, Math.min(L.max, Math.round(z))); const f = Math.pow(2, z - Zt); const ts = 256 * f; const cw = this._cw; const n = Math.pow(2, Zt); const [cpx, cpy] = this.project(this.view.lat, this.view.lon, Zt); const ctx0 = cpx / 256, cty0 = cpy / 256; const reach = Math.hypot(this.W, this.H) / ts / 2 + 1; const x0 = Math.floor(ctx0 - reach), x1 = Math.ceil(ctx0 + reach), y0 = Math.max(0, Math.floor(cty0 - reach)), y1 = Math.min(n - 1, Math.ceil(cty0 + reach)); ctx.globalAlpha = op; for (let xt = x0; xt <= x1; xt++) for (let yt = y0; yt <= y1; yt++) { const dx = xt * 256 * f - cw[0], dy = yt * 256 * f - cw[1]; const img = this.tileImg(layer, Zt, xt, yt, Math.hypot(dx + ts / 2, dy + ts / 2)); if (img) ctx.drawImage(img, dx, dy, ts + 0.6, ts + 0.6); else this.drawTileFallback(ctx, layer, Zt, xt, yt, dx, dy, ts + 0.6, ts + 0.6); } ctx.globalAlpha = 1; }
   // While the target-zoom tile streams in, fill its rect from the nearest cached
   // coarser-zoom (ancestor) tile so the map is never blank — it shows immediately
   // and sharpens as tiles arrive. Bootstraps one coarse level if nothing is cached.
-  drawTileFallback(ctx, layer, Zt, xt, yt, dx, dy, dw, dh) { const n = Math.pow(2, Zt); const xn = ((xt % n) + n) % n; for (let d = 1; d <= 5; d++) { const az = Zt - d; if (az < 0) return; const span = 1 << d; const ax = Math.floor(xn / span), ay = Math.floor(yt / span); const an = Math.pow(2, az); const axn = ((ax % an) + an) % an; const img = this.tiles[layer + '/' + az + '/' + axn + '/' + ay]; if (img) { const ss = 256 / span; ctx.drawImage(img, (xn - ax * span) * ss, (yt - ay * span) * ss, ss, ss, dx, dy, dw, dh); return; } if (d === 2) this.tileImg(layer, az, axn, ay); } }
+  drawTileFallback(ctx, layer, Zt, xt, yt, dx, dy, dw, dh) { const n = Math.pow(2, Zt); const xn = ((xt % n) + n) % n; for (let d = 1; d <= 5; d++) { const az = Zt - d; if (az < 0) return; const span = 1 << d; const ax = Math.floor(xn / span), ay = Math.floor(yt / span); const an = Math.pow(2, az); const axn = ((ax % an) + an) % an; const img = this.tiles[layer + '/' + az + '/' + axn + '/' + ay]; if (img) { const ss = 256 / span; ctx.drawImage(img, (xn - ax * span) * ss, (yt - ay * span) * ss, ss, ss, dx, dy, dw, dh); return; } if (d === 2) this.tileImg(layer, az, axn, ay, Math.hypot(dx, dy) - 1e5); } }
   inView(lat, lon, m) { const [x, y] = this.ll2s(lat, lon); return x > -m && x < this.W + m && y > -m && y < this.H + m; }
 
   lighten(rgb, t) { const c = rgb.split(',').map(Number); return Math.round(c[0] + (255 - c[0]) * t) + ',' + Math.round(c[1] + (255 - c[1]) * t) + ',' + Math.round(c[2] + (255 - c[2]) * t); }
@@ -1384,7 +1513,7 @@ class Component extends DCLogic {
   drawShoals(ctx, P) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (this.view.zoom >= 8) for (const sh of this.shoals) { if (!this.inView(sh.lat, sh.lon, 10)) continue; const unsafe = sh.d < this.state.safetyC; const shoalHi = sh.d < this.state.safetyD; const [x, y] = this.ll2s(sh.lat, sh.lon); if (unsafe) { ctx.fillStyle = 'rgba(191,90,242,.15)'; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill(); ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.4; ctx.setLineDash([3, 2]); ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke(); ctx.setLineDash([]); } ctx.fillStyle = unsafe ? '#BF5AF2' : P.ui.muted; ctx.font = 'bold 11px Inter'; ctx.fillText('✸', x, y); ctx.font = (shoalHi ? 'bold ' : '600 ') + '9px Inter'; ctx.fillStyle = shoalHi ? '#FF3B30' : P.ui.muted; ctx.fillText(sh.d.toFixed(1), x, y + 12); } ctx.restore(); }
   drawRoute(ctx) { const R = this.route, S = R.map(w => this.ll2s(w.lat, w.lon)); const dl = (this.routeCheck && this.routeCheck.dangerLegs) || []; ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(10,132,255,0.16)'; ctx.lineWidth = Math.max(6, this.nmToPx(this.channel) * 2); ctx.beginPath(); S.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); ctx.lineWidth = 2.2; ctx.setLineDash([8, 5]); for (let i = 1; i < S.length; i++) { ctx.strokeStyle = dl.includes(i) ? '#FF3B30' : this.accent; ctx.beginPath(); ctx.moveTo(S[i - 1][0], S[i - 1][1]); ctx.lineTo(S[i][0], S[i][1]); ctx.stroke(); } ctx.setLineDash([]); if (this._wop) { const [wx, wy] = this.ll2s(this._wop.lat, this._wop.lon); ctx.fillStyle = 'rgba(255,159,10,.3)'; ctx.strokeStyle = '#FF9F0A'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(wx, wy, 6, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#FF9F0A'; ctx.font = '700 8px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('WOP', wx, wy - 12); } S.forEach((p, i) => { const active = i === this.activeLeg; const danger = dl.includes(i) || dl.includes(i + 1); ctx.fillStyle = active ? '#FF9F0A' : (danger ? '#FF3B30' : this.accent); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p[0], p[1], active ? 7 : 5.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(i, p[0], p[1]); }); ctx.restore(); }
   drawEBL(ctx) { const o = this.ownShip; const [ox, oy] = this.ll2s(o.lat, o.lon); const [cx, cy] = this.ll2s(this.cursor.lat, this.cursor.lon); const rng = this.distNm(o, this.cursor); ctx.save(); ctx.strokeStyle = this.accent; ctx.lineWidth = 1.3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(cx, cy); ctx.stroke(); const rp = this.nmToPx(rng); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(ox, oy, rp, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy); ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10); ctx.stroke(); ctx.restore(); }
-  drawReplay(ctx) { const T = this.track; if (T.length < 2) return; const t0 = T[0].t || 0, t1 = T[T.length - 1].t || 1; const tt = t0 + (this._replayPos || 0) * (t1 - t0); let pt = T[0]; for (let i = 1; i < T.length; i++) { if ((T[i].t || 0) >= tt) { const f = (tt - (T[i - 1].t || 0)) / (((T[i].t || 0) - (T[i - 1].t || 0)) || 1); pt = { lat: T[i - 1].lat + (T[i].lat - T[i - 1].lat) * f, lon: T[i - 1].lon + (T[i].lon - T[i - 1].lon) * f }; break; } pt = T[i]; } const [x, y] = this.ll2s(pt.lat, pt.lon); ctx.save(); ctx.fillStyle = 'rgba(191,90,242,.9)'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(x, y, 6.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = this.PAL[this.state.palette].ui.ink; ctx.font = '700 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const d = new Date(tt); ctx.fillText(String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'), x, y - 12); ctx.restore(); }
+  drawReplay(ctx) { const T = this.track; if (T.length < 2) return; const t0 = T[0].t || 0, t1 = T[T.length - 1].t || 1; const tt = t0 + (this._replayPos || 0) * (t1 - t0); let pt = T[0]; for (let i = 1; i < T.length; i++) { if ((T[i].t || 0) >= tt) { const f = (tt - (T[i - 1].t || 0)) / (((T[i].t || 0) - (T[i - 1].t || 0)) || 1); pt = { lat: T[i - 1].lat + (T[i].lat - T[i - 1].lat) * f, lon: T[i - 1].lon + (T[i].lon - T[i - 1].lon) * f }; break; } pt = T[i]; } const [x, y] = this.ll2s(pt.lat, pt.lon); ctx.save(); ctx.fillStyle = 'rgba(191,90,242,.9)'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(x, y, 6.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = this.PAL[this.state.palette].ui.ink; ctx.font = '700 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const d = new Date(tt); ctx.fillText(String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), x, y - 12); ctx.restore(); }
   drawTrack(ctx) { if (this.track.length < 2) return; ctx.save(); ctx.strokeStyle = this.state.palette === 'night' ? 'rgba(180,200,215,.6)' : 'rgba(30,40,55,.5)'; ctx.lineWidth = 1.4; ctx.setLineDash([2, 3]); ctx.beginPath(); this.track.forEach((w, i) => { const [x, y] = this.ll2s(w.lat, w.lon); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
   drawWarnings(ctx, P) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; for (const w of this.warnings) { if (!this.inView(w.lat, w.lon, 60)) continue; const [x, y] = this.ll2s(w.lat, w.lon); const rp = this.nmToPx(w.r); ctx.fillStyle = 'rgba(191,90,242,.10)'; ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.fill(); ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.4; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#BF5AF2'; ctx.font = 'bold 13px Inter'; ctx.fillText('⚠', x, y - 0.5); if (this.view.zoom > 8.5) { ctx.font = '600 9px Inter'; ctx.fillStyle = P.ui.ink; ctx.fillText(w.id, x, y + rp + 10); } } ctx.restore(); }
   drawTideStations(ctx, P) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const phase = Math.sin(this.simTime / 22350 * Math.PI * 2); for (const t of this.tideStations) { if (!this.inView(t.lat, t.lon, 20)) continue; const [x, y] = this.ll2s(t.lat, t.lon); const lvl = (t.base + 1.0 + phase * 1.0); ctx.fillStyle = '#0A84FF'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = 'bold 7px Inter'; ctx.fillText('≈', x, y + 0.5); if (this.view.zoom > 8) { const label = t.name + '  ' + lvl.toFixed(1) + ' m'; ctx.font = '600 9px Inter'; const w = ctx.measureText(label).width; ctx.fillStyle = 'rgba(10,132,255,.92)'; ctx.beginPath(); const rx = x + 9, ry = y - 7, rw = w + 12, rh = 15; if (ctx.roundRect) { ctx.roundRect(rx, ry, rw, rh, 7); ctx.fill(); } else ctx.fillRect(rx, ry, rw, rh); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(label, rx + 6, ry + rh / 2); ctx.textAlign = 'center'; } } ctx.restore(); }
@@ -1437,15 +1566,45 @@ class Component extends DCLogic {
     if (this.compassRot) this.compassRot.setAttribute('transform', 'rotate(' + (this.view.bearing * 180 / Math.PI) + ' 14 14)');
     if (this.cursor) this.set('cursor', this.fmtPos(this.cursor.lat, this.cursor.lon));
     if (this.route && this.activeLeg < this.route.length) { const a = this.route[this.activeLeg - 1], b = this.route[this.activeLeg]; const xtd = this.crossTrack(a, b, o); this.set('activeWp', String(this.activeLeg).padStart(2, '0')); const xe = this.ros.xtd; if (xe) { xe.textContent = (xtd >= 0 ? 'R' : 'L') + Math.abs(xtd).toFixed(2); xe.style.color = Math.abs(xtd) > this.channel ? '#FF3B30' : 'var(--ink,#1c1c1e)'; } let dtg = this.distNm(o, b); for (let i = this.activeLeg + 1; i < this.route.length; i++) dtg += this.distNm(this.route[i - 1], this.route[i]); this.set('dtg', dtg.toFixed(1) + ' · ' + this.bearingDeg(o, b).toFixed(0) + '°'); const ttg = o.sog > 0.5 ? dtg / o.sog : 0; const eta = new Date(Date.now() + ttg * 3600e3); this.set('ttg', (ttg * 60).toFixed(0) + 'm · ' + String(eta.getHours()).padStart(2, '0') + ':' + String(eta.getMinutes()).padStart(2, '0')); this._wop = null; if (this.activeLeg + 1 < this.route.length) { const nxt = this.route[this.activeLeg + 1]; const inBrg = this.bearingDeg(a, b), outBrg = this.bearingDeg(b, nxt); const turn = Math.abs(((outBrg - inBrg + 540) % 360) - 180); const wod = this.wheelOverDist(turn, o.sog); this._wop = this.moveLL(b.lat, b.lon, (inBrg + 180) % 360, wod); const dWop = Math.max(0, this.distNm(o, b) - wod); const ttw = o.sog > 0.5 ? dWop / o.sog * 60 : 0; this.set('wop', dWop.toFixed(2) + 'nm · ' + ttw.toFixed(0) + 'm'); } else this.set('wop', 'last leg'); }
-    else if (!this.route) { this.set('activeWp', '—'); this.set('xtd', '—'); this.set('dtg', '—'); this.set('ttg', '—'); this.set('wop', '—'); this._wop = null; }
+    else { this.set('activeWp', '—'); this.set('xtd', '—'); this.set('dtg', '—'); this.set('ttg', '—'); this.set('wop', this.route ? 'arrived' : '—'); this._wop = null; }
     if (ts - this.lastAisPush > 950) { this.lastAisPush = ts; this.setState({ aisSummary: this.aisArr().map(t => { const cp = this.cpa(o, t); return { name: t.name, type: t.type, col: t.col, dangerous: t.dangerous, rng: this.distNm(o, t).toFixed(1) + 'nm', brg: this.bearingDeg(o, t).toFixed(0) + '°', cpa: cp.cpa.toFixed(2), tcpa: cp.tcpa.toFixed(0) + 'm' }; }) }); }
   }
 
   // events
-  onWheel = (e) => { e.preventDefault(); const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; const before = this.s2ll(mx, my); this.view.zoom = Math.max(4.5, Math.min(16, this.view.zoom - Math.sign(e.deltaY) * 0.32)); this._cw = this.project(this.view.lat, this.view.lon, this.view.zoom); this._cos = Math.cos(this.view.bearing); this._sin = Math.sin(this.view.bearing); const after = this.s2ll(mx, my); this.view.lat += before[0] - after[0]; this.view.lon += before[1] - after[1]; };
-  onDown = (e) => { const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; this.drag = { sx: mx, sy: my, lat: this.view.lat, lon: this.view.lon, moved: false, wp: -1, ship: false }; if (this.route && (this.state.tool === 'pan' || this.state.tool === 'route')) { for (let i = 0; i < this.route.length; i++) { const [wx, wy] = this.ll2s(this.route[i].lat, this.route[i].lon); if (Math.hypot(wx - mx, wy - my) < 13) { this.drag.wp = i; break; } } } if (this.drag.wp < 0 && this.state.shipUnlocked && this.state.tool === 'pan') { const os = this.ll2s(this.ownShip.lat, this.ownShip.lon); if (Math.hypot(os[0] - mx, os[1] - my) < 20) { this.drag.ship = true; this._preSim = this.state.simRunning; if (this.state.simRunning) this.setState({ simRunning: false }); } } try { this.canvas.setPointerCapture(e.pointerId); } catch (x) {} };
-  onMove = (e) => { if (!this.canvas) return; const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; const w = this.s2ll(mx, my); this.cursor = { lat: w[0], lon: w[1] }; if (this.drag) { const dx = mx - this.drag.sx, dy = my - this.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) this.drag.moved = true; if (this.drag.wp >= 0) { this.route[this.drag.wp] = { lat: w[0], lon: w[1] }; this.routeCheck = null; this.setState({ routeVer: this.state.routeVer + 1 }); return; } if (this.drag.ship) { this.ownShip.lat = w[0]; this.ownShip.lon = w[1]; this.ownShip.sog = 0; this._rot = 0; this.setState({ routeVer: this.state.routeVer + 1 }); return; } if (this.state.tool === 'route') return; if (this.state.followShip && this.drag.moved) this.setState({ followShip: false }); const c = Math.cos(-this.view.bearing), s = Math.sin(-this.view.bearing); const z = this.view.zoom; const wdx = dx * c - dy * s, wdy = dx * s + dy * c; const [cx, cy] = this.project(this.drag.lat, this.drag.lon, z); const ll = this.unproject(cx - wdx, cy - wdy, z); this.view.lat = ll[0]; this.view.lon = ll[1]; } };
-  onUp = (e) => { if (!this.drag) return; const moved = this.drag.moved, wp = this.drag.wp, ship = this.drag.ship; const r = this.canvas.getBoundingClientRect(); const w = this.s2ll(e.clientX - r.left, e.clientY - r.top); this.drag = null; if (ship) { this.track = []; this.groundFired = false; this.setState({ shipUnlocked: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Own-ship repositioned to ' + this.fmtPos(this.ownShip.lat, this.ownShip.lon) + ' — drag-lock re-engaged.'); return; } if (wp >= 0) { if (moved) this.saveRoute(); return; } if (moved) return; const pt = { lat: w[0], lon: w[1] }; const t = this.state.tool; if (t === 'route') { if (!this.route) { this.route = []; this.channel = 0.2; this.activeLeg = 1; } this.route.push(pt); this.routeCheck = null; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1 }); } else if (t === 'autoroute') { this.autoRouteTo(pt); } else { this.doPick(pt, e.clientX - r.left, e.clientY - r.top); } };
+  onWheel = (e) => { e.preventDefault(); this._gestureT = performance.now(); const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; const before = this.s2ll(mx, my); this.view.zoom = Math.max(4.5, Math.min(16, this.view.zoom - Math.sign(e.deltaY) * 0.32)); this._cw = this.project(this.view.lat, this.view.lon, this.view.zoom); this._cos = Math.cos(this.view.bearing); this._sin = Math.sin(this.view.bearing); const after = this.s2ll(mx, my); this.view.lat += before[0] - after[0]; this.view.lon += before[1] - after[1]; };
+  onDown = (e) => { const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top;
+    // Two-finger pinch: second pointer cancels any drag and enters pinch mode
+    // (zoom about the finger midpoint + pan with it), like every touch map.
+    (this._ptrs || (this._ptrs = new Map())).set(e.pointerId, { x: mx, y: my });
+    if (this._ptrs.size === 2) { const [a, b] = [...this._ptrs.values()]; this._pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; this._pinched = true; this.drag = null; this._gestureT = performance.now(); try { this.canvas.setPointerCapture(e.pointerId); } catch (x) {} return; }
+    if (this._ptrs.size > 2) return;
+    if (this.state.showIntro) { this.setState({ showIntro: false }); try { localStorage.setItem('mrd_seen', '1'); } catch (x) {} }
+    this.drag = { sx: mx, sy: my, id: e.pointerId, lat: this.view.lat, lon: this.view.lon, moved: false, wp: -1, ship: false }; if (this.route && (this.state.tool === 'pan' || this.state.tool === 'route')) { for (let i = 0; i < this.route.length; i++) { const [wx, wy] = this.ll2s(this.route[i].lat, this.route[i].lon); if (Math.hypot(wx - mx, wy - my) < 13) { this.drag.wp = i; break; } } } if (this.drag.wp < 0 && this.state.shipUnlocked && this.state.tool === 'pan') { const os = this.ll2s(this.ownShip.lat, this.ownShip.lon); if (Math.hypot(os[0] - mx, os[1] - my) < 20) { this.drag.ship = true; this._preSim = this.state.simRunning; if (this.state.simRunning) this.setState({ simRunning: false }); } } try { this.canvas.setPointerCapture(e.pointerId); } catch (x) {} };
+  onMove = (e) => { if (!this.canvas) return; const r = this.canvas.getBoundingClientRect(); const mx = e.clientX - r.left, my = e.clientY - r.top; const w = this.s2ll(mx, my); this.cursor = { lat: w[0], lon: w[1] };
+    if (this._ptrs && this._ptrs.has(e.pointerId)) this._ptrs.set(e.pointerId, { x: mx, y: my });
+    if (this._ptrs && this._ptrs.size >= 2 && this._pinch) {
+      const [a, b] = [...this._ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2; const P = this._pinch;
+      if (d > 24 && P.d > 24) {
+        this._gestureT = performance.now();
+        if (this.state.followShip && Math.hypot(cx - P.cx, cy - P.cy) > 6) this.setState({ followShip: false });
+        const before = this.s2ll(P.cx, P.cy);
+        this.view.zoom = Math.max(4.5, Math.min(16, this.view.zoom + Math.log2(d / P.d)));
+        this._cw = this.project(this.view.lat, this.view.lon, this.view.zoom); this._cos = Math.cos(this.view.bearing); this._sin = Math.sin(this.view.bearing);
+        const after = this.s2ll(cx, cy);
+        this.view.lat += before[0] - after[0]; this.view.lon += before[1] - after[1];
+      }
+      P.d = d; P.cx = cx; P.cy = cy;
+      return;
+    }
+    if (this.drag && this.drag.id != null && e.pointerId !== this.drag.id) return;
+    if (this.drag) { const dx = mx - this.drag.sx, dy = my - this.drag.sy; if (Math.abs(dx) + Math.abs(dy) > 3) this.drag.moved = true; if (this.drag.wp >= 0) { this.route[this.drag.wp] = { lat: w[0], lon: w[1] }; this.routeCheck = null; this.setState({ routeVer: this.state.routeVer + 1 }); return; } if (this.drag.ship) { this.ownShip.lat = w[0]; this.ownShip.lon = w[1]; this.ownShip.sog = 0; this._rot = 0; this.setState({ routeVer: this.state.routeVer + 1 }); return; } if (this.state.tool === 'route') return; this._gestureT = performance.now(); if (this.state.followShip && this.drag.moved) this.setState({ followShip: false }); const c = Math.cos(-this.view.bearing), s = Math.sin(-this.view.bearing); const z = this.view.zoom; const wdx = dx * c - dy * s, wdy = dx * s + dy * c; const [cx, cy] = this.project(this.drag.lat, this.drag.lon, z); const ll = this.unproject(cx - wdx, cy - wdy, z); this.view.lat = ll[0]; this.view.lon = ll[1]; } };
+  onCancel = (e) => { if (this._ptrs) this._ptrs.delete(e.pointerId); if (!this._ptrs || this._ptrs.size < 2) this._pinch = null; if (!this._ptrs || this._ptrs.size === 0) this._pinched = false; this.drag = null; };
+  onUp = (e) => {
+    if (this._ptrs) this._ptrs.delete(e.pointerId);
+    // Swallow the tail of a pinch so lifting the fingers never registers as a
+    // tap (which would drop a waypoint or open a pick report).
+    if (this._pinched) { if (!this._ptrs || this._ptrs.size === 0) { this._pinched = false; this._pinch = null; } return; }
+    if (!this.drag) return; const moved = this.drag.moved, wp = this.drag.wp, ship = this.drag.ship; const r = this.canvas.getBoundingClientRect(); const w = this.s2ll(e.clientX - r.left, e.clientY - r.top); this.drag = null; if (ship) { this.track = []; this.groundFired = false; this.setState({ shipUnlocked: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Own-ship repositioned to ' + this.fmtPos(this.ownShip.lat, this.ownShip.lon) + ' — drag-lock re-engaged.'); return; } if (wp >= 0) { if (moved) this.saveRoute(); return; } if (moved) return; const pt = { lat: w[0], lon: w[1] }; const t = this.state.tool; if (t === 'route') { if (!this.route) { this.route = []; this.channel = 0.2; this.activeLeg = 1; } this.route.push(pt); this.routeCheck = null; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1 }); } else if (t === 'autoroute') { this.autoRouteTo(pt); } else { this.doPick(pt, e.clientX - r.left, e.clientY - r.top); } };
   saveRoute() { try { if (this.route && this.route.length) localStorage.setItem('mrd_route', JSON.stringify({ route: this.route, channel: this.channel, activeLeg: this.activeLeg })); else localStorage.removeItem('mrd_route'); } catch (e) {} }
   loadRoute() { try { const raw = localStorage.getItem('mrd_route'); if (raw) { const d = JSON.parse(raw); if (d && d.route && d.route.length) { this.route = d.route; this.channel = d.channel || 0.2; this.activeLeg = d.activeLeg || 1; } } } catch (e) {} }
   doPick(pt, mx, my) { let best = null, bd = 16; const test = (lat, lon, obj) => { const [x, y] = this.ll2s(lat, lon); const d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = obj; } }; for (const t of this.aisArr()) test(t.lat, t.lon, this.aisPickInfo(t)); for (const sh of this.shoals) test(sh.lat, sh.lon, { title: sh.name, cls: 'Charted danger · UWTROC', rows: [['Least depth', sh.d.toFixed(1) + ' m'], ['Vs safety contour', sh.d < this.state.safetyC ? 'SHALLOWER ⚠' : 'clear'], ['Source', 'Kartverket sjøkart']] }); if (best) { this.setState({ pick: best }); return; } const dep = this.depthAt(pt.lat, pt.lon); const land = dep <= 0; const pid = 'p' + Date.now(); this.setState({ pick: { id: pid, lat: pt.lat, lon: pt.lon, title: land ? 'Land area' : 'Sounding', cls: 'S-102 / EMODnet bathymetry', rows: [['Position', this.fmtPos(pt.lat, pt.lon)], ['Depth', land ? '— (land)' : dep.toFixed(1) + ' m'], ['Band', land ? 'land' : dep >= this.state.deepC ? 'deep water' : dep >= this.state.safetyC ? 'safe' : 'UNSAFE'], ['Source', land ? '—' : 'henter EMODnet…']] } }); if (!land) this.fetchPointDepth(pt, pid); }
@@ -1567,7 +1726,7 @@ class Component extends DCLogic {
     const ex = this.tideExtremes(); const nowMs = Date.now();
     const nh = ex.filter(e => e.type === 'high' && e.t > nowMs)[0];
     const nl = ex.filter(e => e.type === 'low' && e.t > nowMs)[0];
-    const fmtT = t => { const d = new Date(t); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
+    const fmtT = t => { const d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
     const fmtV = v => (v >= 0 ? '+' : '') + v.toFixed(2) + ' m';
     // rate of change at "now" (m/h) from the prediction slope around the current time
     let ratePerH = 0; if (T && T.pts.length > 1) { const pp = T.pts; for (let i = 1; i < pp.length; i++) { if (nowMs <= pp[i].t) { ratePerH = (pp[i].v - pp[i - 1].v) / ((pp[i].t - pp[i - 1].t) / 3600e3 || 1); break; } } }
@@ -1685,9 +1844,10 @@ class Component extends DCLogic {
       aisBtnLabel: s.aisMode === 'live' ? 'Stop' : 'Connect', aisBtnStyle: C(`padding:7px 12px;border-radius:9px;border:none;background:${s.aisMode === 'live' ? '#FF3B30' : A};color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;`),
       aisStatusLabel: ({ off: 'simulated', connecting: 'connecting…', connected: 'live', reconnecting: 'reconnecting…', error: 'error', 'key error': 'invalid key' }[s.aisStatus] || s.aisStatus), aisStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${s.aisStatus === 'connected' ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${s.aisStatus === 'connected' ? '#34C759' : 'var(--muted,#8e8e93)'};`),
       onToggleGps: () => { (this.gpsMode || s.gpsStatus === 'acquiring') ? this.stopGps() : this.startGps(); }, gpsSwitch: C(`width:42px;height:25px;border-radius:13px;border:none;background:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;cursor:pointer;padding:0;`), gpsKnob: C(`position:absolute;top:2px;left:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`), gpsStatusLabel: ({ off: 'off', acquiring: 'acquiring…', fix: 'position fix', denied: 'permission denied', unavailable: 'unavailable' }[s.gpsStatus] || s.gpsStatus),
+      showIntro: s.showIntro,
       proxyOpen: s.proxyOpen, onToggleProxy: () => this.setState({ proxyOpen: !s.proxyOpen }), proxyChevron: s.proxyOpen ? '▾' : '▸',
       proxyVal: this._proxyInput || '', onProxyInput: (e) => { this._proxyInput = e.target.value; },
-      onProxySave: () => { this.proxyUrl = (this._proxyInput || '').trim(); this.saveSrcCfg(); this.setState({ srcVer: (s.srcVer || 0) + 1 }); this.fetchMet(); this.fetchAlerts(); this.fetchTide(); },
+      onProxySave: () => { this.proxyUrl = (this._proxyInput || '').trim(); this._proxySaved = true; this.saveSrcCfg(); this.setState({ srcVer: (s.srcVer || 0) + 1 }); this.fetchMet(); this.fetchAlerts(); this.fetchTide(); },
       proxyStatusLabel: this.proxyUrl ? 'active' : 'direct', proxyStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${this.proxyUrl ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${this.proxyUrl ? '#34C759' : 'var(--muted,#8e8e93)'};`),
       srcRows: (() => { const st = this.srcStatus || {}; const lab = { ok: 'live', wait: 'waiting…', error: 'error', blocked: 'CORS-blocked · needs proxy' }; const dot = { ok: '#34C759', wait: '#FF9F0A', error: '#FF3B30', blocked: '#FF3B30' };
         const aisK = s.aisMode === 'live' ? (s.aisStatus === 'connected' ? 'ok' : 'wait') : 'sim';
