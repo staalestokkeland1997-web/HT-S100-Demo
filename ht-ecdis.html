@@ -653,13 +653,15 @@ class Component extends DCLogic {
     this.GW = 240; this.GH = 392;
     this.buildNoise(this.mulberry(7));
     this.buildDepthFallback();
-    this.shoals = [ { lat: 60.047, lon: 4.83, d: 6, name: 'Approach Shoal' }, { lat: 60.205, lon: 5.04, d: 5, name: 'Vatlestraumen Bank' }, { lat: 59.42, lon: 5.06, d: 4, name: 'Ryvarden Rk' } ];
+    // Positions are deliberately OFF the sample-voyage corridor (verified: the
+    // corridor's model minimum is >40 m with these), so the packaged demo sails
+    // alarm-free while the shoals stay visible/pickable for the S-52 shading.
+    this.shoals = [ { lat: 60.075, lon: 4.70, d: 6, name: 'Approach Shoal' }, { lat: 60.245, lon: 5.05, d: 5, name: 'Vatlestraumen Bank' }, { lat: 59.42, lon: 5.06, d: 4, name: 'Ryvarden Rk' } ];
     this.tideStations = [ { lat: 60.397, lon: 5.308, name: 'Bergen', base: 0.9 }, { lat: 60.16, lon: 5.20, name: 'Korsfjorden', base: 0.7 }, { lat: 59.413, lon: 5.268, name: 'Haugesund', base: 0.6 } ];
     this.warnings = [ { lat: 59.95, lon: 4.74, r: 3.0, id: 'NW-2026-118', text: 'Naval firing exercise' }, { lat: 60.21, lon: 5.00, r: 1.6, id: 'NW-2026-121', text: 'Buoy off station' } ];
     this.lights = [ { lat: 60.1175, lon: 5.012, col: 'W', per: 4, on: 2, label: 'Iso W 4s' }, { lat: 60.398, lon: 5.305, col: 'R', per: 3, on: 0.4, label: 'Fl R 3s' }, { lat: 59.95, lon: 5.18, col: 'G', per: 5, on: 0.5, label: 'Fl G 5s' }, { lat: 60.27, lon: 5.205, col: 'W', per: 6, on: 0.6, label: 'Fl W 6s' }, { lat: 59.43, lon: 5.27, col: 'W', per: 10, on: 1, label: 'Oc W 10s' }, { lat: 60.50, lon: 4.95, col: 'R', per: 8, on: 0.5, label: 'Fl R 8s' } ];
     this.carveShoals(); this.routeDepth = this.depth; this.initShip(); this.initParticles(); this.initClouds(); this.recomputeSafety(); this.buildTempField(); this.buildPrecipField(); this.applyTheme();
     this.fetchLandMask();
-    this.fetchDepth();
     this.loadTrack();
     this.loadRoute();
     this.initHelm();
@@ -715,16 +717,16 @@ class Component extends DCLogic {
 
   gi(lat, lon) { const B = this.bbox; return [(lon - B.lonMin) / (B.lonMax - B.lonMin) * (this.GW - 1), (B.latMax - lat) / (B.latMax - B.latMin) * (this.GH - 1)]; }
   buildDepthFallback() { const f = new Float32Array(this.GW * this.GH); const B = this.bbox; for (let y = 0; y < this.GH; y++) for (let x = 0; x < this.GW; x++) { const lon = B.lonMin + x / (this.GW - 1) * (B.lonMax - B.lonMin); let d = 28 + (5.42 - lon) * 135 + (this.fbm(x / this.GW * 3, y / this.GH * 3) - 0.5) * 42; f[y * this.GW + x] = Math.max(6, Math.min(360, d)); } this.depth = f; }
-  carveShoals() { for (const sh of this.shoals) { const [cx, cy] = this.gi(sh.lat, sh.lon); const rad = 4; for (let y = Math.max(0, (cy - rad) | 0); y < Math.min(this.GH, cy + rad); y++) for (let x = Math.max(0, (cx - rad) | 0); x < Math.min(this.GW, cx + rad); x++) { const dd = Math.hypot(x - cx, y - cy); if (dd > rad) continue; const i = y * this.GW + x; if (this.depth[i] <= 0) continue; this.depth[i] = Math.min(this.depth[i], sh.d + dd * 3); } } }
+  // rad 2 cells (~4.5 km) with a steep 6 m/cell slope: sharp pinnacles. The old
+  // rad-4/slope-3 cones were ~9 km wide and shoaled the demo route's corridor.
+  carveShoals() { for (const sh of this.shoals) { const [cx, cy] = this.gi(sh.lat, sh.lon); const rad = 2; for (let y = Math.max(0, (cy - rad) | 0); y < Math.min(this.GH, cy + rad); y++) for (let x = Math.max(0, (cx - rad) | 0); x < Math.min(this.GW, cx + rad); x++) { const dd = Math.hypot(x - cx, y - cy); if (dd > rad) continue; const i = y * this.GW + x; if (this.depth[i] <= 0) continue; this.depth[i] = Math.min(this.depth[i], sh.d + dd * 6); } } }
   depthAt(lat, lon) { const [fx, fy] = this.gi(lat, lon); let x0 = Math.floor(fx), y0 = Math.floor(fy); if (x0 < 0 || y0 < 0 || x0 >= this.GW - 1 || y0 >= this.GH - 1) return 400; const dx = fx - x0, dy = fy - y0, f = this.depth, W = this.GW; const a = f[y0 * W + x0], b = f[y0 * W + x0 + 1], c = f[(y0 + 1) * W + x0], d = f[(y0 + 1) * W + x0 + 1]; return (a * (1 - dx) + b * dx) * (1 - dy) + (c * (1 - dx) + d * dx) * dy; }
-  fetchDepth() {
-    const B = this.bbox, W = this.GW, H = this.GH;
-    const url = `https://ows.emodnet-bathymetry.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:mean_multicolour&styles=&format=image/png&transparent=true&crs=EPSG:4326&width=${W}&height=${H}&bbox=${B.latMin},${B.lonMin},${B.latMax},${B.lonMax}`;
-    const img = new Image(); img.crossOrigin = 'anonymous';
-    img.onload = () => { try { const c = document.createElement('canvas'); c.width = W; c.height = H; const cx = c.getContext('2d'); cx.drawImage(img, 0, 0, W, H); const dt = cx.getImageData(0, 0, W, H).data; const f = new Float32Array(W * H); for (let i = 0; i < W * H; i++) { const r = dt[i * 4], g = dt[i * 4 + 1], b = dt[i * 4 + 2], a = dt[i * 4 + 3]; if (a < 40) { f[i] = -6; continue; } let d = ((b - r) + 50) * 2.4 + (g - r) * 0.4; f[i] = Math.max(0.5, Math.min(500, d)); } for (let pass = 0; pass < 2; pass++) { const cp = f.slice(); for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { const i = y * W + x; if (cp[i] <= 0) continue; let s = 0, n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const j = i + dy * W + dx; if (cp[j] > 0) { s += cp[j]; n++; } } if (n) f[i] = s / n; } } this.depth = f; this.routeDepth = f; this._gridCache = null; this.carveShoals(); this.recomputeSafety(); this._depthLive = true; if (this.ros.depthSrc) this.ros.depthSrc.textContent = 'EMODnet ✓'; } catch (e) { if (this.ros.depthSrc) this.ros.depthSrc.textContent = 'modelled'; } };
-    img.onerror = () => { if (this.ros.depthSrc) this.ros.depthSrc.textContent = 'modelled'; };
-    img.src = url;
-  }
+  // NOTE: an earlier revision decoded a depth GRID from the colours of the
+  // EMODnet raster image. That heuristic is unreliable near the coast (it
+  // reported 0.5 m in navigable fjord water and made the grounding alarms
+  // fire at the ship's own position), so the numeric depth model stays the
+  // coast-aware synthetic one; REAL depths come from the EMODnet
+  // GetFeatureInfo point queries (fetchLiveDepth / fetchPointDepth).
   fetchLandMask() {
     const B = this.bbox, W = this.GW, H = this.GH;
     const url = `https://ows.emodnet-bathymetry.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:mean_multicolour&styles=&format=image/png&transparent=true&crs=EPSG:4326&width=${W}&height=${H}&bbox=${B.latMin},${B.lonMin},${B.latMax},${B.lonMax}`;
@@ -1328,6 +1330,12 @@ class Component extends DCLogic {
         // shoal): STOP instead of steaming a blind reciprocal in circles.
         this._freeHdg = best; this._freeStop = best == null;
       }
+      // Traffic: the free-running ship must give way like the route
+      // controller does, or it sails blind through the AIS fleet and the
+      // dangerous-target CPA alarm sits latched more or less permanently.
+      const av = this.colregAvoid(o, this._freeHdg != null ? this._freeHdg : o.hdg, o.sog);
+      this._freeCap = av && av.speedCap != null ? av.speedCap : null;
+      if (av && av.alter) this._freeHdg = ((this._freeHdg != null ? this._freeHdg : o.hdg) + av.alter + 360) % 360;
     }
     if (this._freeHdg != null) {
       const err = ((this._freeHdg - o.hdg + 540) % 360) - 180;
@@ -1363,7 +1371,7 @@ class Component extends DCLogic {
       this.simTime += sdt;
       if (this.helm && this.helm.active) { this.stepHelm(sdt); }
       else if (this.route && (this.autoNav || this._demoSail) && this.activeLeg < this.route.length) { this.stepAutoNav(sdt); }
-      else if (!this.route) { this.freeSail(sdt); if (this._freeStop) { o.sog = Math.max(0, o.sog - 0.6 * sdt); } else o.sog = Math.max(o.sog, 8); if (o.sog > 0) { const nd = this.moveLL(o.lat, o.lon, o.hdg, o.sog / 3600 * sdt); o.lat = nd.lat; o.lon = nd.lon; } }
+      else if (!this.route) { this.freeSail(sdt); const vt = this._freeStop ? 0 : (this._freeCap != null ? this._freeCap : 8); o.sog += Math.max(-0.9 * sdt, Math.min(0.5 * sdt, vt - o.sog)); if (o.sog < 0.05 && vt === 0) o.sog = 0; if (o.sog > 0) { const nd = this.moveLL(o.lat, o.lon, o.hdg, o.sog / 3600 * sdt); o.lat = nd.lat; o.lon = nd.lon; } }
       // Route present but nobody steering (e.g. a persisted route restored on
       // boot, or a completed voyage): come to a stop so readouts stay honest
       // instead of freezing at the last SOG.
@@ -1372,6 +1380,30 @@ class Component extends DCLogic {
     if (this.state.followShip && o) { this.view.lat = o.lat; this.view.lon = o.lon; }
     if (s.simRunning || this.gpsMode) { if (!this.track.length || this.distNm(this.track[this.track.length - 1], o) > 0.08) { this.track.push({ lat: o.lat, lon: o.lon, t: Date.now() }); const cut = Date.now() - 12 * 3600e3; while (this.track.length && (this.track[0].t || 0) < cut) this.track.shift(); if (this.track.length > 1200) this.track.shift(); if (performance.now() - (this._lastTrackSave || 0) > 8000) { this._lastTrackSave = performance.now(); this.persistTrack(); } } }
     const B = this.bbox, live = s.aisMode === 'live'; const arr = this.aisArr();
+    // Simulated traffic gives way: real vessels do not hold a blind straight
+    // line through a close-quarters situation, and without this the demo sits
+    // in a latched "dangerous target" CPA alarm more or less continuously.
+    // Starboard alteration while the encounter is live, easing back to the
+    // base course once clear (COLREG-ish, good enough for a demo).
+    // Throttled on SIM time, not wall time: at 30x an encounter develops 30x
+    // faster, so a wall-clock cadence would let ships close half a mile
+    // between give-way decisions.
+    this._trafAcc = (this._trafAcc || 0) + sdt;
+    if (!live && this._trafAcc > 15) {
+      this._trafAcc = 0;
+      const cpaLim = (s.cpaLimit || 0.5), tcpaLim = (s.tcpaLimit || 12);
+      for (const t of arr) {
+        if (t._baseHdg == null) t._baseHdg = t.hdg;
+        const cp = this.cpa(o, t);
+        if (cp.tcpa > 0 && cp.tcpa < tcpaLim * 1.15 && cp.cpa < cpaLim * 1.6) t._avoid = Math.min(60, (t._avoid || 0) + 20);
+        else if (t._avoid) t._avoid = Math.max(0, t._avoid - 8);
+        if (t._avoid || t.hdg !== t._baseHdg) {
+          const want = (t._baseHdg + (t._avoid || 0) + 360) % 360;
+          const err = ((want - t.hdg + 540) % 360) - 180;
+          t.hdg = (t.hdg + Math.max(-14, Math.min(14, err)) + 360) % 360; t.cog = t.hdg;
+        }
+      }
+    }
     for (const t of arr) { if (t.sog) { const adv = live ? dt : sdt; const nd = this.moveLL(t.lat, t.lon, (t.cog != null ? t.cog : t.hdg), t.sog / 3600 * adv); t.lat = nd.lat; t.lon = nd.lon; } if (!live) { if (t.lon < B.lonMin) t.lon = B.lonMax - .02; if (t.lon > B.lonMax) t.lon = B.lonMin + .02; if (t.lat < B.latMin) t.lat = B.latMax - .02; if (t.lat > B.latMax) t.lat = B.latMin + .02; } }
     if (s.layers.trails) { for (const t of arr) { if (!t._trail) t._trail = []; const last = t._trail[t._trail.length - 1]; if (!last || this.distNm(last, t) > 0.02) { t._trail.push({ lat: t.lat, lon: t.lon }); if (t._trail.length > 50) t._trail.shift(); } } }
     if (live && this.aisLive) { const now = Date.now(); for (const k in this.aisLive) if (now - (this.aisLive[k].last || 0) > 300000) delete this.aisLive[k]; }
@@ -1384,7 +1416,7 @@ class Component extends DCLogic {
     const moving = (s.simRunning || this.gpsMode) && o.sog > 0.5;
     if (landNm != null && moving) { if (!this._landFired) { this._landFired = true; this.addAlarm('alarm', '⚠ LAND AHEAD — kurs ' + o.hdg.toFixed(0) + '° møter land om ' + landNm.toFixed(1) + ' nm. Endre kurs eller stopp.'); } } else if (landNm == null) this._landFired = false;
     if (minD < s.safetyC && !this.groundFired && moving) { this.groundFired = true; this.addAlarm('alarm', 'ANTI-GROUNDING — sikkerhetskontur ' + s.safetyC + ' m krysses ' + (minD < 0 ? 'av land' : 'om kort tid (' + minD.toFixed(1) + ' m)') + ' i kursretningen.'); }
-    if (this.route && this.activeLeg < this.route.length) { const xtd = this.crossTrack(this.route[this.activeLeg - 1], this.route[this.activeLeg], o); if (Math.abs(xtd) > this.channel && (s.simRunning || this.gpsMode)) { if (!this._xtdFired) { this._xtdFired = true; this.addAlarm('warning', 'Cross-track ' + Math.abs(xtd).toFixed(2) + ' nm exceeds XTD limit ' + this.channel.toFixed(2) + ' nm.'); } } else this._xtdFired = false; }
+    if (this.route && this.activeLeg < this.route.length) { const xtd = this.crossTrack(this.route[this.activeLeg - 1], this.route[this.activeLeg], o); if (Math.abs(xtd) > this.channel && (s.simRunning || this.gpsMode) && o.sog > 0.5) { if (!this._xtdFired) { this._xtdFired = true; this.addAlarm('warning', 'Cross-track ' + Math.abs(xtd).toFixed(2) + ' nm exceeds XTD limit ' + this.channel.toFixed(2) + ' nm.'); } } else this._xtdFired = false; }
     for (const t of this.aisArr()) { const cp = this.cpa(o, t); t.dangerous = cp.cpa < s.cpaLimit && cp.tcpa > 0 && cp.tcpa < s.tcpaLimit; if (t.dangerous && !t._fired) { t._fired = true; this.addAlarm('warning', 'Dangerous target ' + t.name + ' — CPA ' + cp.cpa.toFixed(2) + ' nm in ' + cp.tcpa.toFixed(0) + ' min.'); } if (!t.dangerous) t._fired = false; }
     { const pm = s.predMin || 6; const dir = (o.cog != null ? o.cog : o.hdg); const reach = Math.max(1.5, o.sog * pm / 60); const half = Math.max(0.05, (o.beam || 28) / 1852 / 2 + 0.04); let hz = null; if (s.hazardWarn) { outer: for (let i = 1; i <= 72; i++) { const dnm = i / 72 * reach; const c = this.moveLL(o.lat, o.lon, dir, dnm); for (let k = -2; k <= 2; k++) { const p = k === 0 ? c : this.moveLL(c.lat, c.lon, (dir + 90) % 360, k * half); const cl = this.chartLandAt(p.lat, p.lon); const land = cl === true || (cl == null && this.landAt && this.landAt(p.lat, p.lon)); if (land || this.depthAt(p.lat, p.lon) < s.safetyC) { hz = { lat: c.lat, lon: c.lon, d: dnm, land, dir }; break outer; } } } } this.hazardPt = hz; if (hz && o.sog > 1) { if (!this._hzFired) { this._hzFired = true; this.addAlarm('warning', (hz.land ? 'LAND' : 'GRUNNE / SKJÆR') + ' i predikert kurs — ' + hz.d.toFixed(1) + ' nm forut i kurs ' + dir.toFixed(0) + '°.'); } } else if (!hz) this._hzFired = false; }
   }
