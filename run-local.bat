@@ -1,38 +1,51 @@
 @echo off
 rem Run the HT ECDIS demo on a local machine (Windows).
 rem Starts a small static web server in this folder and opens the demo
-rem in your default browser. Requires Python or Node.js on PATH.
+rem in your default browser. Requires Node.js or Python on PATH.
 
-setlocal
+setlocal EnableExtensions
+title HT ECDIS local server
 set PORT=%1
 if "%PORT%"=="" set PORT=8000
-set URL=http://localhost:%PORT%/
+set "URL=http://localhost:%PORT%/"
 
 cd /d "%~dp0"
 
-echo HT ECDIS demo - serving %cd% on %URL%  (Ctrl+C to stop)
-
-where python >nul 2>nul
-if %errorlevel%==0 (
+rem node first (server.js also provides the /proxy endpoint for live tide
+rem data), then the "py" launcher. Plain "python" last, and only if it truly
+rem runs: on stock Windows, "where python" finds the Microsoft Store alias
+rem stub, which starts nothing and exits silently.
+where node >nul 2>nul
+if not errorlevel 1 (
+  echo HT ECDIS demo - serving %cd% on %URL%  ^(Ctrl+C to stop^)
   start "" %URL%
-  python -m http.server %PORT% --bind 127.0.0.1
-  goto :eof
+  node server.js %PORT%
+  goto :end
 )
 
 where py >nul 2>nul
-if %errorlevel%==0 (
+if not errorlevel 1 (
+  echo HT ECDIS demo - serving %cd% on %URL%  ^(Ctrl+C to stop^)
   start "" %URL%
   py -m http.server %PORT% --bind 127.0.0.1
-  goto :eof
+  goto :end
 )
 
-where node >nul 2>nul
-if %errorlevel%==0 (
+python -c "print(1)" >nul 2>nul
+if not errorlevel 1 (
+  echo HT ECDIS demo - serving %cd% on %URL%  ^(Ctrl+C to stop^)
   start "" %URL%
-  node server.js %PORT%
-  goto :eof
+  python -m http.server %PORT% --bind 127.0.0.1
+  goto :end
 )
 
-echo Error: need Python or Node.js installed to serve the demo.
-echo Install one of them, or serve this folder with any static web server.
+echo.
+echo Neither Node.js nor Python found - cannot start the local web server.
+echo   Install Node.js:  https://nodejs.org   (recommended)
+echo   or Python:        https://python.org
+echo.
+pause
 exit /b 1
+
+:end
+endlocal

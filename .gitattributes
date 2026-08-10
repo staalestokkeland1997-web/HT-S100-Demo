@@ -1,0 +1,8 @@
+# Batch files are committed WITH CRLF bytes and marked -text so git never
+# converts them: cmd.exe mis-parses goto/labels in LF-only .bat files (the
+# "double-click does nothing" failure), and this must hold for git clones on
+# any OS and for GitHub ZIP downloads alike.
+*.bat -text
+# Shell scripts must stay LF or bash rejects them when a Windows checkout
+# (core.autocrlf=true) would otherwise stamp CRLF into them.
+*.sh  text eol=lf
