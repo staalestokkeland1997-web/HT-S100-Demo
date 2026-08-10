@@ -114,6 +114,24 @@ Tiles are Web-Mercator (EPSG:3857) z/x/y; EMODnet is requested per-tile via WMS.
 - **Not implemented here** (needs a real backend + licence): S-63 decryption,
   S-57/S-101 SENC conversion, HDF5 (S-102/104) parsing, S-129 UKCM service.
 
+## Licensing — showing this demo publicly (trade fairs etc.)
+Not legal advice — verify before a big event. Status per data source:
+
+| Source | Licence | Commercial demo use |
+|--------|---------|--------------------|
+| Kartverket sjøkart & topo | CC BY 4.0 / NLOD | ✅ OK with attribution (shown in-app) |
+| OpenSeaMap seamarks | ODbL / CC-BY-SA | ✅ OK with attribution (shown) |
+| EMODnet Bathymetry | Free & open (EU) | ✅ OK, attribution shown |
+| MET Norway / yr | NLOD 2.0 / CC BY 4.0 | ✅ OK with attribution + identifying User-Agent (the bundled proxy sends one) |
+| Natural Earth coastline | Public domain | ✅ OK |
+| Inter font, React | SIL OFL / MIT | ✅ OK (licences vendored) |
+| **Esri World Imagery** (Aerial basemap) | Esri ToS | ⚠️ Anonymous tile use in a commercial setting is outside Esri's terms — get an ArcGIS key or disable the Aerial basemap at events |
+| **CARTO dark_all** (Dark basemap) | CARTO ToS | ⚠️ Free tier is for non-commercial use — needs a CARTO account for commercial display, or disable Dark |
+| aisstream.io (optional key) | aisstream ToS | ⚠️ Check their terms for commercial display; without a key AIS is simulated |
+
+The permanent **“DEMO — NOT FOR NAVIGATION”** banner should stay visible: it
+keeps the demonstrator clearly separated from type-approved ECDIS (IEC 61174).
+
 ## Adding real PRIMAR / Kartverket ENC cells (production path)
 1. Obtain a PRIMAR account + cell/user permits (S-63).
 2. Decrypt the exchange set and convert cells to a SENC.
