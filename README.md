@@ -68,6 +68,17 @@ UTC-klokke (sim). Radaren folger samme seilas som ECDIS (delt lagret tilstand +
 BroadcastChannel), og knapper kobler ECDIS <-> Radar <-> kiosk.
 **DEMO — ikke for navigasjon.**
 
+Hele appen er paa engelsk (kiosken staar paa internasjonal messe); README-ene
+er paa norsk for drift.
+
+ECDIS-kartet tilpasser normalt canvas-opploesningen etter GPU-en (svake
+maskiner faar lavere opploesning for aa holde bildefrekvensen — det kan se
+mykt ut paa en 4K-skjerm). Overstyr med URL-parameter: `&res=sharp` laaser
+full opploesning OG henter kartfliser ett zoomniva hoyere (skarpe fliser og
+AIS-navn paa 4K), `&res=low` laaser 1x for svake maskiner, `&res=auto` gaar
+tilbake til adaptiv. Valget huskes per nettleser, saa kiosk-URL-en trenger
+det bare een gang: `/ecdis/index.html?kiosk=1&res=sharp`.
+
 ## Deploy paa Vercel
 
 Repoet er klart for Vercel uten videre:
@@ -83,12 +94,13 @@ Vercel-URL-en.
 ## Varig lagring (viktig for messe)
 
 Serverless-funksjoner har ikke varig filsystem, saa deltakere, highscore,
-admin-innstillinger og ECDIS-tilstand lagres i en Redis-database naar en slik
-er koblet til. **Uten database fungerer alt, men data er midlertidige** (de
+admin-innstillinger og ECDIS-tilstand lagres i en database naar en slik er
+koblet til — **Redis** (Upstash/Vercel KV) eller **Supabase**. Er begge satt,
+brukes Redis. **Uten database fungerer alt, men data er midlertidige** (de
 overlever bare saa lenge samme funksjonsinstans er varm) — greit for testing,
 ikke for en ekte konkurranse.
 
-Slik kobler du til (engangsjobb, ~2 minutter):
+Alternativ A — Upstash Redis (engangsjobb, ~2 minutter):
 
 1. Aapne Vercel-prosjektet → **Storage**-fanen → **Create Database** →
    velg **Upstash for Redis** (gratis-niveaaet holder lenge).
@@ -98,10 +110,21 @@ Slik kobler du til (engangsjobb, ~2 minutter):
 3. Redeploy. `/status.html` (og `/api/admin/status`) viser om varig lagring
    er aktiv.
 
-Innsendte deltakere lagres atomisk (Redis-liste), saa to samtidige
-innsendinger kan aldri overskrive hverandre. Ved nullstilling fra admin tas
-det forst en sikkerhetskopi (de 10 siste ligger i databasen), akkurat som de
-lokale `data/backups/`-kopiene gjorde.
+Alternativ B — Supabase (engangsjobb, ~3 minutter):
+
+1. Kjor SQL-en i `supabase/migrations/20260818_htkiosk_storage.sql` een gang
+   i Supabase-prosjektets **SQL Editor** (lager `htkiosk_kv` +
+   `htkiosk_entries` med RLS paa, saa bare serveren naar dem).
+2. Sett miljovariablene `SUPABASE_URL` (Project Settings → API → Project URL)
+   og `SUPABASE_SERVICE_ROLE_KEY` (samme side, service_role-nokkelen) i
+   Vercel → **Settings → Environment Variables**. Service-nokkelen er
+   hemmelig og brukes bare server-side — aldri i klientkode.
+3. Redeploy. `/status.html` skal vise `mode: supabase` og varig lagring.
+
+Innsendte deltakere lagres atomisk (Redis-liste / Postgres-INSERT), saa to
+samtidige innsendinger kan aldri overskrive hverandre. Ved nullstilling fra
+admin tas det forst en sikkerhetskopi (de 10 siste ligger i databasen),
+akkurat som de lokale `data/backups/`-kopiene gjorde.
 
 ## Miljovariabler (valgfritt)
 
@@ -110,6 +133,8 @@ lokale `data/backups/`-kopiene gjorde.
 | `ADMIN_PASSWORD` | Overstyrer adminpassordet fra `config/contest-config.json`. **Anbefales** — standardpassordet ligger i et offentlig repo. |
 | `AISSTREAM_API_KEY` | Overstyrer `apiKeys.aisstream` (live AIS i ECDIS). |
 | `ARCGIS_API_KEY` | Overstyrer `apiKeys.arcgis` (flyfoto/Ocean-basemap + stedssok i ECDIS). |
+| `SUPABASE_URL` | Supabase-prosjektets URL — varig lagring via Supabase (alternativ til Redis). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role-nokkel (hemmelig, kun server-side). |
 
 Settes under Vercel-prosjektet → **Settings → Environment Variables**.
 

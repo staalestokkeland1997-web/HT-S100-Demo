@@ -1,11 +1,12 @@
 // Lagringslag for Vercel. Serverless-funksjoner har ikke varig filsystem slik
 // den gamle lokale serveren hadde (data/entries.json), saa all tilstand gaar
-// via en Redis-kompatibel REST-database (Upstash / Vercel KV / Redis Cloud via
-// Vercel Marketplace) naar den er konfigurert med miljovariabler.
+// via en database naar en er konfigurert med miljovariabler:
+//   1. Redis-kompatibel REST (Upstash / Vercel KV / Redis Cloud) - forst.
+//   2. Supabase (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY) - hvis ikke Redis.
 //
-// Uten Redis faller laget tilbake til /tmp + prosessminne: alt fungerer, men
-// data overlever bare saa lenge samme funksjonsinstans er varm. Admin-status
-// viser tydelig hvilken modus som er aktiv.
+// Uten database faller laget tilbake til /tmp + prosessminne: alt fungerer,
+// men data overlever bare saa lenge samme funksjonsinstans er varm. Admin-
+// status viser tydelig hvilken modus som er aktiv.
 
 const fs = require("fs");
 const os = require("os");
@@ -23,6 +24,18 @@ const REDIS_TOKEN =
   "";
 
 const HAS_REDIS = Boolean(REDIS_URL && REDIS_TOKEN);
+
+// Alternativ: Supabase (Postgres via PostgREST). Brukes naar Redis ikke er
+// konfigurert men SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY er satt. Tabellene
+// (htkiosk_kv + htkiosk_entries) har RLS paa uten policies, saa bare service-
+// nokkelen naar dem — sett den ALDRI i klientkode.
+const SUPA_URL = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+const SUPA_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_SECRET_KEY ||
+  "";
+const HAS_SUPABASE = Boolean(SUPA_URL && SUPA_KEY);
+
 const KEY_PREFIX = "htkiosk:";
 const MAX_BACKUPS = 10;
 
@@ -50,6 +63,25 @@ async function redisCommand(command) {
   }
 
   return payload ? payload.result : null;
+}
+
+async function supaFetch(pathname, options = {}) {
+  const response = await fetch(SUPA_URL + pathname, {
+    ...options,
+    headers: {
+      apikey: SUPA_KEY,
+      Authorization: `Bearer ${SUPA_KEY}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Supabase request failed with status ${response.status}`);
+  }
+
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
 }
 
 function tmpPathFor(key) {
@@ -99,12 +131,28 @@ async function getJson(key) {
     }
   }
 
+  if (HAS_SUPABASE) {
+    const rows = await supaFetch(
+      `/rest/v1/htkiosk_kv?key=eq.${encodeURIComponent(key)}&select=value`
+    );
+    return Array.isArray(rows) && rows[0] ? rows[0].value : null;
+  }
+
   return tmpRead(key);
 }
 
 async function setJson(key, value) {
   if (HAS_REDIS) {
     await redisCommand(["SET", KEY_PREFIX + key, JSON.stringify(value)]);
+    return;
+  }
+
+  if (HAS_SUPABASE) {
+    await supaFetch("/rest/v1/htkiosk_kv", {
+      method: "POST",
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify([{ key, value }])
+    });
     return;
   }
 
@@ -127,6 +175,20 @@ async function listEntries() {
       .filter(Boolean);
   }
 
+  if (HAS_SUPABASE) {
+    // PostgREST svarer maks 1000 rader per kall - side igjennom alt.
+    const out = [];
+    for (let offset = 0; ; offset += 1000) {
+      const rows = await supaFetch(
+        `/rest/v1/htkiosk_entries?select=entry&order=id.asc&offset=${offset}&limit=1000`
+      );
+      if (!Array.isArray(rows) || rows.length === 0) break;
+      for (const row of rows) if (row && row.entry != null) out.push(row.entry);
+      if (rows.length < 1000) break;
+    }
+    return out;
+  }
+
   const stored = tmpRead("entries");
   return Array.isArray(stored) ? stored : [];
 }
@@ -134,6 +196,16 @@ async function listEntries() {
 async function appendEntry(entry) {
   if (HAS_REDIS) {
     await redisCommand(["RPUSH", KEY_PREFIX + "entries", JSON.stringify(entry)]);
+    return;
+  }
+
+  if (HAS_SUPABASE) {
+    // INSERT er atomisk, saa samtidige innsendinger overskriver aldri hverandre.
+    await supaFetch("/rest/v1/htkiosk_entries", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify([{ entry }])
+    });
     return;
   }
 
@@ -157,6 +229,20 @@ async function replaceEntries(entries) {
     return;
   }
 
+  if (HAS_SUPABASE) {
+    await supaFetch("/rest/v1/htkiosk_entries?id=gte.0", { method: "DELETE" });
+
+    if (entries.length > 0) {
+      await supaFetch("/rest/v1/htkiosk_entries", {
+        method: "POST",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify(entries.map((entry) => ({ entry })))
+      });
+    }
+
+    return;
+  }
+
   tmpWrite("entries", entries);
 }
 
@@ -172,8 +258,8 @@ async function pushBackup(backup) {
 }
 
 module.exports = {
-  mode: HAS_REDIS ? "redis" : "ephemeral",
-  persistent: HAS_REDIS,
+  mode: HAS_REDIS ? "redis" : HAS_SUPABASE ? "supabase" : "ephemeral",
+  persistent: HAS_REDIS || HAS_SUPABASE,
   getJson,
   setJson,
   listEntries,
