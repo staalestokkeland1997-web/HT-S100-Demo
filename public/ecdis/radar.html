@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hatteland Technology — HT Radar</title>
+<meta name="theme-color" content="#050607">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link href="vendor/fonts/inter.css" rel="stylesheet">
+<script src="./kiosk.js"></script>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #050607; color: #9fb3a9;
+    font-family: 'Inter', system-ui, sans-serif; touch-action: none; user-select: none;
+  }
+  #scope { position: absolute; inset: 0; right: 264px; width: auto; height: 100%; display: block; }
+
+  /* ---------- instrumentpanel (hoyre side) ---------- */
+  .panel {
+    position: fixed; right: 0; top: 0; bottom: 0; width: 264px; z-index: 20;
+    display: flex; flex-direction: column; gap: 8px; padding: 10px;
+    background: linear-gradient(180deg, #0b0e10, #07090b);
+    border-left: 1px solid #1b2622; overflow-y: auto;
+  }
+  .box {
+    border: 1px solid #1b2622; border-radius: 8px; background: #0a0d0e;
+    padding: 8px 10px;
+  }
+  .box h4 {
+    margin: 0 0 6px; font-size: 9px; font-weight: 800; letter-spacing: 0.22em;
+    color: #48685c; text-transform: uppercase;
+  }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: baseline; }
+  .kv span { font-size: 9px; font-weight: 700; letter-spacing: 0.14em; color: #48685c; text-transform: uppercase; }
+  .kv b { font-size: 15px; font-weight: 700; color: #b7f7cf; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .kv b.dim { color: #6d9483; font-size: 12px; }
+
+  .brandrow { display: flex; align-items: center; gap: 8px; padding: 2px 2px 0; }
+  .brandrow img { height: 20px; background: #fff; border-radius: 5px; padding: 2px 5px; }
+  .brandrow b { font-size: 11px; font-weight: 800; letter-spacing: 0.18em; color: #cfe9dc; }
+  .brandrow span { font-size: 9px; color: #48685c; letter-spacing: 0.12em; }
+
+  .rangebig { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .rangebig b { font-size: 26px; color: #b7f7cf; font-variant-numeric: tabular-nums; }
+  .rangebig small { font-size: 10px; color: #48685c; font-weight: 700; }
+
+  button.key {
+    min-height: 44px; border: 1px solid #23342d; border-radius: 8px;
+    background: linear-gradient(180deg, #141a17, #0c100e); color: #9fd8bb;
+    font: 700 11px/1 'Inter', system-ui, sans-serif; letter-spacing: 0.1em;
+    text-transform: uppercase; cursor: pointer;
+  }
+  button.key:active { background: #0a0d0c; transform: translateY(1px); }
+  button.key.on { background: linear-gradient(180deg, #14532d, #0c2e1c); color: #6ef2a6; border-color: #1f7a45; }
+  .keys2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .keys3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+
+  .slider { display: grid; grid-template-columns: 38px 1fr 34px; gap: 8px; align-items: center; margin-top: 4px; }
+  .slider span { font-size: 9px; font-weight: 800; letter-spacing: 0.16em; color: #48685c; text-transform: uppercase; }
+  .slider output { font-size: 10px; font-weight: 700; color: #9fd8bb; text-align: right; font-variant-numeric: tabular-nums; }
+  .slider input { width: 100%; min-height: 34px; accent-color: #34d27b; }
+
+  .navbtn {
+    display: grid; place-items: center; min-height: 46px; border-radius: 8px;
+    border: 1px solid #23342d; background: #10141277; color: #9fd8bb;
+    font: 700 11px/1 'Inter', system-ui, sans-serif; letter-spacing: 0.12em;
+    text-transform: uppercase; text-decoration: none;
+  }
+  .navbtn.light { background: rgba(255, 255, 255, 0.92); color: #1c1c1e; border-color: rgba(60, 60, 67, 0.2); }
+
+  .demo {
+    margin-top: auto; padding: 8px 10px; border: 1px solid #4b3a12; border-radius: 8px;
+    background: #17120699; color: #fbbf24; font-size: 9px; font-weight: 800;
+    letter-spacing: 0.14em; text-transform: uppercase; text-align: center;
+  }
+
+  @media (max-width: 980px) {
+    .panel { width: 216px; }
+    #scope { right: 216px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scope"></canvas>
+
+<aside class="panel">
+  <div class="brandrow">
+    <img src="uploads/HT_Main_Logo_Black_Web.svg" alt="" />
+    <div><b>HT RADAR</b><br /><span>X-BAND · SIMULATOR</span></div>
+  </div>
+
+  <div class="box">
+    <h4>Own ship</h4>
+    <div class="kv">
+      <span>POS</span><b class="dim" id="rPos">—</b>
+      <span>GYRO</span><b id="rHdg">—</b>
+      <span>SOG</span><b id="rSog">—</b>
+      <span>COG</span><b id="rCog">—</b>
+    </div>
+  </div>
+
+  <div class="box">
+    <h4>Range</h4>
+    <div class="rangebig">
+      <b id="rngVal">6</b>
+      <small>NM<br /><span id="ringVal">RINGS 1.5</span></small>
+    </div>
+    <div class="keys2" style="margin-top:6px">
+      <button class="key" id="rngDn" type="button">Range −</button>
+      <button class="key" id="rngUp" type="button">Range +</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h4>Presentation</h4>
+    <div class="keys3">
+      <button class="key" id="orientBtn" type="button">N-UP</button>
+      <button class="key on" id="trailsBtn" type="button">Trails</button>
+      <button class="key on" id="aisBtn" type="button">AIS</button>
+    </div>
+  </div>
+
+  <div class="box">
+    <h4>EBL / VRM</h4>
+    <div class="kv">
+      <span>EBL</span><b id="eblBrg">OFF</b>
+      <span>VRM</span><b id="eblRng">OFF</b>
+    </div>
+    <button class="key" id="eblBtn" type="button" style="width:100%;margin-top:6px">Clear</button>
+  </div>
+
+  <div class="box">
+    <h4>Tuning</h4>
+    <div class="slider"><span>Gain</span><input id="gain" type="range" min="20" max="100" value="72" /><output id="gainOut">72</output></div>
+    <div class="slider"><span>Sea</span><input id="sea" type="range" min="0" max="100" value="30" /><output id="seaOut">30</output></div>
+    <div class="slider"><span>Rain</span><input id="rain" type="range" min="0" max="100" value="10" /><output id="rainOut">10</output></div>
+  </div>
+
+  <div class="keys2">
+    <a class="navbtn" href="ht-ecdis.html" onclick="this.href='ht-ecdis.html'+location.search;" onpointerup="if(!event.isPrimary){event.preventDefault();window.location.href='ht-ecdis.html'+location.search;}">ECDIS</a>
+    <a class="navbtn light" href="/select.html" onpointerup="if(!event.isPrimary){event.preventDefault();window.location.href=this.href;}">Kiosk</a>
+  </div>
+
+  <div class="demo">Radar demo — not for navigation</div>
+</aside>
+
+<script>
+(function () {
+  "use strict";
+
+  // ================= Seilas-sim: samme rute og tilstand som ECDIS =================
+  // ECDIS lagrer mrd_ship/mrd_route (localStorage + server) hvert 5. sekund og
+  // dodregner etter veggklokken. Radaren leser samme tilstand og gjor samme
+  // dodregning, saa begge skjermene viser samme seilas - uten dobbel skriving.
+  // Er ECDIS aapen samtidig, overtar dens direktesendte tilstand (BroadcastChannel).
+
+  var DEFAULT_ROUTE = [
+    { lat: 59.985, lon: 4.66 }, { lat: 60.04, lon: 4.78 }, { lat: 60.075, lon: 4.90 },
+    { lat: 60.115, lon: 5.00 }, { lat: 60.165, lon: 5.08 }, { lat: 60.225, lon: 5.17 },
+    { lat: 60.30, lon: 5.235 }, { lat: 60.345, lon: 5.27 }
+  ];
+  var CRUISE = 14.5;
+
+  function distNm(a, b) {
+    var dLat = (b.lat - a.lat) * 60;
+    var dLon = (b.lon - a.lon) * 60 * Math.cos((a.lat + b.lat) / 2 * Math.PI / 180);
+    return Math.hypot(dLat, dLon);
+  }
+  function bearingDeg(a, b) {
+    var dLat = (b.lat - a.lat), dLon = (b.lon - a.lon) * Math.cos((a.lat + b.lat) / 2 * Math.PI / 180);
+    return (Math.atan2(dLon, dLat) * 180 / Math.PI + 360) % 360;
+  }
+  function moveLL(lat, lon, brgDeg, nm) {
+    var b = brgDeg * Math.PI / 180;
+    return {
+      lat: lat + Math.cos(b) * nm / 60,
+      lon: lon + Math.sin(b) * nm / 60 / Math.cos(lat * Math.PI / 180)
+    };
+  }
+  function loadJson(key) { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; } }
+
+  var route = DEFAULT_ROUTE;
+  var savedRoute = loadJson("mrd_route");
+  if (savedRoute && savedRoute.route && savedRoute.route.length > 1) route = savedRoute.route;
+
+  var own = { lat: route[0].lat, lon: route[0].lon, hdg: bearingDeg(route[0], route[1]), cog: 0, sog: CRUISE, leg: 1 };
+  own.cog = own.hdg;
+
+  (function restore() {
+    var snap = loadJson("mrd_ship");
+    if (!snap || !snap.ship || !snap.savedAt) return;
+    own.lat = snap.ship.lat; own.lon = snap.ship.lon;
+    own.hdg = snap.ship.hdg || own.hdg; own.cog = snap.ship.cog || own.hdg;
+    own.sog = snap.sailing ? Math.max(6, Math.min(16, snap.ship.sog || CRUISE)) : (snap.ship.sog || 0);
+    own.leg = Math.max(1, Math.min(snap.activeLeg || 1, route.length - 1));
+    var seconds = (Date.now() - snap.savedAt) / 1000;
+    if (!snap.sailing || route.length < 2 || seconds < 20) return;
+    var legLen = [], total = 0, i;
+    for (i = 1; i < route.length; i++) { var d = distNm(route[i - 1], route[i]); legLen.push(d); total += d; }
+    if (total < 0.1) return;
+    var pos = 0;
+    for (i = 1; i < own.leg; i++) pos += legLen[i - 1];
+    var legD = legLen[own.leg - 1] || 0.0001;
+    pos += Math.max(0, Math.min(legD, legD - distNm(own, route[own.leg])));
+    var dist = (pos + own.sog * seconds / 3600) % total;
+    var acc = 0, li = 1;
+    for (; li < route.length - 1; li++) { if (acc + legLen[li - 1] >= dist) break; acc += legLen[li - 1]; }
+    var fa = route[li - 1], fb = route[li];
+    var f = Math.max(0, Math.min(1, (dist - acc) / (legLen[li - 1] || 1)));
+    own.lat = fa.lat + (fb.lat - fa.lat) * f;
+    own.lon = fa.lon + (fb.lon - fa.lon) * f;
+    own.hdg = own.cog = bearingDeg(fa, fb);
+    own.sog = CRUISE; own.leg = li;
+  })();
+
+  var live = null, liveAt = 0, liveTargets = null, liveTargetsAt = 0;
+  try {
+    var chan = new BroadcastChannel("meridian-helm");
+    chan.onmessage = function (e) {
+      var m = e.data;
+      if (!m || m.type !== "state" || !m.ship) return;
+      live = m.ship; liveAt = Date.now();
+      if (m.targets && m.targets.length) { liveTargets = m.targets; liveTargetsAt = Date.now(); }
+    };
+  } catch (e) {}
+
+  function ownTick(dt) {
+    if (live && Date.now() - liveAt < 4000) {
+      own.lat = live.lat; own.lon = live.lon;
+      own.hdg = live.hdg; own.cog = live.cog; own.sog = live.sog;
+      return;
+    }
+    if (own.sog < 0.2) return;
+    var wp = route[own.leg];
+    if (!wp) { own.leg = 1; return; }
+    var brg = bearingDeg(own, wp);
+    var diff = ((brg - own.hdg + 540) % 360) - 180;
+    var rate = Math.min(3.2, Math.abs(diff)) * Math.sign(diff);
+    own.hdg = (own.hdg + rate * dt + 360) % 360;
+    own.cog = own.hdg;
+    own.sog += (CRUISE - own.sog) * Math.min(1, dt * 0.25);
+    var step = moveLL(own.lat, own.lon, own.hdg, own.sog * dt / 3600);
+    own.lat = step.lat; own.lon = step.lon;
+    if (distNm(own, wp) < 0.16) {
+      own.leg += 1;
+      if (own.leg >= route.length) {
+        own.lat = route[0].lat; own.lon = route[0].lon;
+        own.leg = 1; own.hdg = own.cog = bearingDeg(route[0], route[1]);
+      }
+    }
+  }
+
+  // ================= AIS-maal: felles trafikk-sim naar ECDIS ikke er aapen =================
+  var NAMES = ["NORDIC STAR", "BERGEN PEARL", "FJORD PILOT", "VESTLAND TRADER", "SKAGERAK", "MS SOLUND", "KYSTVAKT 3"];
+  var simTargets = [];
+  (function seedTargets() {
+    for (var i = 0; i < NAMES.length; i++) {
+      var a = i * 2.399963;
+      var rNm = 1.5 + (i * 53 % 100) / 100 * 6.5;
+      var p = moveLL(own.lat, own.lon, a * 180 / Math.PI, rNm);
+      simTargets.push({
+        name: NAMES[i], lat: p.lat, lon: p.lon,
+        cog: (a * 180 / Math.PI + 120 + (i % 2) * 120) % 360,
+        sog: 6 + (i * 37) % 11, hdg: 0
+      });
+    }
+  })();
+  function targetsTick(dt) {
+    for (var i = 0; i < simTargets.length; i++) {
+      var t = simTargets[i];
+      t.hdg = t.cog;
+      var step = moveLL(t.lat, t.lon, t.cog, t.sog * dt / 3600);
+      t.lat = step.lat; t.lon = step.lon;
+      if (distNm(t, own) > 11) {
+        var back = bearingDeg(t, own);
+        var diff = ((back - t.cog + 540) % 360) - 180;
+        t.cog = (t.cog + Math.sign(diff) * Math.min(16, Math.abs(diff)) * dt * 2.2 + 360) % 360;
+      }
+    }
+  }
+  function targets() {
+    if (liveTargets && Date.now() - liveTargetsAt < 6000) return liveTargets;
+    return simTargets;
+  }
+
+  // ================= Kystlinje for landekko =================
+  var coast = null;
+  (function loadCoast() {
+    var urls = [
+      "/proxy?url=" + encodeURIComponent("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_land.geojson"),
+      "https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_land.geojson",
+      "/proxy?url=" + encodeURIComponent("https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_land.geojson")
+    ];
+    var i = 0;
+    (function attempt() {
+      if (i >= urls.length) return;
+      fetch(urls[i]).then(function (r) { if (!r.ok) throw 0; return r.json(); }).then(function (j) {
+        var B = { latMin: 54, latMax: 73, lonMin: -3, lonMax: 33 };
+        var polys = [];
+        (j.features || []).forEach(function (f) {
+          var g = f.geometry; if (!g) return;
+          var parts = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+          parts.forEach(function (poly) {
+            var ring = poly[0], hit = false;
+            for (var p = 0; p < ring.length; p++) {
+              if (ring[p][1] > B.latMin && ring[p][1] < B.latMax && ring[p][0] > B.lonMin && ring[p][0] < B.lonMax) { hit = true; break; }
+            }
+            if (hit) polys.push(poly);
+          });
+        });
+        coast = polys; landDirty = true;
+      }).catch(function () { i += 1; attempt(); });
+    })();
+  })();
+
+  // ================= PPI-skop =================
+  var scope = document.getElementById("scope");
+  var ctx = scope.getContext("2d");
+  var echoC = document.createElement("canvas");
+  var echo = echoC.getContext("2d");
+  var landC = document.createElement("canvas");
+  var landCx = landC.getContext("2d");
+
+  var RANGES = [0.75, 1.5, 3, 6, 12, 24];
+  var state = { range: 6, headUp: false, trails: true, ais: true, gain: 0.72, sea: 0.3, rain: 0.1, ebl: null };
+  var sweep = 0, lastT = performance.now(), landDirty = true, landRef = null;
+  var trailDots = [], lastTrailAt = 0;
+  var PANEL = 264;
+
+  var W = 0, H = 0, CX = 0, CY = 0, R = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    PANEL = window.innerWidth <= 980 ? 216 : 264;
+    W = window.innerWidth - PANEL; H = window.innerHeight;
+    scope.style.right = PANEL + "px";
+    scope.width = W * DPR; scope.height = H * DPR;
+    echoC.width = W * DPR; echoC.height = H * DPR;
+    landC.width = W * DPR; landC.height = H * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    echo.setTransform(DPR, 0, 0, DPR, 0, 0);
+    landCx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    CX = W / 2; CY = H / 2;
+    R = Math.min(W, H) / 2 - 42;
+    landDirty = true;
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  function kPx() { return R / state.range; }
+  function geoToScope(lat, lon) {
+    var n = (lat - own.lat) * 60;
+    var e = (lon - own.lon) * 60 * Math.cos(own.lat * Math.PI / 180);
+    return { x: e * kPx(), y: -n * kPx() };
+  }
+
+  // Land prerendres med speilet stoy saa ekkoet ser sendt ut, ikke tegnet.
+  function renderLand() {
+    landCx.clearRect(0, 0, W, H);
+    landDirty = false;
+    landRef = { lat: own.lat, lon: own.lon, range: state.range };
+    if (!coast) return;
+    landCx.save();
+    landCx.translate(CX, CY);
+    landCx.fillStyle = "rgba(74, 222, 128, 0.78)";
+    landCx.filter = "blur(1.1px)";
+    landCx.beginPath();
+    var k = kPx(), cosLat = Math.cos(own.lat * Math.PI / 180);
+    for (var pi = 0; pi < coast.length; pi++) {
+      var poly = coast[pi];
+      for (var ri = 0; ri < poly.length; ri++) {
+        var ring = poly[ri], started = false;
+        for (var vi = 0; vi < ring.length; vi++) {
+          var n = (ring[vi][1] - own.lat) * 60, e = (ring[vi][0] - own.lon) * 60 * cosLat;
+          var x = e * k, y = -n * k;
+          if (!started) { landCx.moveTo(x, y); started = true; } else landCx.lineTo(x, y);
+        }
+        if (started) landCx.closePath();
+      }
+    }
+    landCx.fill("evenodd");
+    landCx.filter = "none";
+    // Ru opp landflatene med "manglende retur"-hull
+    landCx.globalCompositeOperation = "destination-out";
+    for (var s = 0; s < 900; s++) {
+      var ang = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * R;
+      landCx.fillStyle = "rgba(0,0,0," + (0.25 + Math.random() * 0.5).toFixed(2) + ")";
+      landCx.fillRect(Math.cos(ang) * rr, Math.sin(ang) * rr, 2 + Math.random() * 3, 1.6);
+    }
+    landCx.globalCompositeOperation = "source-over";
+    landCx.restore();
+  }
+
+  function stampSector(a0, a1) {
+    echo.save();
+    echo.translate(CX, CY);
+    if (state.headUp) echo.rotate(-own.hdg * Math.PI / 180);
+    echo.beginPath();
+    echo.moveTo(0, 0);
+    echo.arc(0, 0, R, a0 - Math.PI / 2, a1 - Math.PI / 2);
+    echo.closePath();
+    echo.clip();
+
+    echo.drawImage(landC, 0, 0, landC.width, landC.height, -CX, -CY, W, H);
+
+    var list = targets();
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i]; if (t.lat == null) continue;
+      var p = geoToScope(t.lat, t.lon);
+      var d = Math.hypot(p.x, p.y);
+      if (d > R) continue;
+      var blob = Math.max(3, 6.4 - d / R * 2.6);
+      var g = echo.createRadialGradient(p.x, p.y, 0, p.x, p.y, blob * 2.1);
+      g.addColorStop(0, "rgba(160, 255, 195, 0.95)");
+      g.addColorStop(0.55, "rgba(110, 242, 166, 0.5)");
+      g.addColorStop(1, "rgba(110, 242, 166, 0)");
+      echo.fillStyle = g;
+      echo.beginPath();
+      echo.ellipse(p.x, p.y, blob * 2.2, blob * 1.6, Math.atan2(p.y, p.x) + Math.PI / 2, 0, Math.PI * 2);
+      echo.fill();
+    }
+
+    var span = Math.max(0.02, a1 - a0);
+    var seaN = Math.floor(state.sea * 30 * span * 12);
+    echo.fillStyle = "rgba(105, 235, 155, 0.4)";
+    for (i = 0; i < seaN; i++) {
+      var ang = a0 + Math.random() * span - Math.PI / 2;
+      var rr = Math.pow(Math.random(), 2.3) * R * 0.5;
+      echo.fillRect(Math.cos(ang) * rr, Math.sin(ang) * rr, 1.5, 1.2);
+    }
+    var rainN = Math.floor(state.rain * 22 * span * 12);
+    var rx = Math.cos(performance.now() / 60000) * R * 0.45, ry = Math.sin(performance.now() / 80000) * R * 0.4;
+    echo.fillStyle = "rgba(96, 220, 150, 0.26)";
+    for (i = 0; i < rainN; i++) {
+      var px = rx + (Math.random() - 0.5) * R * 0.5, py = ry + (Math.random() - 0.5) * R * 0.4;
+      if (Math.hypot(px, py) < R) echo.fillRect(px, py, 2, 2);
+    }
+    echo.restore();
+  }
+
+  function drawTrails() {
+    if (!state.trails) return;
+    var now = performance.now();
+    if (now - lastTrailAt > 2000) {
+      lastTrailAt = now;
+      var list = targets();
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].lat == null) continue;
+        trailDots.push({ lat: list[i].lat, lon: list[i].lon, born: now });
+      }
+      while (trailDots.length > 600) trailDots.shift();
+    }
+    ctx.save();
+    ctx.translate(CX, CY);
+    if (state.headUp) ctx.rotate(-own.hdg * Math.PI / 180);
+    for (var d = 0; d < trailDots.length; d++) {
+      var age = (now - trailDots[d].born) / 90000;
+      if (age > 1) continue;
+      var p = geoToScope(trailDots[d].lat, trailDots[d].lon);
+      if (Math.hypot(p.x, p.y) > R) continue;
+      ctx.fillStyle = "rgba(90, 210, 150," + (0.42 * (1 - age)).toFixed(3) + ")";
+      ctx.fillRect(p.x - 1, p.y - 1, 2, 2);
+    }
+    ctx.restore();
+  }
+
+  function overlay() {
+    var rot = state.headUp ? -own.hdg * Math.PI / 180 : 0;
+
+    ctx.save();
+    ctx.translate(CX, CY);
+
+    // avstandsringer + senterkryss
+    ctx.strokeStyle = "rgba(90, 190, 140, 0.22)";
+    ctx.lineWidth = 1;
+    for (var i = 1; i <= 4; i++) {
+      ctx.beginPath(); ctx.arc(0, 0, R * i / 4, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(-7, 0); ctx.lineTo(7, 0); ctx.moveTo(0, -7); ctx.lineTo(0, 7);
+    ctx.stroke();
+
+    ctx.rotate(rot);
+
+    // kurslinje (heading line)
+    var ha = own.hdg * Math.PI / 180 - Math.PI / 2;
+    ctx.strokeStyle = "rgba(190, 255, 215, 0.8)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(ha) * R, Math.sin(ha) * R); ctx.stroke();
+
+    // AIS-vektorer og navn (6-min vektor)
+    if (state.ais) {
+      var list = targets();
+      ctx.font = "600 10px Inter";
+      ctx.textAlign = "left";
+      for (i = 0; i < list.length; i++) {
+        var t = list[i]; if (t.lat == null) continue;
+        var p = geoToScope(t.lat, t.lon);
+        if (Math.hypot(p.x, p.y) > R) continue;
+        var ca = (t.cog || 0) * Math.PI / 180 - Math.PI / 2;
+        var vl = Math.min(R * 0.2, (t.sog || 0) * kPx() / 10);
+        ctx.strokeStyle = "rgba(140, 230, 250, 0.85)";
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + Math.cos(ca) * vl, p.y + Math.sin(ca) * vl);
+        ctx.stroke();
+        ctx.strokeRect(p.x - 5, p.y - 5, 10, 10);
+        if (t.name) {
+          ctx.save();
+          ctx.translate(p.x + 9, p.y - 9);
+          ctx.rotate(-rot);
+          ctx.fillStyle = "rgba(150, 225, 245, 0.72)";
+          ctx.fillText(t.name, 0, 0);
+          ctx.restore();
+        }
+      }
+    }
+
+    // eget skip
+    ctx.fillStyle = "#eafff2";
+    ctx.beginPath(); ctx.arc(0, 0, 2.8, 0, Math.PI * 2); ctx.fill();
+
+    // EBL / VRM
+    if (state.ebl) {
+      var ea = state.ebl.brg * Math.PI / 180 - Math.PI / 2;
+      ctx.setLineDash([7, 7]);
+      ctx.strokeStyle = "rgba(251, 191, 36, 0.85)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(ea) * R, Math.sin(ea) * R); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, Math.min(R, state.ebl.rng * kPx()), 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // sveip med kontinuerlig etterglod (konisk gradient bak streken)
+    var sa = sweep - Math.PI / 2;
+    if (ctx.createConicGradient) {
+      var cg = ctx.createConicGradient(sa, 0, 0);
+      cg.addColorStop(0, "rgba(110, 242, 166, 0.30)");
+      cg.addColorStop(0.006, "rgba(110, 242, 166, 0.02)");
+      cg.addColorStop(0.05, "rgba(110, 242, 166, 0)");
+      cg.addColorStop(0.80, "rgba(110, 242, 166, 0)");
+      cg.addColorStop(1, "rgba(110, 242, 166, 0.30)");
+      ctx.fillStyle = cg;
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = "rgba(190, 255, 215, 0.95)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(sa) * R, Math.sin(sa) * R); ctx.stroke();
+
+    ctx.restore();
+
+    // maske utenfor skopet: eksplisitt moveTo + eksakt 2*PI, ellers legger
+    // Canvas en korde over skopet (den "svarte kilen").
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, W, H);
+    ctx.moveTo(CX + R + 1, CY);
+    ctx.arc(CX, CY, R + 1, 0, Math.PI * 2, true);
+    ctx.fillStyle = "#050607";
+    ctx.fill("evenodd");
+    ctx.restore();
+
+    // peilering utenfor skopkanten
+    ctx.save();
+    ctx.translate(CX, CY);
+    ctx.rotate(rot);
+    ctx.strokeStyle = "rgba(90, 190, 140, 0.5)";
+    ctx.fillStyle = "rgba(140, 220, 175, 0.7)";
+    ctx.lineWidth = 1;
+    ctx.font = "600 10px Inter";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.beginPath(); ctx.arc(0, 0, R + 2, 0, Math.PI * 2); ctx.stroke();
+    for (var b = 0; b < 360; b += 5) {
+      var a = b * Math.PI / 180 - Math.PI / 2;
+      var len = b % 30 === 0 ? 9 : b % 10 === 0 ? 6 : 3.5;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * (R + 2), Math.sin(a) * (R + 2));
+      ctx.lineTo(Math.cos(a) * (R + 2 + len), Math.sin(a) * (R + 2 + len));
+      ctx.stroke();
+      if (b % 30 === 0) {
+        ctx.save();
+        ctx.translate(Math.cos(a) * (R + 24), Math.sin(a) * (R + 24));
+        ctx.rotate(-rot);
+        ctx.fillText(String(b).padStart(3, "0"), 0, 0);
+        ctx.restore();
+      }
+    }
+    // nordmerke
+    var na = -rot - Math.PI / 2;
+    ctx.fillStyle = "#fbbf24";
+    ctx.save();
+    ctx.rotate(0);
+    ctx.beginPath();
+    var nx = Math.cos(-Math.PI / 2) * (R + 2), ny = Math.sin(-Math.PI / 2) * (R + 2);
+    ctx.translate(nx, ny);
+    ctx.moveTo(0, -2); ctx.lineTo(-5, -12); ctx.lineTo(5, -12); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function frame(ts) {
+    var dt = Math.min(0.1, (ts - lastT) / 1000 || 0);
+    lastT = ts;
+
+    ownTick(dt);
+    targetsTick(dt);
+
+    if (!landDirty && landRef) {
+      if (landRef.range !== state.range || distNm(landRef, own) > state.range * 0.02) landDirty = true;
+    }
+    if (landDirty) renderLand();
+
+    var prev = sweep;
+    sweep = (sweep + dt * (Math.PI * 2) / 2.5) % (Math.PI * 2);
+
+    echo.save();
+    echo.setTransform(1, 0, 0, 1, 0, 0);
+    echo.globalCompositeOperation = "destination-out";
+    echo.fillStyle = "rgba(0,0,0," + Math.min(0.2, dt / 4.5) + ")";
+    echo.fillRect(0, 0, echoC.width, echoC.height);
+    echo.restore();
+    if (sweep < prev) { stampSector(prev, Math.PI * 2); stampSector(0, sweep); }
+    else stampSector(prev, sweep);
+
+    // komposisjon
+    ctx.fillStyle = "#050607";
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.clip();
+    // skopbunn med svak radiell tone
+    var bg = ctx.createRadialGradient(CX, CY, 0, CX, CY, R);
+    bg.addColorStop(0, "#08130d");
+    bg.addColorStop(1, "#040a07");
+    ctx.fillStyle = bg;
+    ctx.fillRect(CX - R, CY - R, R * 2, R * 2);
+    ctx.globalAlpha = Math.max(0.2, state.gain);
+    ctx.drawImage(echoC, 0, 0, W, H);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    drawTrails();
+    overlay();
+
+    var latD = Math.abs(own.lat), lonD = Math.abs(own.lon);
+    setText("rPos",
+      Math.floor(latD) + "°" + ((latD % 1) * 60).toFixed(1) + "'" + (own.lat >= 0 ? "N" : "S") + " " +
+      String(Math.floor(lonD)).padStart(3, "0") + "°" + ((lonD % 1) * 60).toFixed(1) + "'" + (own.lon >= 0 ? "E" : "W"));
+    setText("rHdg", own.hdg.toFixed(1).padStart(5, "0") + "°");
+    setText("rSog", own.sog.toFixed(1) + " kn");
+    setText("rCog", own.cog.toFixed(1).padStart(5, "0") + "°");
+
+    requestAnimationFrame(frame);
+  }
+  var _texts = {};
+  function setText(id, value) {
+    if (_texts[id] === value) return;
+    _texts[id] = value;
+    document.getElementById(id).textContent = value;
+  }
+  requestAnimationFrame(frame);
+
+  // ================= Kontroller =================
+  function bindTap(el, fn) { el.addEventListener("pointerup", function (e) { e.preventDefault(); fn(); }); }
+  function echoClear() {
+    echo.save(); echo.setTransform(1, 0, 0, 1, 0, 0);
+    echo.clearRect(0, 0, echoC.width, echoC.height); echo.restore();
+  }
+  function updateRange() {
+    setText("rngVal", state.range < 1 ? state.range.toFixed(2) : String(state.range));
+    document.getElementById("ringVal").textContent = "RINGS " + (state.range / 4).toFixed(state.range < 3 ? 2 : 1);
+  }
+  bindTap(document.getElementById("rngUp"), function () {
+    var i = RANGES.indexOf(state.range);
+    if (i < RANGES.length - 1) { state.range = RANGES[i + 1]; landDirty = true; echoClear(); }
+    updateRange();
+  });
+  bindTap(document.getElementById("rngDn"), function () {
+    var i = RANGES.indexOf(state.range);
+    if (i > 0) { state.range = RANGES[i - 1]; landDirty = true; echoClear(); }
+    updateRange();
+  });
+  updateRange();
+  var orientBtn = document.getElementById("orientBtn");
+  bindTap(orientBtn, function () {
+    state.headUp = !state.headUp;
+    orientBtn.textContent = state.headUp ? "H-UP" : "N-UP";
+    echoClear();
+  });
+  var trailsBtn = document.getElementById("trailsBtn");
+  bindTap(trailsBtn, function () {
+    state.trails = !state.trails;
+    trailDots.length = 0;
+    trailsBtn.classList.toggle("on", state.trails);
+  });
+  var aisBtn = document.getElementById("aisBtn");
+  bindTap(aisBtn, function () {
+    state.ais = !state.ais;
+    aisBtn.classList.toggle("on", state.ais);
+  });
+  bindTap(document.getElementById("eblBtn"), function () {
+    state.ebl = null;
+    setText("eblBrg", "OFF");
+    setText("eblRng", "OFF");
+  });
+
+  function bindSlider(id, key) {
+    var el = document.getElementById(id), out = document.getElementById(id + "Out");
+    el.addEventListener("input", function () { state[key] = this.value / 100; out.textContent = this.value; });
+  }
+  bindSlider("gain", "gain"); bindSlider("sea", "sea"); bindSlider("rain", "rain");
+
+  var eblActive = false;
+  function setEbl(clientX, clientY) {
+    var dx = clientX - CX, dy = clientY - CY;
+    var rot = state.headUp ? own.hdg * Math.PI / 180 : 0;
+    var brg = ((Math.atan2(dx, -dy) + rot) * 180 / Math.PI + 360) % 360;
+    var rng = Math.min(state.range, Math.hypot(dx, dy) / kPx());
+    state.ebl = { brg: brg, rng: rng };
+    setText("eblBrg", brg.toFixed(1).padStart(5, "0") + "°");
+    setText("eblRng", rng.toFixed(2) + " nm");
+  }
+  scope.addEventListener("pointerdown", function (e) {
+    if (Math.hypot(e.clientX - CX, e.clientY - CY) > R) return;
+    eblActive = true;
+    try { scope.setPointerCapture(e.pointerId); } catch (x) {}
+    setEbl(e.clientX, e.clientY);
+  });
+  scope.addEventListener("pointermove", function (e) { if (eblActive) setEbl(e.clientX, e.clientY); });
+  ["pointerup", "pointercancel"].forEach(function (ev) {
+    scope.addEventListener(ev, function () { eblActive = false; });
+  });
+
+  document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+})();
+</script>
+</body>
+</html>

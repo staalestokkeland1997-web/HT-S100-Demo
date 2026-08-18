@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Admin | Hatteland Challenge</title>
+    <link rel="stylesheet" href="/styles.css?v=20260427a" />
+  </head>
+  <body class="admin-body">
+    <main class="admin-shell">
+      <section class="admin-panel">
+        <div class="admin-header">
+          <div>
+            <p class="eyebrow">Admin home</p>
+            <h1>Hatteland Challenge Control</h1>
+          </div>
+          <a class="ghost-button" href="/select.html">Game selector</a>
+        </div>
+
+        <p class="subtle-note">
+          Game Settings covers every game: difficulty, round time, high scores, CSV export and reset.
+          Harbor Rush and Bridge Duel also have detailed tuning pages.
+        </p>
+
+        <div class="game-selector-grid admin-hub-grid" style="grid-template-columns: repeat(2, minmax(0, 1fr))">
+          <a class="game-selector-card admin-hub-card" href="/admin-games.html">
+            <span>All games</span>
+            <strong>Game Settings &amp; High Scores</strong>
+            <small>Difficulty, round time, per-game high score lists, CSV export and reset for every game.</small>
+          </a>
+          <a class="game-selector-card admin-hub-card" href="/admin-rush.html">
+            <span>Single-player</span>
+            <strong>Harbor Rush Admin</strong>
+            <small>Leaderboard, CSV export, reset, points, duration, power-ups and branding intensity.</small>
+          </a>
+          <a class="game-selector-card admin-hub-card" href="/admin-duel.html">
+            <span>1 vs 1</span>
+            <strong>Bridge Duel Admin</strong>
+            <small>Round time, ship spawn, attack strength, score rules, fog, storm, traffic and beacons.</small>
+          </a>
+          <a class="game-selector-card admin-hub-card" href="/status.html">
+            <span>Operation</span>
+            <strong>Kiosk Status</strong>
+            <small>Check server port, active route, entries, latest backup and current game settings.</small>
+          </a>
+        </div>
+
+        <div class="cta-row cta-row--center">
+          <a class="secondary-button" href="/select.html">Open kiosk</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

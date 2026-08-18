@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Deep Dive | Hatteland Technology</title>
+    <link rel="stylesheet" href="game-ui.css" />
+    <style>
+      :root {
+        --game-accent: var(--teal); --game-accent-strong: #2fbf9a; --game-on-accent: #052018;
+      }
+
+      .stat--depth strong {
+        color: var(--teal);
+      }
+
+      .dive-hint {
+        position: absolute;
+        left: 50%;
+        bottom: clamp(18px, 3vmin, 40px);
+        transform: translateX(-50%);
+        z-index: 3;
+        padding: 10px 22px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(3, 13, 22, 0.62);
+        font-size: clamp(10px, 1.15vmin, 13px);
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+        opacity: 0;
+        transition: opacity 300ms ease;
+        pointer-events: none;
+      }
+
+      body.game-running .dive-hint {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"><img src="/assets/image.png" alt="" /></span>
+          <div class="brand-text">
+            <p class="eyebrow" id="companyName">Hatteland Technology</p>
+            <h1>Deep Dive</h1>
+          </div>
+        </div>
+
+        <div class="hud">
+          <div class="stat stat--score">
+            <span>Score</span>
+            <strong id="scoreValue">0</strong>
+          </div>
+          <div class="stat stat--depth">
+            <span>Depth</span>
+            <strong id="depthValue">0 m</strong>
+          </div>
+          <div class="stat">
+            <span>Pearls</span>
+            <strong id="pearlValue">0</strong>
+          </div>
+          <nav class="kiosk-nav" aria-label="Kiosk navigation">
+            <a class="nav-button" href="/select.html">Main kiosk</a>
+            <button id="exitGameButton" class="nav-button nav-button--exit" type="button">Exit game</button>
+          </nav>
+        </div>
+      </header>
+
+      <section class="stage">
+        <canvas id="gameCanvas"></canvas>
+        <p class="dive-hint">Hold to rise &mdash; release to dive</p>
+
+        <button id="holdExitButton" class="hold-exit" type="button">
+          <span>Hold to exit</span>
+          <span id="holdExitFill" class="hold-exit-fill"></span>
+        </button>
+        <button id="pauseButton" class="pause-button" type="button">Pause</button>
+
+        <div id="pauseOverlay" class="overlay hidden">
+          <div class="panel">
+            <p class="eyebrow">Paused</p>
+            <h2>Deep Dive</h2>
+            <button id="resumeButton" class="primary" type="button">Resume</button>
+          </div>
+        </div>
+
+        <div id="startOverlay" class="overlay">
+          <div class="panel">
+            <p class="eyebrow">One-touch challenge</p>
+            <h2>How deep can you go?</h2>
+            <p>
+              Pilot the survey sub through the ravine. Hold anywhere to rise, release to dive.
+              One touch of the rocks and the run is over &mdash; and the ravine only gets tighter.
+            </p>
+            <div class="steps">
+              <article class="step">
+                <b>Hold to rise</b>
+                <small>Release to sink. That is the whole game.</small>
+              </article>
+              <article class="step">
+                <b>Thread the gaps</b>
+                <small>Rock formations above and below. One touch ends the run.</small>
+              </article>
+              <article class="step">
+                <b>Grab the pearls</b>
+                <small>Bonus points sit right in the tightest spots. Worth it.</small>
+              </article>
+              <article class="step">
+                <b>Mind the mines</b>
+                <small>Old sea mines drift in the current further down.</small>
+              </article>
+            </div>
+            <button id="startButton" class="primary" type="button">Dive</button>
+            <div class="board">
+              <span>Deep Dive top scores</span>
+              <ol id="startBoard">
+                <li><span>No scores yet</span><b>0</b></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div id="endOverlay" class="overlay hidden">
+          <div class="panel">
+            <p class="eyebrow" id="endKicker">Hull breach</p>
+            <h2 id="endTitle">Good dive.</h2>
+            <div class="result-figures">
+              <article class="figure figure--hero">
+                <span>Score</span>
+                <strong id="finalScore">0</strong>
+              </article>
+              <article class="figure">
+                <span>Depth</span>
+                <strong id="finalDepth">0 m</strong>
+              </article>
+              <article class="figure">
+                <span>Pearls</span>
+                <strong id="finalPearls">0</strong>
+              </article>
+              <article class="figure">
+                <span>Record</span>
+                <strong id="finalRecord">0</strong>
+              </article>
+            </div>
+            <p class="rank-teaser" id="rankTeaser" aria-live="polite"></p>
+
+            <form id="registrationForm" class="form" novalidate>
+              <input id="nameInput" type="text" maxlength="40" placeholder="Name *" autocomplete="name" />
+              <input id="emailInput" type="email" maxlength="80" placeholder="Email" autocomplete="email" />
+              <input id="phoneInput" type="tel" maxlength="30" placeholder="Phone" autocomplete="tel" />
+              <label class="consent">
+                <input id="consentInput" type="checkbox" />
+                <span id="consentLabel">
+                  I consent to Hatteland Technology storing my contact details only for this game and prize contact.
+                </span>
+              </label>
+              <button id="saveScoreButton" class="primary" type="submit">Save score</button>
+            </form>
+            <p id="formMessage" class="message" aria-live="polite"></p>
+
+            <div class="board">
+              <span>Deep Dive top scores</span>
+              <ol id="endBoard">
+                <li><span>No scores yet</span><b>0</b></li>
+              </ol>
+            </div>
+
+            <div class="row">
+              <button id="playAgainButton" class="primary" type="button">Dive again</button>
+              <a class="secondary" href="/select.html">Main kiosk</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        var GAME_ID = "dive";
+        var canvas = document.getElementById("gameCanvas");
+        var ctx = canvas.getContext("2d");
+        var isFileMode = window.location.protocol === "file:";
+
+        var ui = {
+          score: document.getElementById("scoreValue"),
+          depth: document.getElementById("depthValue"),
+          pearls: document.getElementById("pearlValue"),
+          startOverlay: document.getElementById("startOverlay"),
+          endOverlay: document.getElementById("endOverlay"),
+          pauseOverlay: document.getElementById("pauseOverlay"),
+          startButton: document.getElementById("startButton"),
+          playAgainButton: document.getElementById("playAgainButton"),
+          pauseButton: document.getElementById("pauseButton"),
+          resumeButton: document.getElementById("resumeButton"),
+          exitGameButton: document.getElementById("exitGameButton"),
+          holdExitButton: document.getElementById("holdExitButton"),
+          holdExitFill: document.getElementById("holdExitFill"),
+          endKicker: document.getElementById("endKicker"),
+          endTitle: document.getElementById("endTitle"),
+          finalScore: document.getElementById("finalScore"),
+          finalDepth: document.getElementById("finalDepth"),
+          finalPearls: document.getElementById("finalPearls"),
+          finalRecord: document.getElementById("finalRecord"),
+          rankTeaser: document.getElementById("rankTeaser"),
+          startBoard: document.getElementById("startBoard"),
+          endBoard: document.getElementById("endBoard"),
+          form: document.getElementById("registrationForm"),
+          name: document.getElementById("nameInput"),
+          email: document.getElementById("emailInput"),
+          phone: document.getElementById("phoneInput"),
+          consent: document.getElementById("consentInput"),
+          consentLabel: document.getElementById("consentLabel"),
+          saveButton: document.getElementById("saveScoreButton"),
+          message: document.getElementById("formMessage"),
+          companyName: document.getElementById("companyName")
+        };
+
+        var DEFAULTS = {
+          difficultyName: "Normal",
+          startSpeedPercent: 100,
+          speedRampPercent: 100,
+          maxSpeedPercent: 220,
+          gapSizePercent: 100,
+          obstacleSpacingPercent: 100,
+          liftPercent: 100,
+          pearlPoints: 25,
+          distancePointsPer100m: 10,
+          mineStartDepth: 400,
+          enableMines: true
+        };
+
+        var settings = Object.assign({}, DEFAULTS);
+        var pendingSettings = null;
+
+        // Verden maales i meter dybde (x-akse i spillet = fremdrift).
+        var BASE_SPEED = 220;
+        var GRAVITY = 980;
+        var BASE_LIFT = 1900;
+        var MAX_FALL = 520;
+        var MAX_RISE = 470;
+        var SUB_X_FRACTION = 0.24;
+
+        // Dybdesoner - fargen forteller hvor langt du er kommet.
+        var ZONES = [
+          { at: 0, name: "Sunlit zone", top: [12, 74, 110], bottom: [6, 44, 72], glow: 0 },
+          { at: 250, name: "Twilight zone", top: [7, 44, 74], bottom: [4, 24, 44], glow: 0.15 },
+          { at: 600, name: "Midnight zone", top: [3, 18, 36], bottom: [2, 8, 20], glow: 0.5 },
+          { at: 1000, name: "The abyss", top: [2, 8, 18], bottom: [1, 3, 9], glow: 1 }
+        ];
+
+        var state = null;
+        var view = { w: 0, h: 0 };
+        var animationId = 0;
+        var lastTime = 0;
+        var holdExitTimer = null;
+        var holdExitProgressTimer = null;
+        var endOverlayTimer = null;
+        var idleTimer = null;
+        var IDLE_RESET_MS = 90000;
+        var boardEntries = [];
+
+        function percent(value) {
+          return Number(value || 0) / 100;
+        }
+
+        function clamp(value, min, max) {
+          return Math.max(min, Math.min(max, value));
+        }
+
+        function lerp(a, b, t) {
+          return a + (b - a) * t;
+        }
+
+        function rgb(channels, alpha) {
+          return (
+            "rgba(" +
+            Math.round(channels[0]) +
+            "," +
+            Math.round(channels[1]) +
+            "," +
+            Math.round(channels[2]) +
+            "," +
+            (alpha === undefined ? 1 : alpha) +
+            ")"
+          );
+        }
+
+        function mixChannels(a, b, t) {
+          return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+        }
+
+        function zoneAt(depth) {
+          var lower = ZONES[0];
+          var upper = ZONES[ZONES.length - 1];
+
+          for (var i = 0; i < ZONES.length - 1; i += 1) {
+            if (depth >= ZONES[i].at && depth < ZONES[i + 1].at) {
+              lower = ZONES[i];
+              upper = ZONES[i + 1];
+              break;
+            }
+            if (depth >= ZONES[ZONES.length - 1].at) {
+              lower = ZONES[ZONES.length - 1];
+              upper = ZONES[ZONES.length - 1];
+            }
+          }
+
+          var span = Math.max(1, upper.at - lower.at);
+          var t = clamp((depth - lower.at) / span, 0, 1);
+
+          return {
+            name: t > 0.5 ? upper.name : lower.name,
+            top: mixChannels(lower.top, upper.top, t),
+            bottom: mixChannels(lower.bottom, upper.bottom, t),
+            glow: lerp(lower.glow, upper.glow, t)
+          };
+        }
+
+        function zoneNameFor(depth) {
+          var name = ZONES[0].name;
+          for (var i = 0; i < ZONES.length; i += 1) {
+            if (depth >= ZONES[i].at) name = ZONES[i].name;
+          }
+          return name;
+        }
+
+        function createState() {
+          return {
+            running: false,
+            paused: false,
+            over: false,
+            score: 0,
+            depth: 0,
+            pearls: 0,
+            closeCalls: 0,
+            subY: 0.5,
+            velocity: 0,
+            thrusting: false,
+            speed: BASE_SPEED * percent(settings.startSpeedPercent),
+            obstacles: [],
+            pearlsList: [],
+            mines: [],
+            particles: [],
+            pops: [],
+            banner: null,
+            zoneName: ZONES[0].name,
+            nextObstacleX: 1.35,
+            shake: 0,
+            flash: 0,
+            recordScore: getRecord(),
+            recordAnnounced: false,
+            glowPhase: 0,
+            elapsed: 0
+          };
+        }
+
+        function resizeCanvas() {
+          var rect = canvas.getBoundingClientRect();
+          var ratio = Math.min(window.devicePixelRatio || 1, 2);
+          view.w = Math.max(1, Math.round(rect.width));
+          view.h = Math.max(1, Math.round(rect.height));
+          canvas.width = Math.round(view.w * ratio);
+          canvas.height = Math.round(view.h * ratio);
+          ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+          render();
+        }
+
+        function subScreenX() {
+          return view.w * SUB_X_FRACTION;
+        }
+
+        function subRadius() {
+          return Math.max(16, Math.min(view.w, view.h) * 0.032);
+        }
+
+        function currentGap() {
+          // Gapet krymper med dybden, men aldri under det som er spillbart.
+          var base = 0.42 * percent(settings.gapSizePercent);
+          var shrink = clamp(state.depth / 1400, 0, 1) * 0.14;
+          return Math.max(0.2, base - shrink);
+        }
+
+        function spawnObstacle() {
+          var gap = currentGap();
+          var center = 0.16 + Math.random() * (0.68 - gap / 2);
+          var x = 1.1;
+
+          state.obstacles.push({
+            x: x,
+            gapTop: center - gap / 2,
+            gapBottom: center + gap / 2,
+            seed: Math.random() * 1000,
+            passed: false,
+            nearMissed: false
+          });
+
+          // Perler sitter i eller rett ved gapet - risiko mot belonning.
+          if (Math.random() < 0.55) {
+            var offset = (Math.random() - 0.5) * gap * 0.5;
+            state.pearlsList.push({
+              x: x + 0.045,
+              y: center + offset,
+              taken: false,
+              pulse: Math.random() * Math.PI * 2
+            });
+          }
+
+          // Miner dukker opp lenger ned og driver vertikalt.
+          if (
+            settings.enableMines &&
+            state.depth > Number(settings.mineStartDepth || 400) &&
+            Math.random() < 0.34
+          ) {
+            state.mines.push({
+              x: x + 0.5,
+              y: 0.2 + Math.random() * 0.6,
+              phase: Math.random() * Math.PI * 2,
+              amplitude: 0.05 + Math.random() * 0.1,
+              hit: false
+            });
+          }
+        }
+
+        function addPop(text, x, y, color) {
+          state.pops.push({ text: text, x: x, y: y, life: 1, color: color || "#68f2a6" });
+        }
+
+        function showBanner(text, color) {
+          state.banner = { text: text, color: color || "#f4fbff", life: 1.5 };
+        }
+
+        function addBubbles(count, screenX, screenY) {
+          for (var i = 0; i < count; i += 1) {
+            if (state.particles.length > 160) break;
+            state.particles.push({
+              x: screenX + (Math.random() - 0.5) * 20,
+              y: screenY + (Math.random() - 0.5) * 14,
+              vx: -60 - Math.random() * 80,
+              vy: -30 - Math.random() * 60,
+              life: 0.5 + Math.random() * 0.6,
+              size: 1.5 + Math.random() * 3
+            });
+          }
+        }
+
+        function update(dt) {
+          if (state.over) return;
+
+          state.elapsed += dt * 1000;
+          state.glowPhase += dt;
+          state.shake = Math.max(0, state.shake - dt * 3.4);
+          state.flash = Math.max(0, state.flash - dt * 2.6);
+
+          var maxSpeed = BASE_SPEED * percent(settings.maxSpeedPercent);
+          state.speed = Math.min(maxSpeed, state.speed + dt * 5.5 * percent(settings.speedRampPercent));
+          state.depth += state.speed * dt * 0.16;
+
+          // Fysikk: hold gir loft, ellers synker ubaaten.
+          var lift = BASE_LIFT * percent(settings.liftPercent);
+          state.velocity += (state.thrusting ? -lift : GRAVITY) * dt;
+          state.velocity = clamp(state.velocity, -MAX_RISE, MAX_FALL);
+          state.subY += (state.velocity / view.h) * dt;
+
+          // Tak og bunn er ogsaa dodelige.
+          if (state.subY < 0.03 || state.subY > 0.97) {
+            crash();
+            return;
+          }
+
+          if (state.thrusting && Math.random() < dt * 30) {
+            addBubbles(1, subScreenX() - subRadius(), state.subY * view.h + subRadius() * 0.4);
+          }
+
+          var nextZone = zoneNameFor(state.depth);
+          if (nextZone !== state.zoneName) {
+            state.zoneName = nextZone;
+            showBanner(nextZone.toUpperCase(), "#5de5c0");
+          }
+
+          // Rekordtempo midt i runden - den sterkeste grunnen til aa fortsette.
+          var liveScore = currentScore();
+          if (state.recordScore > 0 && !state.recordAnnounced && liveScore > state.recordScore) {
+            state.recordAnnounced = true;
+            state.flash = Math.max(state.flash, 0.6);
+            showBanner("NEW RECORD PACE", "#f5c84b");
+          }
+
+          var scroll = (state.speed / view.w) * dt * (view.w / 900);
+
+          state.nextObstacleX -= scroll;
+          var spacing = 0.46 * percent(settings.obstacleSpacingPercent);
+          if (state.nextObstacleX <= 0) {
+            state.nextObstacleX = Math.max(0.3, spacing - clamp(state.depth / 3000, 0, 0.12));
+            spawnObstacle();
+          }
+
+          var subXFrac = SUB_X_FRACTION;
+          var subRFracX = subRadius() / view.w;
+          var subRFracY = subRadius() / view.h;
+
+          state.obstacles = state.obstacles.filter(function (obstacle) {
+            obstacle.x -= scroll;
+
+            var withinX = Math.abs(obstacle.x - subXFrac) < subRFracX + 0.018;
+
+            if (withinX && !obstacle.passed) {
+              if (state.subY - subRFracY < obstacle.gapTop || state.subY + subRFracY > obstacle.gapBottom) {
+                crash();
+                return true;
+              }
+            }
+
+            if (!obstacle.passed && obstacle.x < subXFrac - subRFracX - 0.02) {
+              obstacle.passed = true;
+              state.score += 10;
+              // Naer-miss: klarte gapet med under en kvart radius aa gaa paa.
+              var margin = Math.min(
+                state.subY - subRFracY - obstacle.gapTop,
+                obstacle.gapBottom - (state.subY + subRFracY)
+              );
+              if (margin < subRFracY * 0.9) {
+                state.closeCalls += 1;
+                state.score += 15;
+                addPop("+25 CLOSE CALL", subScreenX() + 40, state.subY * view.h - 30, "#4fe3ff");
+              } else {
+                addPop("+10", subScreenX() + 30, state.subY * view.h - 26, "#8fd8c9");
+              }
+            }
+
+            return obstacle.x > -0.3;
+          });
+
+          if (state.over) return;
+
+          state.pearlsList = state.pearlsList.filter(function (pearl) {
+            // Svept vindu: paa hoy fart kan x hoppe forbi ubaaten paa en
+            // treg frame, saa sjekk hele strekningen fra forrige posisjon.
+            var pearlPrevX = pearl.x;
+            pearl.x -= scroll;
+            pearl.pulse += dt * 5;
+
+            if (
+              !pearl.taken &&
+              pearl.x < subXFrac + subRFracX + 0.012 &&
+              pearlPrevX > subXFrac - subRFracX - 0.012 &&
+              Math.abs(pearl.y - state.subY) < subRFracY + 0.03
+            ) {
+              pearl.taken = true;
+              state.pearls += 1;
+              state.score += Number(settings.pearlPoints || 25);
+              state.flash = Math.max(state.flash, 0.3);
+              addPop("+" + Number(settings.pearlPoints || 25), subScreenX() + 30, state.subY * view.h - 30, "#f5c84b");
+              addBubbles(6, subScreenX(), state.subY * view.h);
+            }
+
+            return pearl.x > -0.1 && !pearl.taken;
+          });
+
+          state.mines = state.mines.filter(function (mine) {
+            var minePrevX = mine.x;
+            mine.x -= scroll;
+            mine.phase += dt * 1.4;
+            var y = mine.y + Math.sin(mine.phase) * mine.amplitude;
+
+            if (
+              !mine.hit &&
+              mine.x < subXFrac + subRFracX + 0.014 &&
+              minePrevX > subXFrac - subRFracX - 0.014 &&
+              Math.abs(y - state.subY) < subRFracY + 0.022
+            ) {
+              mine.hit = true;
+              crash();
+            }
+
+            return mine.x > -0.1;
+          });
+
+          state.particles = state.particles.filter(function (particle) {
+            particle.x += particle.vx * dt;
+            particle.y += particle.vy * dt;
+            particle.vy -= 30 * dt;
+            particle.life -= dt;
+            return particle.life > 0;
+          });
+
+          state.pops = state.pops.filter(function (pop) {
+            pop.life -= dt * 1.2;
+            pop.y -= dt * 55;
+            return pop.life > 0;
+          });
+
+          if (state.banner) {
+            state.banner.life -= dt;
+            if (state.banner.life <= 0) state.banner = null;
+          }
+
+          updateHud();
+        }
+
+        function currentScore() {
+          return state.score + Math.floor(state.depth / 100) * (Number.isFinite(Number(settings.distancePointsPer100m)) ? Number(settings.distancePointsPer100m) : 10);
+        }
+
+        function crash() {
+          if (state.over) return;
+          state.shake = 1;
+          addBubbles(24, subScreenX(), state.subY * view.h);
+          endGame();
+        }
+
+        function updateHud() {
+          ui.score.textContent = String(currentScore());
+          ui.depth.textContent = Math.round(state.depth) + " m";
+          ui.pearls.textContent = String(state.pearls);
+        }
+
+        function roundRect(x, y, w, h, r) {
+          var radius = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+          ctx.beginPath();
+          ctx.moveTo(x + radius, y);
+          ctx.lineTo(x + w - radius, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+          ctx.lineTo(x + w, y + h - radius);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+          ctx.lineTo(x + radius, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+          ctx.lineTo(x, y + radius);
+          ctx.quadraticCurveTo(x, y, x + radius, y);
+          ctx.closePath();
+        }
+
+        function rockPath(obstacle, fromTop) {
+          // Taggete fjellsider tegnet fra en fast seed saa de ikke flimrer.
+          var x = obstacle.x * view.w;
+          var width = view.w * 0.09;
+          var edgeY = (fromTop ? obstacle.gapTop : obstacle.gapBottom) * view.h;
+
+          ctx.beginPath();
+          ctx.moveTo(x - width, fromTop ? 0 : view.h);
+
+          var steps = 7;
+          for (var i = 0; i <= steps; i += 1) {
+            var t = i / steps;
+            var seed = Math.sin((obstacle.seed + i * 13.7) * 12.9898) * 43758.5453;
+            var jitter = (Math.abs(seed - Math.floor(seed)) - 0.5) * width * 0.5;
+            var px = x - width + t * width * 2 + jitter * (fromTop ? 1 : -1);
+            var py = lerp(fromTop ? 0 : view.h, edgeY, Math.sin(t * Math.PI));
+            ctx.lineTo(px, py);
+          }
+
+          ctx.lineTo(x + width, fromTop ? 0 : view.h);
+          ctx.closePath();
+        }
+
+        function drawRocks(zone) {
+          state.obstacles.forEach(function (obstacle) {
+            if (obstacle.x < -0.2 || obstacle.x > 1.2) return;
+
+            ctx.save();
+            var rockShade = mixChannels([40, 56, 66], zone.bottom, 0.4);
+            ctx.fillStyle = rgb(rockShade);
+            rockPath(obstacle, true);
+            ctx.fill();
+            rockPath(obstacle, false);
+            ctx.fill();
+
+            // Lys kant mot gapet saa passasjen leses tydelig.
+            ctx.strokeStyle = "rgba(93, 229, 192, " + (0.25 + zone.glow * 0.3) + ")";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo((obstacle.x - 0.06) * view.w, obstacle.gapTop * view.h);
+            ctx.lineTo((obstacle.x + 0.06) * view.w, obstacle.gapTop * view.h);
+            ctx.moveTo((obstacle.x - 0.06) * view.w, obstacle.gapBottom * view.h);
+            ctx.lineTo((obstacle.x + 0.06) * view.w, obstacle.gapBottom * view.h);
+            ctx.stroke();
+            ctx.restore();
+          });
+        }
+
+        function drawPearls() {
+          state.pearlsList.forEach(function (pearl) {
+            if (pearl.x < -0.05 || pearl.x > 1.1) return;
+            var x = pearl.x * view.w;
+            var y = pearl.y * view.h;
+            var size = Math.max(7, view.h * 0.014) * (1 + Math.sin(pearl.pulse) * 0.15);
+
+            ctx.save();
+            ctx.shadowColor = "rgba(245, 200, 75, 0.8)";
+            ctx.shadowBlur = size * 2.2;
+            var gradient = ctx.createRadialGradient(x - size * 0.3, y - size * 0.3, size * 0.1, x, y, size);
+            gradient.addColorStop(0, "#fff6dc");
+            gradient.addColorStop(1, "#e8b83a");
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          });
+        }
+
+        function drawMines() {
+          state.mines.forEach(function (mine) {
+            if (mine.x < -0.05 || mine.x > 1.1) return;
+            var x = mine.x * view.w;
+            var y = (mine.y + Math.sin(mine.phase) * mine.amplitude) * view.h;
+            var size = Math.max(10, view.h * 0.018);
+
+            ctx.save();
+            ctx.fillStyle = "#2c3a44";
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = "#3d4f5c";
+            ctx.lineWidth = Math.max(2, size * 0.2);
+            for (var i = 0; i < 6; i += 1) {
+              var angle = (Math.PI * 2 * i) / 6 + mine.phase * 0.2;
+              ctx.beginPath();
+              ctx.moveTo(x + Math.cos(angle) * size, y + Math.sin(angle) * size);
+              ctx.lineTo(x + Math.cos(angle) * size * 1.5, y + Math.sin(angle) * size * 1.5);
+              ctx.stroke();
+            }
+
+            // Blinkende varsellys.
+            ctx.globalAlpha = 0.5 + 0.5 * Math.sin(mine.phase * 4);
+            ctx.fillStyle = "#ff5d6c";
+            ctx.beginPath();
+            ctx.arc(x, y, size * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          });
+        }
+
+        function drawSub() {
+          var x = subScreenX();
+          var y = state.subY * view.h;
+          var r = subRadius();
+          var tilt = clamp(state.velocity / 900, -0.4, 0.45);
+
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(tilt);
+
+          // Lyskjegle fremover i de morke sonene.
+          var zone = zoneAt(state.depth);
+          if (zone.glow > 0.05) {
+            ctx.save();
+            ctx.globalAlpha = zone.glow * 0.2;
+            var beam = ctx.createLinearGradient(r, 0, r * 9, 0);
+            beam.addColorStop(0, "rgba(244, 251, 255, 1)");
+            beam.addColorStop(1, "rgba(244, 251, 255, 0)");
+            ctx.fillStyle = beam;
+            ctx.beginPath();
+            ctx.moveTo(r * 0.8, -r * 0.35);
+            ctx.lineTo(r * 9, -r * 2.4);
+            ctx.lineTo(r * 9, r * 2.4);
+            ctx.lineTo(r * 0.8, r * 0.35);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
+
+          // Skrog.
+          var hull = ctx.createLinearGradient(0, -r, 0, r);
+          hull.addColorStop(0, "#ffd76a");
+          hull.addColorStop(1, "#c8951d");
+          ctx.fillStyle = hull;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, r * 1.6, r * 0.85, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Taarn og periskop.
+          ctx.fillStyle = "#e0a220";
+          roundRect(-r * 0.55, -r * 1.3, r * 0.9, r * 0.6, r * 0.14);
+          ctx.fill();
+
+          // Vindu.
+          ctx.fillStyle = "#0d2b3d";
+          ctx.beginPath();
+          ctx.arc(r * 0.55, -r * 0.08, r * 0.34, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(244, 251, 255, 0.5)";
+          ctx.lineWidth = Math.max(1.5, r * 0.08);
+          ctx.stroke();
+
+          // Propell bak.
+          ctx.strokeStyle = "#8a6510";
+          ctx.lineWidth = Math.max(2, r * 0.16);
+          var spin = state.glowPhase * 24;
+          ctx.beginPath();
+          ctx.moveTo(-r * 1.62, -Math.sin(spin) * r * 0.5);
+          ctx.lineTo(-r * 1.62, Math.sin(spin) * r * 0.5);
+          ctx.stroke();
+
+          ctx.restore();
+        }
+
+        function drawBioluminescence(zone) {
+          if (zone.glow < 0.1) return;
+          ctx.save();
+          for (var i = 0; i < 26; i += 1) {
+            var seed = Math.sin(i * 12.9898) * 43758.5453;
+            var frac = Math.abs(seed - Math.floor(seed));
+            var x = ((frac * 1.7 + state.glowPhase * 0.02 * (0.5 + frac)) % 1.1) * view.w;
+            var y = ((frac * 7.3) % 1) * view.h;
+            var twinkle = 0.3 + 0.7 * Math.abs(Math.sin(state.glowPhase * (0.6 + frac) + i));
+            ctx.globalAlpha = zone.glow * twinkle * 0.5;
+            ctx.fillStyle = i % 3 === 0 ? "#5de5c0" : i % 3 === 1 ? "#4fe3ff" : "#9d8bff";
+            ctx.beginPath();
+            ctx.arc(x, y, 1 + frac * 2.4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        function render() {
+          if (!state) return;
+          var zone = zoneAt(state.depth);
+
+          ctx.clearRect(0, 0, view.w, view.h);
+
+          var sky = ctx.createLinearGradient(0, 0, 0, view.h);
+          sky.addColorStop(0, rgb(zone.top));
+          sky.addColorStop(1, rgb(zone.bottom));
+          ctx.fillStyle = sky;
+          ctx.fillRect(0, 0, view.w, view.h);
+
+          drawBioluminescence(zone);
+
+          ctx.save();
+          if (state.shake > 0.01) {
+            var amount = state.shake * 9;
+            ctx.translate((Math.random() - 0.5) * amount, (Math.random() - 0.5) * amount);
+          }
+
+          drawRocks(zone);
+          drawPearls();
+          drawMines();
+          drawSub();
+
+          state.particles.forEach(function (particle) {
+            ctx.save();
+            ctx.globalAlpha = clamp(particle.life * 1.6, 0, 1) * 0.6;
+            ctx.strokeStyle = "#cdeeff";
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          });
+
+          ctx.save();
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          state.pops.forEach(function (pop) {
+            var life = clamp(pop.life, 0, 1);
+            ctx.globalAlpha = life;
+            ctx.fillStyle = pop.color;
+            ctx.font = "900 " + Math.round(20 + (1 - life) * 6) + "px Segoe UI, Arial";
+            ctx.fillText(pop.text, pop.x, pop.y);
+          });
+          ctx.restore();
+
+          ctx.restore();
+
+          if (state.banner) {
+            var bannerLife = clamp(state.banner.life / 1.5, 0, 1);
+            var appear = clamp((1.5 - state.banner.life) * 6, 0, 1);
+            ctx.save();
+            ctx.globalAlpha = Math.min(bannerLife * 1.7, 1) * appear;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = state.banner.color;
+            ctx.font = "900 " + Math.round(Math.min(32, view.w * 0.027)) + "px Segoe UI, Arial";
+            ctx.shadowColor = "rgba(0,0,0,0.6)";
+            ctx.shadowBlur = 18;
+            ctx.fillText(state.banner.text, view.w / 2, view.h * 0.18);
+            ctx.restore();
+          }
+
+          if (state.flash > 0.01) {
+            ctx.save();
+            ctx.globalAlpha = state.flash * 0.15;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, view.w, view.h);
+            ctx.restore();
+          }
+
+          ctx.save();
+          var vignette = ctx.createRadialGradient(
+            view.w / 2,
+            view.h / 2,
+            Math.min(view.w, view.h) * 0.34,
+            view.w / 2,
+            view.h / 2,
+            Math.max(view.w, view.h) * 0.76
+          );
+          vignette.addColorStop(0, "rgba(0,0,0,0)");
+          vignette.addColorStop(1, "rgba(0,0,0,0.45)");
+          ctx.fillStyle = vignette;
+          ctx.fillRect(0, 0, view.w, view.h);
+          ctx.restore();
+        }
+
+        function loop(now) {
+          var dt = Math.min(0.05, (now - lastTime) / 1000 || 0);
+          lastTime = now;
+
+          if (!state.paused) {
+            update(dt);
+            render();
+          }
+
+          if (state.running && !state.paused) {
+            animationId = requestAnimationFrame(loop);
+          }
+        }
+
+        function startGame() {
+          cancelAnimationFrame(animationId);
+          clearHoldExit();
+          clearTimeout(endOverlayTimer);
+          if (document.activeElement && document.activeElement.blur) {
+            document.activeElement.blur();
+          }
+          if (pendingSettings) {
+            settings = pendingSettings;
+            pendingSettings = null;
+          }
+          state = createState();
+          state.running = true;
+          document.body.classList.add("game-running");
+          ui.startOverlay.classList.add("hidden");
+          ui.endOverlay.classList.add("hidden");
+          ui.pauseOverlay.classList.add("hidden");
+          ui.message.textContent = "";
+          ui.rankTeaser.textContent = "";
+          ui.form.classList.add("hidden");
+          resizeCanvas();
+          updateHud();
+          showBanner("DIVE DIVE DIVE", "#5de5c0");
+          lastTime = performance.now();
+          animationId = requestAnimationFrame(loop);
+        }
+
+        function endGame() {
+          if (state.over) return;
+          state.over = true;
+          state.running = false;
+          state.paused = false;
+          state.thrusting = false;
+          document.body.classList.remove("game-running");
+          clearHoldExit();
+          ui.pauseOverlay.classList.add("hidden");
+
+          var finalScore = Math.min(99999, currentScore());
+          var record = getRecord();
+          var isRecord = finalScore > record;
+          rememberRecord(finalScore);
+
+          ui.endKicker.textContent = "Hull breach";
+          ui.endTitle.textContent = isRecord
+            ? "New kiosk record."
+            : state.depth > 700
+              ? "That is seriously deep."
+              : "Good dive.";
+          ui.finalScore.textContent = String(finalScore);
+          ui.finalDepth.textContent = Math.round(state.depth) + " m";
+          ui.finalPearls.textContent = String(state.pearls);
+          ui.finalRecord.textContent = String(Math.max(record, finalScore));
+          updateRankTeaser(finalScore);
+
+          ui.form.classList.remove("hidden");
+          ui.saveButton.disabled = false;
+          ui.saveButton.textContent = "Save score";
+          ui.name.value = "";
+          ui.email.value = "";
+          ui.phone.value = "";
+          ui.consent.checked = false;
+
+          state.finalScore = finalScore;
+
+          var endedState = state;
+          endOverlayTimer = setTimeout(function () {
+            if (state === endedState) {
+              ui.endOverlay.classList.remove("hidden");
+            }
+          }, 650);
+
+          refreshBoard();
+        }
+
+        function exitToStart() {
+          cancelAnimationFrame(animationId);
+          clearHoldExit();
+          clearTimeout(endOverlayTimer);
+          document.body.classList.remove("game-running");
+          state = createState();
+          ui.pauseOverlay.classList.add("hidden");
+          ui.endOverlay.classList.add("hidden");
+          ui.startOverlay.classList.remove("hidden");
+          updateHud();
+          render();
+          // Hent ferske innstillinger naar vi er tilbake paa startskjermen.
+          loadSettings();
+        }
+
+        function pauseGame() {
+          if (!state.running || state.paused) return;
+          state.paused = true;
+          state.thrusting = false;
+          clearHoldExit();
+          ui.pauseOverlay.classList.remove("hidden");
+          document.body.classList.remove("game-running");
+        }
+
+        function resumeGame() {
+          if (!state.paused) return;
+          state.paused = false;
+          ui.pauseOverlay.classList.add("hidden");
+          document.body.classList.add("game-running");
+          lastTime = performance.now();
+          // Avbryt et eventuelt ventende frame forst, ellers kan raske
+          // pause/fortsett-trykk gi to samtidige lokker og dobbel fart.
+          cancelAnimationFrame(animationId);
+          animationId = requestAnimationFrame(loop);
+        }
+
+        function clearHoldExit() {
+          clearTimeout(holdExitTimer);
+          clearInterval(holdExitProgressTimer);
+          holdExitTimer = null;
+          holdExitProgressTimer = null;
+          ui.holdExitFill.style.width = "0%";
+        }
+
+        function getRecord() {
+          return Number(localStorage.getItem("diveRecordScore") || 0);
+        }
+
+        function rememberRecord(score) {
+          if (score > getRecord()) {
+            localStorage.setItem("diveRecordScore", String(score));
+          }
+        }
+
+        // "Du ville tatt X. plass" - konkret grunn til aa lagre scoren.
+        function updateRankTeaser(finalScore) {
+          if (!boardEntries.length) {
+            ui.rankTeaser.textContent = "The board is empty. Save it and take #1.";
+            return;
+          }
+          var rank = boardEntries.filter(function (entry) {
+            return Number(entry.score || 0) >= finalScore;
+          }).length + 1;
+          if (rank <= 10) {
+            ui.rankTeaser.textContent = "That takes #" + rank + " on the board. Save it!";
+          } else {
+            ui.rankTeaser.textContent = "";
+          }
+        }
+
+        function renderBoard(list, entries) {
+          list.innerHTML = "";
+
+          if (!entries || !entries.length) {
+            var empty = document.createElement("li");
+            empty.innerHTML = "<span>Be the first on the board</span><b>0</b>";
+            list.appendChild(empty);
+            return;
+          }
+
+          entries.slice(0, 5).forEach(function (entry, index) {
+            var item = document.createElement("li");
+            var name = document.createElement("span");
+            var score = document.createElement("b");
+            name.textContent = index + 1 + ". " + entry.name;
+            score.textContent = String(entry.score);
+            item.append(name, score);
+            list.appendChild(item);
+          });
+        }
+
+        function refreshBoard() {
+          if (isFileMode || !window.fetch) return;
+          fetch("/api/leaderboard?game=" + GAME_ID, { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload) return;
+              boardEntries = payload.entries || [];
+              renderBoard(ui.startBoard, boardEntries);
+              renderBoard(ui.endBoard, boardEntries);
+              if (state && state.over && state.finalScore !== undefined) {
+                updateRankTeaser(state.finalScore);
+              }
+            })
+            .catch(function () {
+              /* offline */
+            });
+        }
+
+        function validateRegistration() {
+          var name = ui.name.value.trim();
+          var email = ui.email.value.trim();
+          var phone = ui.phone.value.trim();
+
+          if (name.length < 2) return "Name is required.";
+          if (!email && !phone) return "Email or phone is required.";
+          if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Email address is invalid.";
+          if (phone && (phone.length < 5 || phone.length > 30)) {
+            return "Phone must be between 5 and 30 characters.";
+          }
+          if (!ui.consent.checked) return "Consent is required to save your score.";
+          return "";
+        }
+
+        function saveScore() {
+          if (ui.saveButton.disabled) return;
+
+          var error = validateRegistration();
+          if (error) {
+            ui.message.textContent = error;
+            return;
+          }
+
+          ui.message.textContent = "";
+          ui.saveButton.disabled = true;
+          ui.saveButton.textContent = "Saving...";
+
+          fetch("/api/standalone-entry", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              game: GAME_ID,
+              name: ui.name.value.trim().slice(0, 40),
+              email: ui.email.value.trim(),
+              phone: ui.phone.value.trim(),
+              consent: true,
+              score: Math.min(99999, state.finalScore || 0),
+              playedAt: new Date().toISOString()
+            })
+          })
+            .then(function (response) {
+              return response.json().then(function (payload) {
+                return { ok: response.ok, payload: payload };
+              });
+            })
+            .then(function (result) {
+              if (!result.ok) {
+                ui.message.textContent = result.payload.error || "Could not save score.";
+                ui.saveButton.disabled = false;
+                ui.saveButton.textContent = "Save score";
+                return;
+              }
+              boardEntries = result.payload.leaderboard || [];
+              renderBoard(ui.endBoard, boardEntries);
+              renderBoard(ui.startBoard, boardEntries);
+              ui.message.textContent = "Saved to the Deep Dive board.";
+              ui.rankTeaser.textContent = "You are on the board!";
+              ui.saveButton.textContent = "Saved";
+            })
+            .catch(function () {
+              // Ikke lås knappen ved nettverksglipp - la spilleren prove igjen.
+              ui.message.textContent = "No server connection. Tap to try again.";
+              ui.saveButton.disabled = false;
+              ui.saveButton.textContent = "Try again";
+            });
+        }
+
+        function loadSettings() {
+          if (isFileMode || !window.fetch) return;
+          fetch("/api/config", { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload) return;
+              if (payload.brand && payload.brand.companyName) {
+                ui.companyName.textContent = payload.brand.companyName;
+              }
+              if (payload.privacy && payload.privacy.consentLabel) {
+                ui.consentLabel.textContent = payload.privacy.consentLabel;
+              }
+
+              var next = Object.assign({}, DEFAULTS, payload.diveGame || {});
+              if (state && (state.running || state.over)) {
+                // Ikke bytt regler midt i en runde, og ikke nullstill
+                // staten mens sluttskjermen (med lagre-knappen) vises.
+                pendingSettings = next;
+                return;
+              }
+              settings = next;
+              state = createState();
+              updateHud();
+              render();
+            })
+            .catch(function () {
+              /* standardverdier brukes */
+            });
+        }
+
+        function bindTap(element, handler) {
+          element.addEventListener("pointerup", function (event) {
+            event.preventDefault();
+            handler(event);
+          });
+        }
+
+        bindTap(ui.startButton, startGame);
+        bindTap(ui.playAgainButton, startGame);
+        bindTap(ui.pauseButton, pauseGame);
+        bindTap(ui.resumeButton, resumeGame);
+        bindTap(ui.exitGameButton, exitToStart);
+
+        ui.form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          saveScore();
+        });
+
+        // Hold = stig, slipp = synk. Tell aktive pekere slik at to fingre
+        // paa skjermen ikke slipper loftet naar bare en av dem loftes.
+        var activePointers = new Set();
+        var keyThrust = false;
+
+        function syncThrust() {
+          state.thrusting = state.running && !state.paused && (activePointers.size > 0 || keyThrust);
+        }
+
+        canvas.addEventListener("pointerdown", function (event) {
+          event.preventDefault();
+          activePointers.add(event.pointerId);
+          syncThrust();
+        });
+
+        ["pointerup", "pointercancel"].forEach(function (name) {
+          window.addEventListener(name, function (event) {
+            activePointers.delete(event.pointerId);
+            syncThrust();
+          });
+        });
+
+        window.addEventListener("keydown", function (event) {
+          if (event.key === " " || event.key === "ArrowUp") {
+            event.preventDefault();
+            keyThrust = true;
+            syncThrust();
+          }
+        });
+
+        window.addEventListener("keyup", function (event) {
+          if (event.key === " " || event.key === "ArrowUp") {
+            event.preventDefault();
+            keyThrust = false;
+            syncThrust();
+          }
+        });
+
+        ui.holdExitButton.addEventListener("pointerdown", function (event) {
+          if (!state.running || state.paused || holdExitTimer) return;
+          event.stopPropagation();
+          var pointerId = event.pointerId;
+          var startedAt = performance.now();
+          if (ui.holdExitButton.setPointerCapture) ui.holdExitButton.setPointerCapture(pointerId);
+          holdExitProgressTimer = setInterval(function () {
+            var progress = Math.min(1, (performance.now() - startedAt) / 1200);
+            ui.holdExitFill.style.width = Math.round(progress * 100) + "%";
+          }, 16);
+          holdExitTimer = setTimeout(function () {
+            if (ui.holdExitButton.releasePointerCapture) {
+              ui.holdExitButton.releasePointerCapture(pointerId);
+            }
+            exitToStart();
+          }, 1200);
+        });
+
+        ["pointerup", "pointerleave", "pointercancel", "lostpointercapture"].forEach(function (name) {
+          ui.holdExitButton.addEventListener(name, function (event) {
+            if (ui.holdExitButton.releasePointerCapture) {
+              ui.holdExitButton.releasePointerCapture(event.pointerId);
+            }
+            clearHoldExit();
+          });
+        });
+
+        window.addEventListener("resize", resizeCanvas);
+
+        // Kiosk: ingen kontekstmeny eller lenke-dragging ved lange trykk.
+        document.addEventListener("contextmenu", function (event) {
+          event.preventDefault();
+        });
+        document.addEventListener("dragstart", function (event) {
+          event.preventDefault();
+        });
+
+        function armIdleReset() {
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(function () {
+            // Ogsaa et pauset og forlatt spill skal tilbake til start.
+            if (state && (state.paused || (!state.running && ui.startOverlay.classList.contains("hidden")))) {
+              exitToStart();
+            }
+            armIdleReset();
+          }, IDLE_RESET_MS);
+        }
+
+        ["pointerdown", "pointermove", "keydown"].forEach(function (name) {
+          window.addEventListener(name, armIdleReset, { passive: true });
+        });
+
+        state = createState();
+        resizeCanvas();
+        updateHud();
+        render();
+        loadSettings();
+        refreshBoard();
+        armIdleReset();
+      })();
+      // Touch: lenker skal ogsaa virke for finger nr. 2 - "click" kommer bare
+    // fra primaerpekeren, saa en hvilende finger gjor ellers lenker doede.
+    (function () {
+      var links = document.querySelectorAll("a[href]");
+      for (var i = 0; i < links.length; i += 1) {
+        (function (link) {
+          link.addEventListener("pointerup", function (event) {
+            if (event.isPrimary) return;
+            event.preventDefault();
+            window.location.href = link.href;
+          });
+        })(links[i]);
+      }
+    })();
+  </script>
+  </body>
+</html>

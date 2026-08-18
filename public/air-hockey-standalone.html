@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>HT Air Hockey</title>
+  <link rel="stylesheet" href="game-ui.css" />
+  <style>
+    :root {
+      --game-accent: var(--green);
+      --game-accent-strong: #2fbf7a;
+      --game-on-accent: #052012;
+    }
+
+    /* Poengfarger og maal-puls */
+    .stat--blue strong {
+      color: var(--blue);
+    }
+
+    .stat--gold strong {
+      color: var(--gold);
+    }
+
+    .stat.scored strong {
+      animation: scorePulse 460ms ease both;
+    }
+
+    /* Bordet ligger med litt luft rundt seg */
+    .app {
+      padding: 10px;
+      gap: 10px;
+    }
+    .app {
+      width: 100%;
+      height: 100%;
+      padding: 10px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 10px;
+    }
+
+    /* Siste 10 sekunder: klokka pulserer rodt for aa dra opp intensiteten. */
+    .table-wrap {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      border: 1px solid rgba(144, 224, 239, 0.32);
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(245, 200, 75, 0.11), transparent 18%),
+        radial-gradient(circle at 24% 50%, rgba(79, 227, 255, 0.16), transparent 29%),
+        radial-gradient(circle at 76% 50%, rgba(245, 200, 75, 0.14), transparent 29%),
+        linear-gradient(180deg, #082437, #04101c);
+      box-shadow:
+        inset 0 0 110px rgba(79, 227, 255, 0.11),
+        inset 0 0 0 1px rgba(255,255,255,0.06),
+        0 24px 72px rgba(0, 0, 0, 0.44);
+    }
+
+    .table-wrap::before,
+    .table-wrap::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+    }
+
+    .table-wrap::before {
+      background: radial-gradient(circle at 8% 50%, rgba(79, 227, 255, 0.5), transparent 34%);
+    }
+
+    .table-wrap::after {
+      background: radial-gradient(circle at 92% 50%, rgba(245, 200, 75, 0.52), transparent 34%);
+    }
+
+    .table-wrap.goal-blue::before,
+    .table-wrap.goal-gold::after {
+      opacity: 1;
+    }
+
+    .watermark {
+      position: absolute;
+      inset: 7%;
+      z-index: 0;
+      padding: clamp(28px, 5vw, 76px);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 28px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.008)),
+        url("assets/image.png") center / min(780px, 72%) auto no-repeat;
+      background-origin: border-box, content-box;
+      background-clip: border-box, content-box;
+      opacity: 0.105;
+      filter: saturate(0.92);
+      pointer-events: none;
+    }
+
+    .watermark::before {
+      content: "";
+      position: absolute;
+      inset: clamp(18px, 3vw, 44px);
+      border: 1px solid rgba(144, 224, 239, 0.08);
+      border-radius: 22px;
+      box-shadow:
+        inset 0 0 70px rgba(255,255,255,0.035),
+        0 0 48px rgba(79, 227, 255, 0.045);
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: none;
+      touch-action: none;
+    }
+
+    .table-label {
+      position: absolute;
+      z-index: 2;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      background: rgba(3,13,22,0.68);
+      pointer-events: none;
+    }
+
+    .goal-badge {
+      position: absolute;
+      top: 50%;
+      z-index: 3;
+      width: 112px;
+      height: 212px;
+      display: grid;
+      place-items: center;
+      transform: translateY(-50%);
+      border: 1px solid rgba(255,255,255,0.15);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.015)),
+        rgba(3, 13, 22, 0.52);
+      box-shadow: inset 0 0 34px rgba(255,255,255,0.04);
+      pointer-events: none;
+    }
+
+    .goal-badge span {
+      transform: rotate(-90deg);
+      color: white;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .goal-badge--blue {
+      left: 0;
+      border-radius: 0 18px 18px 0;
+      border-left: 0;
+      box-shadow:
+        inset 10px 0 22px rgba(79, 227, 255, 0.22),
+        0 0 38px rgba(79, 227, 255, 0.14);
+    }
+
+    .goal-badge--gold {
+      right: 0;
+      border-radius: 18px 0 0 18px;
+      border-right: 0;
+      box-shadow:
+        inset -10px 0 22px rgba(245, 200, 75, 0.22),
+        0 0 38px rgba(245, 200, 75, 0.14);
+    }
+
+    .goal-badge--gold span {
+      transform: rotate(90deg);
+    }
+
+    .table-label span {
+      color: #dff8ff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .power-hud {
+      position: absolute;
+      right: 18px;
+      bottom: 14px;
+      z-index: 3;
+      min-width: 214px;
+      padding: 10px 12px;
+      border: 1px solid rgba(104, 242, 166, 0.22);
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.012)),
+        rgba(3, 13, 22, 0.7);
+      color: white;
+      pointer-events: none;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.1),
+        0 14px 34px rgba(0,0,0,0.28);
+    }
+
+    .power-hud span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .power-hud strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--green);
+      font-size: 18px;
+      line-height: 1;
+      text-shadow: 0 0 16px rgba(104, 242, 166, 0.38);
+    }
+
+    .event-feed {
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      z-index: 3;
+      display: grid;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .event-chip {
+      width: max-content;
+      max-width: 340px;
+      padding: 8px 11px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 999px;
+      background: rgba(3, 13, 22, 0.72);
+      color: white;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      box-shadow: 0 14px 34px rgba(0,0,0,0.28);
+      animation: chipPop 760ms ease both;
+    }
+
+    .event-chip.blue {
+      border-color: rgba(79, 227, 255, 0.42);
+      color: var(--blue);
+    }
+
+    .event-chip.gold {
+      border-color: rgba(245, 200, 75, 0.42);
+      color: var(--gold);
+    }
+
+    /* Skjul kiosk-navigasjonen under aktiv kamp saa et feiltrykk ikke
+       avbryter spillet - pause viser den igjen. */
+    .front-copy,
+    .front-preview,
+    .front-brand span,
+    .front-kicker,
+    .front-copy h2 {
+      margin: 10px 0 14px;
+      font-size: clamp(42px, 6vw, 88px);
+      line-height: 0.92;
+      letter-spacing: 0;
+    }
+
+    .preview-line,
+    .preview-center,
+    .preview-goal,
+    .preview-puck,
+    @keyframes puckDrift {
+      0%,
+      100% { transform: translate(-120px, 50px); }
+      50% { transform: translate(140px, -80px); }
+    }
+
+    @keyframes chipPop {
+      0% { opacity: 0; transform: translateY(-8px) scale(0.96); }
+      16% { opacity: 1; transform: translateY(0) scale(1); }
+      78% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-4px); }
+    }
+
+    @keyframes scorePulse {
+      0% { transform: scale(1); }
+      38% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+
+    @media (max-width: 900px) {
+      .app {
+        padding: 8px;
+      }
+
+      .power-hud {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <nav class="kiosk-nav kiosk-nav--floating" aria-label="Kiosk navigation">
+      <a class="kiosk-nav-button" href="/select.html">Main kiosk</a>
+      <button id="exitGameButton" class="kiosk-nav-button kiosk-nav-button--exit" type="button">Exit game</button>
+    </nav>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark"><img src="assets/image.png" alt="Hatteland Technology logo" /></span>
+        <div class="brand-text">
+          <p class="eyebrow">Hatteland Technology</p>
+          <h1>HT Air Hockey</h1>
+        </div>
+      </div>
+      <div class="hud">
+        <div class="stat stat--blue">
+          <span>Blue</span>
+          <strong id="scoreLeft">0</strong>
+        </div>
+        <div class="stat">
+          <span>Blue combo</span>
+          <strong id="comboLeft">x1</strong>
+        </div>
+        <div class="stat">
+          <span>Time</span>
+          <strong id="timeLeft">60</strong>
+        </div>
+        <div class="stat">
+          <span>Gold combo</span>
+          <strong id="comboRight">x1</strong>
+        </div>
+        <div class="stat stat--gold">
+          <span>Gold</span>
+          <strong id="scoreRight">0</strong>
+        </div>
+      </div>
+    </header>
+
+    <section class="table-wrap">
+      <div class="watermark" aria-hidden="true"></div>
+      <canvas id="gameCanvas"></canvas>
+      <div class="goal-badge goal-badge--blue" aria-hidden="true"><span>Blue goal</span></div>
+      <div class="goal-badge goal-badge--gold" aria-hidden="true"><span>Gold goal</span></div>
+      <div id="eventFeed" class="event-feed" aria-hidden="true"></div>
+      <div class="table-label" aria-hidden="true">
+        <span>Blue harbor</span>
+        <span>Power shots add pressure, Goal flash doubles goals</span>
+        <span>Gold harbor</span>
+      </div>
+      <div class="power-hud" aria-hidden="true">
+        <span>Active power-up</span>
+        <strong id="powerHud">None</strong>
+      </div>
+
+      <div id="startOverlay" class="overlay">
+        <div class="panel">
+          <p class="eyebrow">Arcade challenge</p>
+          <h2>Fast hands. Clean hits.</h2>
+          <p>
+            Blue controls the left harbor, gold controls the right. First to the win score takes
+            the match &mdash; or the highest score when the clock runs out.
+          </p>
+          <div class="steps">
+            <article class="step">
+              <b>Drag your paddle</b>
+              <small>Keep a finger on your half. The paddle follows it.</small>
+            </article>
+            <article class="step">
+              <b>Hit hard</b>
+              <small>Fast strikes build combos and light up the table.</small>
+            </article>
+            <article class="step">
+              <b>Grab power-ups</b>
+              <small>Turbo puck, wide paddle and flash goals that count double.</small>
+            </article>
+          </div>
+          <button id="startButton" class="primary" type="button">Start match</button>
+        </div>
+      </div>
+
+      <button id="pauseButton" class="pause-button" type="button">Pause</button>
+
+      <div id="pauseOverlay" class="overlay hidden">
+        <div class="panel">
+          <p class="eyebrow">Paused</p>
+          <h2>HT Air Hockey</h2>
+          <button id="resumeButton" class="primary" type="button">Resume</button>
+        </div>
+      </div>
+
+      <div id="endOverlay" class="overlay hidden">
+        <div class="panel">
+          <p class="eyebrow">Final score</p>
+          <h2 id="winnerText">Winner</h2>
+          <p id="finalScore">Blue 0 - 0 Gold</p>
+          <div class="row">
+            <button id="restartButton" class="primary" type="button">Play again</button>
+            <a class="secondary" href="/select.html">Main kiosk</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      const ui = {
+        scoreLeft: document.getElementById("scoreLeft"),
+        scoreRight: document.getElementById("scoreRight"),
+        comboLeft: document.getElementById("comboLeft"),
+        comboRight: document.getElementById("comboRight"),
+        timeLeft: document.getElementById("timeLeft"),
+        tableWrap: document.querySelector(".table-wrap"),
+        eventFeed: document.getElementById("eventFeed"),
+        powerHud: document.getElementById("powerHud"),
+        startOverlay: document.getElementById("startOverlay"),
+        endOverlay: document.getElementById("endOverlay"),
+        startButton: document.getElementById("startButton"),
+        restartButton: document.getElementById("restartButton"),
+        pauseButton: document.getElementById("pauseButton"),
+        pauseOverlay: document.getElementById("pauseOverlay"),
+        resumeButton: document.getElementById("resumeButton"),
+        exitGameButton: document.getElementById("exitGameButton"),
+        winnerText: document.getElementById("winnerText"),
+        finalScore: document.getElementById("finalScore")
+      };
+
+      const DEFAULT_SETTINGS = {
+        difficultyName: "Normal",
+        matchSeconds: 60,
+        winScore: 25,
+        puckSpeedPercent: 100,
+        paddleSizePercent: 100,
+        powerUpDurationSeconds: 7,
+        enablePowerUps: true
+      };
+
+      let settings = Object.assign({}, DEFAULT_SETTINGS);
+      let pendingSettings = null;
+
+      const FRICTION = 0.995;
+      const BASE_MAX_SPEED = 1750;
+      const BASE_PADDLE_RADIUS = 42;
+
+      function speedFactor() {
+        return Number(settings.puckSpeedPercent || 100) / 100;
+      }
+
+      function paddleRadius() {
+        return Math.round(BASE_PADDLE_RADIUS * (Number(settings.paddleSizePercent || 100) / 100));
+      }
+      const POWER_TYPES = [
+        { type: "boost", label: "Turbo puck", color: "#68f2a6" },
+        { type: "double", label: "Goal flash", color: "#f5c84b" },
+        { type: "magnet", label: "Wide paddle", color: "#4fe3ff" }
+      ];
+      let width = 1;
+      let height = 1;
+      let ratio = 1;
+      let lastTime = 0;
+      let animationId = 0;
+      let state = createState();
+
+      function createState() {
+        return {
+          running: false,
+          paused: false,
+          secondsLeft: Number(settings.matchSeconds || 60),
+          score: { left: 0, right: 0 },
+          combo: { left: 1, right: 1 },
+          lastScorer: null,
+          hitStreak: { left: 0, right: 0 },
+          effects: [],
+          sparks: [],
+          powerUps: [],
+          activePower: null,
+          nextPowerUpAt: 5,
+          trail: [],
+          shake: 0,
+          flash: 0,
+          finalWarned: false,
+          puck: { x: 0, y: 0, vx: 0, vy: 0, r: 18 },
+          left: { x: 0, y: 0, px: 0, py: 0, r: paddleRadius(), active: false },
+          right: { x: 0, y: 0, px: 0, py: 0, r: paddleRadius(), active: false },
+          pointers: new Map(),
+          lastTouch: null,
+          serveTo: Math.random() > 0.5 ? "left" : "right"
+        };
+      }
+
+      function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        ratio = Math.min(window.devicePixelRatio || 1, 2);
+        width = Math.max(1, Math.round(rect.width));
+        height = Math.max(1, Math.round(rect.height));
+        canvas.width = Math.round(width * ratio);
+        canvas.height = Math.round(height * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        if (state.running) {
+          // Ikke teleporter brikkene midt i en kamp - bare hold alt innenfor bordet.
+          clampPaddle(state.left, "left");
+          clampPaddle(state.right, "right");
+          state.puck.x = Math.max(state.puck.r, Math.min(width - state.puck.r, state.puck.x));
+          state.puck.y = Math.max(state.puck.r, Math.min(height - state.puck.r, state.puck.y));
+        } else {
+          resetPositions(false);
+        }
+        draw();
+      }
+
+      function resetPositions(resetPuck) {
+        state.left.x = width * 0.22;
+        state.left.y = height * 0.5;
+        state.right.x = width * 0.78;
+        state.right.y = height * 0.5;
+        state.left.px = state.left.x;
+        state.left.py = state.left.y;
+        state.right.px = state.right.x;
+        state.right.py = state.right.y;
+        if (resetPuck || state.puck.x === 0) {
+          state.puck.x = width * 0.5;
+          state.puck.y = height * 0.5;
+          const direction = state.serveTo === "left" ? -1 : 1;
+          state.puck.vx = direction * 420;
+          state.puck.vy = (Math.random() * 240) - 120;
+        }
+      }
+
+      function updateUI() {
+        ui.scoreLeft.textContent = String(state.score.left);
+        ui.scoreRight.textContent = String(state.score.right);
+        ui.comboLeft.textContent = `x${state.combo.left}`;
+        ui.comboRight.textContent = `x${state.combo.right}`;
+        ui.timeLeft.textContent = String(Math.max(0, Math.ceil(state.secondsLeft)));
+
+        // Sluttspurt: pulserende rod klokke + varsel forste gang.
+        var critical = state.running && state.secondsLeft <= 10 && state.secondsLeft > 0;
+        ui.timeLeft.parentElement.classList.toggle("stat--critical", critical);
+        if (critical && !state.finalWarned) {
+          state.finalWarned = true;
+          state.flash = Math.max(state.flash, 0.5);
+          showEvent("FINAL 10 SECONDS", state.score.left >= state.score.right ? "left" : "right");
+        }
+
+        ui.powerHud.textContent = state.activePower
+          ? `${state.activePower.label} ${Math.ceil(state.activePower.time)}s`
+          : "None";
+      }
+
+      function loadSettings() {
+        if (window.location.protocol === "file:" || !window.fetch) return;
+        fetch("/api/config", { cache: "no-store" })
+          .then(function (response) {
+            return response.ok ? response.json() : null;
+          })
+          .then(function (payload) {
+            if (!payload) return;
+            var next = Object.assign({}, DEFAULT_SETTINGS, payload.airHockeyGame || {});
+            if (state.running) {
+              // Ikke bytt regler midt i en kamp - vent til neste start.
+              pendingSettings = next;
+              return;
+            }
+            settings = next;
+            state = createState();
+            resetPositions(true);
+            updateUI();
+            draw();
+          })
+          .catch(function () {
+            /* standardverdier brukes */
+          });
+      }
+
+      function startGame() {
+        cancelAnimationFrame(animationId);
+        if (pendingSettings) {
+          settings = pendingSettings;
+          pendingSettings = null;
+        }
+        state = createState();
+        state.running = true;
+        document.body.classList.add("game-running");
+        resetPositions(true);
+        ui.startOverlay.classList.add("hidden");
+        ui.endOverlay.classList.add("hidden");
+        lastTime = performance.now();
+        updateUI();
+        animationId = requestAnimationFrame(loop);
+      }
+
+      function endGame() {
+        state.running = false;
+        document.body.classList.remove("game-running");
+        ui.pauseOverlay.classList.add("hidden");
+        cancelAnimationFrame(animationId);
+        const left = state.score.left;
+        const right = state.score.right;
+        ui.winnerText.textContent = left === right ? "Draw" : left > right ? "Blue wins" : "Gold wins";
+        ui.finalScore.textContent = `Blue ${left} - ${right} Gold`;
+        ui.endOverlay.classList.remove("hidden");
+        updateUI();
+      }
+
+      function togglePause() {
+        if (!state.running) return;
+        state.paused = !state.paused;
+        document.body.classList.toggle("game-running", !state.paused);
+        ui.pauseOverlay.classList.toggle("hidden", !state.paused);
+        lastTime = performance.now();
+        updateUI();
+        if (!state.paused) {
+          // Avbryt et eventuelt ventende frame forst, ellers gir raske
+          // pause/fortsett-trykk to samtidige lokker og dobbel fart.
+          cancelAnimationFrame(animationId);
+          // Nullstill forrige posisjon saa en finger som ble holdt nede
+          // gjennom pausen ikke gir ett gigantisk slag ved fortsettelse.
+          for (const paddle of [state.left, state.right]) {
+            paddle.px = paddle.x;
+            paddle.py = paddle.y;
+          }
+          animationId = requestAnimationFrame(loop);
+        }
+      }
+
+      function exitToStart() {
+        cancelAnimationFrame(animationId);
+        document.body.classList.remove("game-running");
+        ui.pauseOverlay.classList.add("hidden");
+        state = createState();
+        resetPositions(true);
+        ui.endOverlay.classList.add("hidden");
+        ui.startOverlay.classList.remove("hidden");
+        updateUI();
+        draw();
+        // Hent ferske innstillinger naar vi er tilbake paa startskjermen.
+        loadSettings();
+      }
+
+      function loop(now) {
+        const dt = Math.min(0.033, (now - lastTime) / 1000 || 0);
+        lastTime = now;
+        if (!state.paused) {
+          update(dt);
+          draw();
+          updateUI();
+        }
+        if (state.running && !state.paused) animationId = requestAnimationFrame(loop);
+      }
+
+      function update(dt) {
+        state.secondsLeft -= dt;
+        if (state.secondsLeft <= 0) {
+          state.secondsLeft = 0;
+          endGame();
+          return;
+        }
+
+        movePaddleFromPointers();
+        state.shake = Math.max(0, state.shake - dt * 18);
+        state.flash = Math.max(0, state.flash - dt * 3.8);
+        state.effects = state.effects.filter((effect) => {
+          effect.life -= dt;
+          effect.y -= 42 * dt;
+          return effect.life > 0;
+        });
+        state.sparks = state.sparks.filter((spark) => {
+          spark.life -= dt;
+          spark.x += spark.vx * dt;
+          spark.y += spark.vy * dt;
+          spark.vx *= 0.94;
+          spark.vy *= 0.94;
+          return spark.life > 0;
+        });
+        if (state.activePower) {
+          state.activePower.time -= dt;
+          if (state.activePower.time <= 0) state.activePower = null;
+        }
+        state.nextPowerUpAt -= dt;
+        if (settings.enablePowerUps && state.nextPowerUpAt <= 0 && state.powerUps.length < 2) {
+          spawnPowerUp();
+          state.nextPowerUpAt = 6 + Math.random() * 5;
+        }
+        updatePuck(dt);
+        updatePowerUps(dt);
+        for (const paddle of [state.left, state.right]) collidePaddle(paddle, dt);
+        clampPaddle(state.left, "left");
+        clampPaddle(state.right, "right");
+
+        const winScore = Number(settings.winScore || 25);
+        if (state.score.left >= winScore || state.score.right >= winScore) {
+          endGame();
+        }
+      }
+
+      function movePaddleFromPointers() {
+        for (const paddle of [state.left, state.right]) {
+          paddle.px = paddle.x;
+          paddle.py = paddle.y;
+          paddle.active = false;
+        }
+
+        for (const pointer of state.pointers.values()) {
+          // Fingeren styrer siden den startet paa - krysser den midtlinjen
+          // skal den ikke kapre motstanderens brikke.
+          const side = pointer.side === "left" ? state.left : state.right;
+          side.x = pointer.x;
+          side.y = pointer.y;
+          side.active = true;
+        }
+      }
+
+      function clampPaddle(paddle, side) {
+        const minX = side === "left" ? paddle.r + 12 : width / 2 + paddle.r;
+        const maxX = side === "left" ? width / 2 - paddle.r : width - paddle.r - 12;
+        paddle.x = Math.max(minX, Math.min(maxX, paddle.x));
+        paddle.y = Math.max(paddle.r + 12, Math.min(height - paddle.r - 12, paddle.y));
+      }
+
+      function updatePuck(dt) {
+        const puck = state.puck;
+        const powerSpeed = state.activePower && state.activePower.type === "boost" ? 1.16 : 1;
+        puck.x += puck.vx * dt;
+        puck.y += puck.vy * dt;
+        puck.vx *= FRICTION * powerSpeed;
+        puck.vy *= FRICTION * powerSpeed;
+
+        const speed = Math.hypot(puck.vx, puck.vy);
+        const maxSpeed = BASE_MAX_SPEED * speedFactor();
+        if (speed > maxSpeed) {
+          puck.vx = (puck.vx / speed) * maxSpeed;
+          puck.vy = (puck.vy / speed) * maxSpeed;
+        }
+
+        state.trail.unshift({ x: puck.x, y: puck.y, speed });
+        if (state.trail.length > 18) state.trail.pop();
+
+        if (puck.y - puck.r < 0) {
+          puck.y = puck.r;
+          puck.vy = Math.abs(puck.vy);
+        }
+        if (puck.y + puck.r > height) {
+          puck.y = height - puck.r;
+          puck.vy = -Math.abs(puck.vy);
+        }
+
+        const goalTop = height * 0.34;
+        const goalBottom = height * 0.66;
+        if (puck.x - puck.r < 0) {
+          if (puck.y > goalTop && puck.y < goalBottom) score("right");
+          else {
+            puck.x = puck.r;
+            puck.vx = Math.abs(puck.vx);
+          }
+        }
+        if (puck.x + puck.r > width) {
+          if (puck.y > goalTop && puck.y < goalBottom) score("left");
+          else {
+            puck.x = width - puck.r;
+            puck.vx = -Math.abs(puck.vx);
+          }
+        }
+      }
+
+      function collidePaddle(paddle, dt) {
+        const puck = state.puck;
+        const dx = puck.x - paddle.x;
+        const dy = puck.y - paddle.y;
+        const distance = Math.hypot(dx, dy);
+        const side = paddle === state.left ? "left" : "right";
+        const widePaddle = state.activePower && state.activePower.type === "magnet" && state.activePower.side === side;
+        const paddleRadius = widePaddle ? paddle.r * 1.34 : paddle.r;
+        const minDistance = puck.r + paddleRadius;
+        if (distance <= 0 || distance >= minDistance) return;
+
+        const nx = dx / distance;
+        const ny = dy / distance;
+        const overlap = minDistance - distance;
+        puck.x += nx * overlap;
+        puck.y += ny * overlap;
+
+        const paddleVx = (paddle.x - paddle.px) / Math.max(dt, 0.001);
+        const paddleVy = (paddle.y - paddle.py) / Math.max(dt, 0.001);
+        const hitSpeed = Math.hypot(paddleVx, paddleVy);
+        state.lastTouch = side;
+        state.hitStreak[side] += 1;
+        state.hitStreak[side === "left" ? "right" : "left"] = 0;
+        const comboBoost = Math.min(5, 1 + Math.floor(state.hitStreak[side] / 3));
+        state.combo[side] = Math.max(state.combo[side], comboBoost);
+        const impact = Math.max(620, Math.hypot(puck.vx, puck.vy) * 0.96 + hitSpeed * 0.26);
+        puck.vx = nx * impact + paddleVx * 0.38;
+        puck.vy = ny * impact + paddleVy * 0.38;
+        state.shake = Math.min(1, state.shake + 0.18);
+        addSparks(puck.x, puck.y, side === "left" ? "#4fe3ff" : "#f5c84b", Math.min(18, 6 + state.hitStreak[side]));
+        if (hitSpeed > 900 || comboBoost > 1) {
+          addEffect(puck.x, puck.y - 28, comboBoost > 1 ? `COMBO x${comboBoost}` : "POWER HIT", side);
+        }
+      }
+
+      function spawnPowerUp() {
+        const item = POWER_TYPES[Math.floor(Math.random() * POWER_TYPES.length)];
+        const marginX = width * 0.22;
+        const x = marginX + Math.random() * (width - marginX * 2);
+        const y = height * 0.22 + Math.random() * height * 0.56;
+        state.powerUps.push({
+          ...item,
+          x,
+          y,
+          r: 26,
+          pulse: Math.random() * Math.PI * 2,
+          life: 9
+        });
+        showEvent(`${item.label} online`, "left");
+      }
+
+      function updatePowerUps(dt) {
+        const puck = state.puck;
+        for (const power of state.powerUps) {
+          power.life -= dt;
+          power.pulse += dt * 5;
+          if (Math.hypot(puck.x - power.x, puck.y - power.y) < puck.r + power.r) {
+            const side = state.lastTouch || (puck.vx >= 0 ? "left" : "right");
+            activatePowerUp(power, side);
+            power.used = true;
+          }
+        }
+        state.powerUps = state.powerUps.filter((power) => power.life > 0 && !power.used);
+      }
+
+      function activatePowerUp(power, side) {
+        state.activePower = {
+          type: power.type,
+          label: power.label,
+          color: power.color,
+          side,
+          time: Number(settings.powerUpDurationSeconds || 7) + (power.type === "double" ? 1 : 0)
+        };
+        state.flash = 0.72;
+        state.shake = Math.min(1, state.shake + 0.42);
+        addSparks(power.x, power.y, power.color, 34);
+        addEffect(power.x, power.y - 34, power.label.toUpperCase(), side);
+        showEvent(`${side === "left" ? "Blue" : "Gold"} activates ${power.label}`, side);
+      }
+
+      function score(side) {
+        const puckSpeed = Math.hypot(state.puck.vx, state.puck.vy);
+        const speedShot = puckSpeed > 850;
+        if (state.lastScorer === side) {
+          state.combo[side] = Math.min(5, state.combo[side] + 1);
+        } else {
+          state.combo[side] = Math.max(1, state.combo[side]);
+        }
+        const goalFlash = state.activePower && state.activePower.type === "double" && state.activePower.side === side;
+        const cleanShot = state.hitStreak[side] >= 5;
+        const points = goalFlash ? 2 : 1;
+        state.score[side] += points;
+        state.combo[side === "left" ? "right" : "left"] = 1;
+        state.hitStreak.left = 0;
+        state.hitStreak.right = 0;
+        state.lastTouch = null;
+        state.lastScorer = side;
+        state.flash = 1;
+        state.shake = 1;
+        flashGoal(side);
+        pulseScore(side);
+        const label = goalFlash ? "FLASH GOAL" : cleanShot ? "CLEAN GOAL" : speedShot ? "SPEED GOAL" : "GOAL";
+        addEffect(width * 0.5, height * 0.32, `+${points} ${label}`, side);
+        showEvent(`${side === "left" ? "Blue" : "Gold"} scores ${points}`, side);
+        state.serveTo = side === "left" ? "right" : "left";
+        resetPositions(true);
+      }
+
+      function addEffect(x, y, text, side) {
+        state.effects.push({
+          x,
+          y,
+          text,
+          side,
+          life: 0.9,
+          maxLife: 0.9
+        });
+      }
+
+      function addSparks(x, y, color, count) {
+        for (let i = 0; i < count; i += 1) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 110 + Math.random() * 360;
+          state.sparks.push({
+            x,
+            y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            color,
+            life: 0.32 + Math.random() * 0.28,
+            maxLife: 0.6,
+            r: 2 + Math.random() * 4
+          });
+        }
+      }
+
+      function showEvent(text, side) {
+        const chip = document.createElement("div");
+        chip.className = `event-chip ${side === "left" ? "blue" : "gold"}`;
+        chip.textContent = text;
+        ui.eventFeed.prepend(chip);
+        setTimeout(() => chip.remove(), 780);
+      }
+
+      function flashGoal(side) {
+        ui.tableWrap.classList.remove("goal-blue", "goal-gold");
+        ui.tableWrap.classList.add(side === "left" ? "goal-blue" : "goal-gold");
+        setTimeout(() => ui.tableWrap.classList.remove("goal-blue", "goal-gold"), 220);
+      }
+
+      function pulseScore(side) {
+        const node = side === "left" ? ui.scoreLeft.parentElement : ui.scoreRight.parentElement;
+        node.classList.remove("scored");
+        void node.offsetWidth;
+        node.classList.add("scored");
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+        if (state.shake > 0) {
+          const amount = state.shake * 8;
+          ctx.save();
+          ctx.translate((Math.random() - 0.5) * amount, (Math.random() - 0.5) * amount);
+        }
+        drawTable();
+        drawPowerUps();
+        drawTrail();
+        drawSparks();
+        drawPaddle(state.left, "#4fe3ff", "HT");
+        drawPaddle(state.right, "#f5c84b", "HT");
+        drawPuck();
+        drawEffects();
+        if (state.flash > 0) drawFlash();
+        if (state.shake > 0) ctx.restore();
+      }
+
+      function drawTable() {
+        const goalTop = height * 0.34;
+        const goalHeight = height * 0.32;
+        const goalBottom = goalTop + goalHeight;
+        ctx.save();
+        ctx.globalAlpha = 0.72;
+        ctx.strokeStyle = "rgba(255,255,255,0.06)";
+        ctx.lineWidth = 1;
+        for (let x = width * 0.1; x < width; x += width * 0.1) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+        }
+        for (let y = height * 0.12; y < height; y += height * 0.12) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "rgba(255,255,255,0.18)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([12, 14]);
+        ctx.beginPath();
+        ctx.moveTo(width / 2, 26);
+        ctx.lineTo(width / 2, height - 26);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(width / 2, height / 2, Math.min(width, height) * 0.18, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const leftGoal = ctx.createLinearGradient(0, goalTop, 80, goalTop);
+        leftGoal.addColorStop(0, "rgba(79, 227, 255, 0.72)");
+        leftGoal.addColorStop(1, "rgba(79, 227, 255, 0.04)");
+        ctx.fillStyle = leftGoal;
+        ctx.fillRect(0, goalTop, 92, goalHeight);
+
+        const rightGoal = ctx.createLinearGradient(width, goalTop, width - 80, goalTop);
+        rightGoal.addColorStop(0, "rgba(245, 200, 75, 0.72)");
+        rightGoal.addColorStop(1, "rgba(245, 200, 75, 0.04)");
+        ctx.fillStyle = rightGoal;
+        ctx.fillRect(width - 92, goalTop, 92, goalHeight);
+
+        ctx.save();
+        ctx.globalAlpha = 0.5 + state.flash * 0.5;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(255,255,255,0.16)";
+        for (let y = goalTop + 18; y < goalBottom; y += 26) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(72, y + 12);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(width, y);
+          ctx.lineTo(width - 72, y + 12);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        ctx.lineWidth = 14;
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "rgba(79, 227, 255, 0.62)";
+        ctx.shadowColor = "rgba(79, 227, 255, 0.54)";
+        ctx.shadowBlur = 24;
+        ctx.beginPath();
+        ctx.moveTo(2, goalTop);
+        ctx.lineTo(2, goalBottom);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(245, 200, 75, 0.62)";
+        ctx.shadowColor = "rgba(245, 200, 75, 0.54)";
+        ctx.beginPath();
+        ctx.moveTo(width - 2, goalTop);
+        ctx.lineTo(width - 2, goalBottom);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(255,255,255,0.22)";
+        roundedRectPath(ctx, 14, goalTop - 18, 94, goalHeight + 36, 18);
+        ctx.stroke();
+        roundedRectPath(ctx, width - 108, goalTop - 18, 94, goalHeight + 36, 18);
+        ctx.stroke();
+
+        ctx.font = "900 22px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "rgba(79, 227, 255, 0.16)";
+        ctx.fillText("BLUE HARBOR", width * 0.25, height * 0.12);
+        ctx.fillStyle = "rgba(245, 200, 75, 0.16)";
+        ctx.fillText("GOLD HARBOR", width * 0.75, height * 0.12);
+        ctx.restore();
+      }
+
+      function roundedRectPath(context, x, y, w, h, r) {
+        const radius = Math.min(r, w / 2, h / 2);
+        context.beginPath();
+        context.moveTo(x + radius, y);
+        context.lineTo(x + w - radius, y);
+        context.quadraticCurveTo(x + w, y, x + w, y + radius);
+        context.lineTo(x + w, y + h - radius);
+        context.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+        context.lineTo(x + radius, y + h);
+        context.quadraticCurveTo(x, y + h, x, y + h - radius);
+        context.lineTo(x, y + radius);
+        context.quadraticCurveTo(x, y, x + radius, y);
+      }
+
+      function drawTrail() {
+        ctx.save();
+        for (let i = state.trail.length - 1; i >= 0; i -= 1) {
+          const point = state.trail[i];
+          const alpha = (1 - i / state.trail.length) * 0.42;
+          const radius = Math.max(5, state.puck.r * (1 - i / (state.trail.length + 2)));
+          const color = point.speed > 1100 ? "245, 200, 75" : "79, 227, 255";
+          ctx.fillStyle = `rgba(${color}, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      function drawSparks() {
+        ctx.save();
+        for (const spark of state.sparks) {
+          const alpha = Math.max(0, spark.life / spark.maxLife);
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = spark.color;
+          ctx.shadowColor = spark.color;
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(spark.x, spark.y, spark.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      function drawPowerUps() {
+        ctx.save();
+        for (const power of state.powerUps) {
+          const pulse = 1 + Math.sin(power.pulse) * 0.12;
+          const alpha = Math.min(1, power.life / 1.8);
+          ctx.globalAlpha = alpha;
+          ctx.translate(power.x, power.y);
+          ctx.rotate(power.pulse * 0.32);
+          ctx.shadowColor = power.color;
+          ctx.shadowBlur = 28;
+          ctx.strokeStyle = power.color;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(0, 0, power.r * pulse, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([10, 8]);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, power.r * 1.55, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = "rgba(3,13,22,0.82)";
+          ctx.beginPath();
+          ctx.arc(0, 0, power.r * 0.72, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = power.color;
+          ctx.font = "900 10px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.rotate(-power.pulse * 0.32);
+          ctx.fillText(power.type === "boost" ? "SPD" : power.type === "double" ? "2X" : "WIDE", 0, 1);
+          ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        }
+        ctx.restore();
+      }
+
+      function drawPaddle(paddle, color, text) {
+        const side = paddle === state.left ? "left" : "right";
+        const widePaddle = state.activePower && state.activePower.type === "magnet" && state.activePower.side === side;
+        const radius = widePaddle ? paddle.r * 1.34 : paddle.r;
+        ctx.save();
+        ctx.translate(paddle.x, paddle.y);
+        ctx.shadowColor = color;
+        ctx.shadowBlur = paddle.active || widePaddle ? 34 : 16;
+        if (widePaddle) {
+          ctx.globalAlpha = 0.28;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(0, 0, radius + 12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        const gradient = ctx.createRadialGradient(-14, -16, 8, 0, 0, radius);
+        gradient.addColorStop(0, "rgba(255,255,255,0.86)");
+        gradient.addColorStop(0.24, color);
+        gradient.addColorStop(1, "rgba(3,13,22,0.95)");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(255,255,255,0.42)";
+        ctx.stroke();
+        ctx.fillStyle = "#06131f";
+        ctx.font = "900 16px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, 0, 1);
+        ctx.restore();
+      }
+
+      function drawPuck() {
+        const puck = state.puck;
+        const speed = Math.hypot(puck.vx, puck.vy);
+        ctx.save();
+        ctx.translate(puck.x, puck.y);
+        const boostActive = state.activePower && state.activePower.type === "boost";
+        ctx.shadowColor = boostActive ? "rgba(104, 242, 166, 0.9)" : speed > 1100 ? "rgba(245, 200, 75, 0.82)" : "rgba(255,255,255,0.48)";
+        ctx.shadowBlur = boostActive ? 42 : speed > 1100 ? 32 : 18;
+        const gradient = ctx.createRadialGradient(-6, -7, 4, 0, 0, puck.r);
+        gradient.addColorStop(0, "#ffffff");
+        gradient.addColorStop(1, "#aebdc7");
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, puck.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(3,13,22,0.64)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawEffects() {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        for (const effect of state.effects) {
+          const alpha = Math.max(0, effect.life / effect.maxLife);
+          const color = effect.side === "left" ? "#4fe3ff" : "#f5c84b";
+          ctx.globalAlpha = Math.min(1, alpha * 1.2);
+          ctx.font = "900 26px Arial";
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 18;
+          ctx.fillStyle = color;
+          ctx.fillText(effect.text, effect.x, effect.y);
+        }
+        ctx.restore();
+      }
+
+      function drawFlash() {
+        ctx.save();
+        ctx.globalAlpha = state.flash * 0.18;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
+      }
+
+      function pointerPosition(event) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top
+        };
+      }
+
+      function onPointerDown(event) {
+        if (!state.running || state.paused) return;
+        event.preventDefault();
+        canvas.setPointerCapture(event.pointerId);
+        const position = pointerPosition(event);
+        position.side = position.x < width / 2 ? "left" : "right";
+        state.pointers.set(event.pointerId, position);
+      }
+
+      function onPointerMove(event) {
+        if (state.paused) return;
+        const existing = state.pointers.get(event.pointerId);
+        if (!existing) return;
+        event.preventDefault();
+        const position = pointerPosition(event);
+        position.side = existing.side;
+        state.pointers.set(event.pointerId, position);
+      }
+
+      function onPointerEnd(event) {
+        state.pointers.delete(event.pointerId);
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+      // Bruk pointerup, ikke click: click kommer bare fra primaerpekeren, saa
+      // knappene ville vaert dode mens den andre spilleren tar paa skjermen.
+      function bindTap(element, handler) {
+        element.addEventListener("pointerup", (event) => {
+          event.preventDefault();
+          handler(event);
+        });
+      }
+
+      bindTap(ui.startButton, startGame);
+      bindTap(ui.restartButton, startGame);
+      bindTap(ui.pauseButton, togglePause);
+      bindTap(ui.resumeButton, togglePause);
+      bindTap(ui.exitGameButton, exitToStart);
+      canvas.addEventListener("pointerdown", onPointerDown);
+      canvas.addEventListener("pointermove", onPointerMove);
+      canvas.addEventListener("pointerup", onPointerEnd);
+      canvas.addEventListener("pointercancel", onPointerEnd);
+      canvas.addEventListener("lostpointercapture", onPointerEnd);
+
+      // Kiosk: ingen kontekstmeny eller lenke-dragging ved lange trykk.
+      document.addEventListener("contextmenu", (event) => event.preventDefault());
+      document.addEventListener("dragstart", (event) => event.preventDefault());
+
+      // Attract-modus: en glemt sluttskjerm gaar tilbake til startskjermen av seg selv.
+      const IDLE_RESET_MS = 90000;
+      let idleTimer = null;
+
+      function armIdleReset() {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          // Ogsaa et pauset og forlatt spill skal tilbake til start.
+          if (state.paused || (!state.running && ui.startOverlay.classList.contains("hidden"))) {
+            exitToStart();
+          }
+          armIdleReset();
+        }, IDLE_RESET_MS);
+      }
+
+      ["pointerdown", "pointermove", "keydown"].forEach((eventName) => {
+        window.addEventListener(eventName, armIdleReset, { passive: true });
+      });
+      armIdleReset();
+
+      resizeCanvas();
+      updateUI();
+      loadSettings();
+    })();
+    // Touch: lenker skal ogsaa virke for finger nr. 2 - "click" kommer bare
+    // fra primaerpekeren, saa en hvilende finger gjor ellers lenker doede.
+    (function () {
+      var links = document.querySelectorAll("a[href]");
+      for (var i = 0; i < links.length; i += 1) {
+        (function (link) {
+          link.addEventListener("pointerup", function (event) {
+            if (event.isPrimary) return;
+            event.preventDefault();
+            window.location.href = link.href;
+          });
+        })(links[i]);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,139 +1,159 @@
-# HT ECDIS — demo workstation (Hatteland Technology)
+# Hatteland Technology Messekonkurranse — Vercel-utgave
 
-A modern, iPad-style ECDIS **demonstrator** for Norwegian west-coast waters
-(Stavanger ↔ Bergen), built as a single streaming Design Component:
-`ht-ecdis.html`. Open it directly in a browser.
+Dette er den samme kiosk-appen som
+[Test-HT-EXPO](https://github.com/staalestokkeland1997-web/Test-HT-EXPO)
+(sju touchspill, adminsider og HT ECDIS/radar-demoen), men bygget for aa kjore
+**paa Vercel i stedet for lokalt**. Ingen lokal server, ingen startskript,
+ingen USB-leveranse: frontend serveres som statiske filer, og hele backend-
+API-et kjorer som en serverless-funksjon (`api/[[...path]].js`).
 
-## Run locally (kjøre lokalt)
-The demo is a static site — no build step, no backend. React/ReactDOM and the
-Inter font are vendored in `vendor/`, so the UI itself needs **no CDN access
-and boots fully offline**; only the live chart/weather layers need internet.
+## Innhold
 
-**Easiest** — from the repo folder:
+Sju touchspill med maritimt preg, alle med egen highscoreliste:
 
-| Platform | Command |
-|----------|---------|
-| Linux / macOS | `./run-local.sh` (optional port: `./run-local.sh 9000`) |
-| Windows | double-click `run-local.bat` (or `run-local.bat 9000` in a terminal) |
+| Spill | Type | URL |
+| --- | --- | --- |
+| Container Stacker | Presisjon, 1 spiller | `/container-stacker-standalone.html` |
+| Fjord Runner | Endless runner, 1 spiller | `/fjord-runner-standalone.html` |
+| Deep Dive | One-touch, 1 spiller | `/deep-dive-standalone.html` |
+| Harbor Rush | Refleks, 1 spiller | `/harbor-rush-standalone.html` |
+| Bridge Duel | 1 mot 1 | `/bridge-duel-standalone.html` |
+| HT Air Hockey | 1 mot 1 | `/air-hockey-standalone.html` |
+| Sonar Sequence | Hukommelse, 1 spiller | `/sonar-sequence-standalone.html` |
+| HT ECDIS | Sjokart-demo (ikke spill) | `/ecdis/index.html?kiosk=1` |
+| HT Radar | PPI-radar-demo (ikke spill) | `/ecdis/radar.html?kiosk=1` |
 
-The script starts a small local web server (Python or Node.js, whichever is
-installed) and opens `http://localhost:8000/` in your browser.
+I tillegg:
 
-### Kiosk mode (true fullscreen, no exit button)
-For a demo stand, bridge display or trade show:
+- Spillvelger (forsiden): `/` eller `/select.html`.
+- Admin hub: `/admin.html`.
+- Spillinnstillinger og highscore per spill: `/admin-games.html`.
+- Harbor Rush detaljadmin: `/admin-rush.html`.
+- Bridge Duel detaljadmin: `/admin-duel.html`.
+- Driftsstatus: `/status.html`.
+- CSV-eksport per spill eller samlet (fra adminsidene).
 
-| Platform | Command |
-|----------|---------|
-| Linux / macOS | `./run-kiosk.sh` (optional port: `./run-kiosk.sh 9000`) |
-| Windows | double-click `run-kiosk.bat` |
+HT ECDIS er en innebygd sjokart-demonstrator: ekte norske sjokart, vaer og
+ruteplanlegging. `/proxy`-endepunktet (streng allowlist) fungerer ogsaa paa
+Vercel, saa MET/yr-vaer og Kartverket tidevann virker som for. Radaren folger
+samme seilas som ECDIS (delt lagret tilstand + BroadcastChannel).
+**DEMO — ikke for navigasjon.**
 
-This starts the server and opens the demo in Chrome/Chromium/Edge with
-`--kiosk`: **real fullscreen — no tab strip, no address bar, no “press Esc to
-exit” hint and no close button.** Quit with **Alt+F4** (Linux/Windows) or
-**Cmd+Q** (macOS); closing the browser also stops the server.
+## Deploy paa Vercel
 
-The page itself also keeps the screen awake (Wake Lock), hides the mouse
-pointer after 6 s of stillness, and disables the right-click menu whenever it
-is opened with `?kiosk=1`. Browser state lives in a private `.kiosk-profile/`
-folder, so an aisstream API key and a granted GPS permission survive restarts.
-Opening any URL with `?kiosk=1` enables the in-page behaviour on its own, but
-only the launch scripts give hint-free fullscreen — the Fullscreen API cannot
-suppress the browser's exit UI.
+Repoet er klart for Vercel uten videre:
 
-**Manual alternatives** (any static server works):
-```sh
-python3 -m http.server 8000      # then open http://localhost:8000/
-node server.js 8000              # zero-dependency bundled server
-npx http-server -p 8000
+1. Importer GitHub-repoet i [Vercel](https://vercel.com/new) (Framework:
+   «Other» — alt plukkes opp automatisk fra `vercel.json`).
+2. Hver push til `main` gir en ny produksjonsdeploy; andre brancher faar
+   preview-deploys.
+
+Det finnes ingen lokal kjoremodus lenger — appen er bygget for aa leve paa
+Vercel-URL-en.
+
+## Varig lagring (viktig for messe)
+
+Serverless-funksjoner har ikke varig filsystem, saa deltakere, highscore,
+admin-innstillinger og ECDIS-tilstand lagres i en Redis-database naar en slik
+er koblet til. **Uten database fungerer alt, men data er midlertidige** (de
+overlever bare saa lenge samme funksjonsinstans er varm) — greit for testing,
+ikke for en ekte konkurranse.
+
+Slik kobler du til (engangsjobb, ~2 minutter):
+
+1. Aapne Vercel-prosjektet → **Storage**-fanen → **Create Database** →
+   velg **Upstash for Redis** (gratis-niveaaet holder lenge).
+2. Koble databasen til prosjektet. Vercel legger da inn miljovariablene
+   (`KV_REST_API_URL`/`KV_REST_API_TOKEN` eller
+   `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN`) automatisk.
+3. Redeploy. `/status.html` (og `/api/admin/status`) viser om varig lagring
+   er aktiv.
+
+Innsendte deltakere lagres atomisk (Redis-liste), saa to samtidige
+innsendinger kan aldri overskrive hverandre. Ved nullstilling fra admin tas
+det forst en sikkerhetskopi (de 10 siste ligger i databasen), akkurat som de
+lokale `data/backups/`-kopiene gjorde.
+
+## Miljovariabler (valgfritt)
+
+| Variabel | Effekt |
+| --- | --- |
+| `ADMIN_PASSWORD` | Overstyrer adminpassordet fra `config/contest-config.json`. **Anbefales** — standardpassordet ligger i et offentlig repo. |
+| `AISSTREAM_API_KEY` | Overstyrer `apiKeys.aisstream` (live AIS i ECDIS). |
+| `ARCGIS_API_KEY` | Overstyrer `apiKeys.arcgis` (flyfoto/Ocean-basemap + stedssok i ECDIS). |
+
+Settes under Vercel-prosjektet → **Settings → Environment Variables**.
+
+## Konfigurasjon
+
+Spill, poeng, branding, premie, personvern og adminpassord styres av
+`config/contest-config.json` — samme format og felter som for. Filen er
+**standardverdiene**: endringer gjort fra adminsidene lagres i databasen og
+legges over disse (de overlever altsaa baade redeploys og nye pushes).
+
+Viktige seksjoner:
+
+- `game`: Harbor Rush settings.
+- `duelGame`: Bridge Duel 1v1 settings.
+- `airHockeyGame`, `stackerGame`, `runnerGame`, `diveGame`, `sonarGame`:
+  settings for de ovrige spillene.
+- `brand`: navn, logo, premie og lenker.
+- `admin.password`: standardpassord for adminsidene (overstyr med
+  `ADMIN_PASSWORD` i Vercel).
+- `apiKeys`: API-nokler for innebygde demoer. `apiKeys.aisstream` brukes av
+  HT ECDIS som standardnokkel for live AIS — appen kobler til automatisk.
+  `apiKeys.arcgis` laaser opp Flyfoto/Ocean-basemaps og stedssoket.
+- HT ECDIS husker seg selv mellom okter: skipets posisjon, kurs, rute,
+  kartlag og palett lagres hvert 5. sekund (localStorage + `/api/ecdis-state`
+  i databasen). Ved neste besok dodregnes skipet frem langs ruten etter
+  veggklokken, saa demoen ser ut som den har seilt hele tiden.
+
+`config/kiosk-config.json` bestemmer fortsatt standardruten for `/`
+(spillvelgeren) og brukes av statusendepunktet. Server-/nettleserfeltene i
+filen er uten funksjon paa Vercel.
+
+## API
+
+Samme API som den lokale serveren, naa under Vercel-domenet:
+
+```text
+GET  /api/config
+GET  /api/leaderboard?game=<id>
+GET  /api/games
+POST /api/standalone-entry
+GET/POST /api/ecdis-state
+GET  /proxy?url=<https-url>          (allowlist: MET/yr, Kartverket m.fl.)
+GET  /api/admin/entries              (header: x-admin-password)
+GET/POST /api/admin/settings
+GET/POST /api/admin/duel-settings
+GET/POST /api/admin/game-settings
+GET  /api/admin/export[?game=<id>]   (CSV)
+GET  /api/admin/status
+POST /api/admin/reset
 ```
-Serving over `http://localhost` (rather than opening the file directly) is
-recommended: it enables device-GPS (“Own-ship GPS”), correct font loading and
-the Helm Console ↔ ECDIS BroadcastChannel link between browser tabs.
 
-## Connecting live data providers (API keys & feeds)
-Open **Chart › Live sources** in the right panel:
+## Prosjektstruktur
 
-| Provider | What you get | How to connect |
-|----------|--------------|----------------|
-| **aisstream.io** | Real AIS vessels (MMSI, name, SOG/COG…) | Paste a free API key under *Live AIS* → Connect. Stored in `localStorage` on your device and auto-reconnects. |
-| **MET Norway / yr** | Wind, waves, temps, currents, forecast, alerts | No key needed — fetched automatically. Routed via the data proxy when available (adds the User-Agent MET's ToS asks for). |
-| **Kartverket tide** | Real water-level predictions at ship position | CORS-blocked for direct browser calls — works automatically when running locally via `run-local` / `server.js` (the bundled `/proxy`), or set a proxy URL under *Data proxy*. |
-| **Kartverket / OpenSeaMap / EMODnet charts** | Chart imagery & bathymetry | No key needed — always live. |
+```text
+api/
+  [[...path]].js         (hele backend-API-et som en serverless-funksjon)
+  _lib/
+    contest.js           (spillogikk/normalisering — portert fra server.js)
+    store.js             (Redis-lagring med /tmp-fallback)
+config/
+  contest-config.json    (standardverdier for spill/branding/admin)
+  kiosk-config.json      (standardrute for forsiden)
+public/                  (alt som serveres statisk)
+  select.html            (forsiden)
+  *-standalone.html      (spillene)
+  admin*.html/js, status.html/js
+  ecdis/                 (HT ECDIS + HT Radar med vendored React/fonter)
+vercel.json              (rewrites, cache-headere, output-katalog)
+```
 
-A **Provider status** list in the same panel shows live/simulated/error state
-per source. Advanced: endpoint overrides can be set in `localStorage`
-`mrd_sources` as `{ "metBase": "...", "tideBase": "...", "proxyUrl": "..." }`
-for pointing at your own gateway or commercial mirrors.
+## Personvern
 
-> ⚠️ **DEMO — NOT FOR NAVIGATION.** This is a faithful simulator of ECDIS look &
-> behaviour (IHO S-100 / S-52 presentation principles). It is **not** a
-> type-approved ECDIS (IEC 61174) and must never be used for real navigation.
-
-## Real data sources (live, no licence required)
-All chart data is fetched live from public services — nothing is faked:
-
-| Layer | Source | Notes |
-|------|--------|-------|
-| **Base — Sjøkart** | Kartverket WMTS `sjokartraster` | Official Norwegian raster sea chart |
-| **Base — Topo** | Kartverket WMTS `topo` | Norgeskart topographic |
-| **Base — Mørkt** | CARTO `dark_all` | Dark basemap for night bridge use |
-| **Base — Flyfoto** | Esri World Imagery | Satellite / aerial photo |
-| **Seamarks** | OpenSeaMap `seamark` | Buoys, lights, light sectors, contours |
-| **Bathymetry** | EMODnet Bathymetry WMS `mean_multicolour` | Toggleable depth-surface layer |
-
-Tiles are Web-Mercator (EPSG:3857) z/x/y; EMODnet is requested per-tile via WMS.
-
-## What works in the demo
-- **Live view** — own ship + 6 AIS targets move in real time (1× / 8× / 30×).
-- **Click-to-plot routing** — tap *Plan route*, then tap the chart to drop
-  waypoints; live leg bearing/distance, XTD channel, next-waypoint logic.
-- **Anti-grounding** — look-ahead sector scans the depth model ahead of the ship
-  and raises a prioritised alarm on crossing the safety contour.
-- **CPA/TCPA** — dangerous-target detection and alarms.
-- **Safety depths** — shallow / safety / deep contours with optional S-52 shading.
-- **Day / Dusk / Night** palettes; North / Course / Head-up; pan / zoom / rotate.
-- **Pick report**, **MOB** marker, alarm panel with acknowledgement.
-- **S-111 surface current** — animated particle flow field overlay.
-- Branding (logo + product name + accent colour) is configurable via the
-  component props (`productName`, `accentColor`, `defaultPalette`).
-
-## Honest data provenance (verified in-browser)
-- **Real, live APIs:** all chart imagery — Kartverket sjøkart & topo, Esri aerial, OpenSeaMap seamarks, EMODnet bathymetry. Each basemap card shows a real tile thumbnail.
-- **Live weather & ocean (MET Norway / YR):** wind, gusts, air pressure, air & sea temperature, wave height, **real sea-surface current**, and sunrise/sunset — fetched live at own-ship position (api.met.no, no key). The S-111 current layer is driven by a real MET current field sampled across the area.
-- **Live AIS (aisstream.io):** paste a free aisstream.io API key in Chart › Live sources and the app opens a WebSocket and shows **real vessels** in the area (MMSI, name, type, SOG/COG/heading). Without a key, AIS is simulated.
-- **Own-ship position (device GPS):** toggle “Own-ship GPS” to drive own ship from this device's geolocation — making it usable as a live (non-type-approved) navigation display.
-- **Simulated only when no feed:** own-ship voyage simulator (when GPS off), and the S-124 nav-warning demo features (no open browser API). Kartverket tide is CORS-blocked for direct browser calls but works through the bundled local proxy (see *Connecting live data providers*); BarentsWatch AIS would still need server-side credentials.
-
-
-- **Full / real:** chart imagery (Kartverket sjøkart, OpenSeaMap seamarks,
-  EMODnet bathymetry), Mercator chart engine, route XTD, anti-grounding,
-  CPA/TCPA, alarm prioritisation, palettes.
-- **Simplified:** numeric depth for UKC / anti-grounding uses a coast-aware
-  bathymetric **model** (the displayed charts are the real depth source). A
-  production build would drive depth from decoded S-102/S-57 SENC cells.
-- **Not implemented here** (needs a real backend + licence): S-63 decryption,
-  S-57/S-101 SENC conversion, HDF5 (S-102/104) parsing, S-129 UKCM service.
-
-## Licensing — showing this demo publicly (trade fairs etc.)
-Not legal advice — verify before a big event. Status per data source:
-
-| Source | Licence | Commercial demo use |
-|--------|---------|--------------------|
-| Kartverket sjøkart & topo | CC BY 4.0 / NLOD | ✅ OK with attribution (shown in-app) |
-| OpenSeaMap seamarks | ODbL / CC-BY-SA | ✅ OK with attribution (shown) |
-| EMODnet Bathymetry | Free & open (EU) | ✅ OK, attribution shown |
-| MET Norway / yr | NLOD 2.0 / CC BY 4.0 | ✅ OK with attribution + identifying User-Agent (the bundled proxy sends one) |
-| Natural Earth coastline | Public domain | ✅ OK |
-| Inter font, React | SIL OFL / MIT | ✅ OK (licences vendored) |
-| **Esri World Imagery** (Aerial basemap) | Esri ToS | ⚠️ Anonymous tile use in a commercial setting is outside Esri's terms — get an ArcGIS key or disable the Aerial basemap at events |
-| **CARTO dark_all** (Dark basemap) | CARTO ToS | ⚠️ Free tier is for non-commercial use — needs a CARTO account for commercial display, or disable Dark |
-| aisstream.io (optional key) | aisstream ToS | ⚠️ Check their terms for commercial display; without a key AIS is simulated |
-
-The permanent **“DEMO — NOT FOR NAVIGATION”** banner should stay visible: it
-keeps the demonstrator clearly separated from type-approved ECDIS (IEC 61174).
-
-## Adding real PRIMAR / Kartverket ENC cells (production path)
-1. Obtain a PRIMAR account + cell/user permits (S-63).
-2. Decrypt the exchange set and convert cells to a SENC.
-3. Feed the SENC to the portrayal layer (S-52 / S-100 Portrayal Catalogue).
-The demo auto-loads the free Kartverket sjøkart fallback when no permits exist.
+Deltakere lagres med navn, e-post og telefon kun for konkurransen og
+premievarsling (se `privacy`-teksten i config). Husk at en offentlig
+Vercel-URL er tilgjengelig for alle: sett `ADMIN_PASSWORD`, og nullstill
+databasen etter messen (admin → Reset, eller slett Redis-databasen).

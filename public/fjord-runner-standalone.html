@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Fjord Runner | Hatteland Technology</title>
+    <link rel="stylesheet" href="game-ui.css" />
+    <style>
+      :root {
+        --game-accent: var(--blue); --game-accent-strong: #2bb8e0; --game-on-accent: #04202b;
+      }
+
+      .stat--cargo strong {
+        color: var(--green);
+      }
+
+      .steer--left {
+        left: 0;
+      }
+
+      .steer--right {
+        right: 0;
+      }
+
+      .steer svg {
+        width: clamp(34px, 5vmin, 62px);
+        height: clamp(34px, 5vmin, 62px);
+        stroke: rgba(244, 251, 255, 0.34);
+        stroke-width: 1.6;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .steer.pressed svg {
+        stroke: var(--blue);
+      }
+
+      .steer {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 26%;
+        z-index: 2;
+        display: grid;
+        place-items: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 160ms ease;
+      }
+
+      body.game-running .steer {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"><img src="/assets/image.png" alt="" /></span>
+          <div class="brand-text">
+            <p class="eyebrow" id="companyName">Hatteland Technology</p>
+            <h1>Fjord Runner</h1>
+          </div>
+        </div>
+
+        <div class="hud">
+          <div class="stat stat--score">
+            <span>Score</span>
+            <strong id="scoreValue">0</strong>
+          </div>
+          <div class="stat stat--cargo">
+            <span>Cargo</span>
+            <strong id="cargoValue">0</strong>
+          </div>
+          <div class="stat stat--speed">
+            <span>Knots</span>
+            <strong id="speedValue">0</strong>
+          </div>
+          <div class="stat">
+            <span>Hull</span>
+            <strong><span class="lives" id="livesValue"></span></strong>
+          </div>
+          <nav class="kiosk-nav" aria-label="Kiosk navigation">
+            <a class="nav-button" href="/select.html">Main kiosk</a>
+            <button id="exitGameButton" class="nav-button nav-button--exit" type="button">Exit game</button>
+          </nav>
+        </div>
+      </header>
+
+      <section class="stage">
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="steer steer--left" id="steerLeft">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 8 12l7 7" /></svg>
+        </div>
+        <div class="steer steer--right" id="steerRight">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+        </div>
+
+        <button id="holdExitButton" class="hold-exit" type="button">
+          <span>Hold to exit</span>
+          <span id="holdExitFill" class="hold-exit-fill"></span>
+        </button>
+        <button id="pauseButton" class="pause-button" type="button">Pause</button>
+
+        <div id="pauseOverlay" class="overlay hidden">
+          <div class="panel">
+            <p class="eyebrow">Paused</p>
+            <h2>Fjord Runner</h2>
+            <button id="resumeButton" class="primary" type="button">Resume</button>
+          </div>
+        </div>
+
+        <div id="startOverlay" class="overlay">
+          <div class="panel">
+            <p class="eyebrow">Endless run</p>
+            <h2>Run the fjord. Don't hit anything.</h2>
+            <p>
+              Your workboat runs the shipping channel at full speed. Steer between the three lanes,
+              collect cargo and survive as long as you can. It only gets faster.
+            </p>
+            <div class="steps">
+              <article class="step">
+                <b>Tap left or right</b>
+                <small>Tap that side of the screen to change lane. Swiping works too.</small>
+              </article>
+              <article class="step">
+                <b>Swipe up to jump</b>
+                <small>Clears low obstacles like log booms and nets.</small>
+              </article>
+              <article class="step">
+                <b>Collect cargo</b>
+                <small>Each crate adds points and builds a rising streak multiplier.</small>
+              </article>
+              <article class="step">
+                <b>Three hulls</b>
+                <small>Hitting something costs one. Lose all three and the run ends.</small>
+              </article>
+            </div>
+            <button id="startButton" class="primary" type="button">Cast off</button>
+            <div class="board">
+              <span>Fjord Runner top scores</span>
+              <ol id="startBoard">
+                <li><span>No scores yet</span><b>0</b></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div id="endOverlay" class="overlay hidden">
+          <div class="panel">
+            <p class="eyebrow" id="endKicker">Run over</p>
+            <h2 id="endTitle">Good run.</h2>
+            <div class="result-figures">
+              <article class="figure figure--hero">
+                <span>Score</span>
+                <strong id="finalScore">0</strong>
+              </article>
+              <article class="figure">
+                <span>Distance</span>
+                <strong id="finalDistance">0</strong>
+              </article>
+              <article class="figure">
+                <span>Cargo</span>
+                <strong id="finalCargo">0</strong>
+              </article>
+              <article class="figure">
+                <span>Best streak</span>
+                <strong id="finalStreak">0</strong>
+              </article>
+              <article class="figure">
+                <span>Record</span>
+                <strong id="finalRecord">0</strong>
+              </article>
+            </div>
+            <p class="rank-teaser" id="rankTeaser" aria-live="polite"></p>
+
+            <form id="registrationForm" class="form" novalidate>
+              <input id="nameInput" type="text" maxlength="40" placeholder="Name *" autocomplete="name" />
+              <input id="emailInput" type="email" maxlength="80" placeholder="Email" autocomplete="email" />
+              <input id="phoneInput" type="tel" maxlength="30" placeholder="Phone" autocomplete="tel" />
+              <label class="consent">
+                <input id="consentInput" type="checkbox" />
+                <span id="consentLabel">
+                  I consent to Hatteland Technology storing my contact details only for this game and prize contact.
+                </span>
+              </label>
+              <button id="saveScoreButton" class="primary" type="submit">Save score</button>
+            </form>
+            <p id="formMessage" class="message" aria-live="polite"></p>
+
+            <div class="board">
+              <span>Fjord Runner top scores</span>
+              <ol id="endBoard">
+                <li><span>No scores yet</span><b>0</b></li>
+              </ol>
+            </div>
+
+            <div class="row">
+              <button id="playAgainButton" class="primary" type="button">Run again</button>
+              <a class="secondary" href="/select.html">Main kiosk</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        var GAME_ID = "runner";
+        var canvas = document.getElementById("gameCanvas");
+        var ctx = canvas.getContext("2d");
+        var isFileMode = window.location.protocol === "file:";
+
+        var ui = {
+          score: document.getElementById("scoreValue"),
+          cargo: document.getElementById("cargoValue"),
+          speed: document.getElementById("speedValue"),
+          lives: document.getElementById("livesValue"),
+          steerLeft: document.getElementById("steerLeft"),
+          steerRight: document.getElementById("steerRight"),
+          startOverlay: document.getElementById("startOverlay"),
+          endOverlay: document.getElementById("endOverlay"),
+          pauseOverlay: document.getElementById("pauseOverlay"),
+          startButton: document.getElementById("startButton"),
+          playAgainButton: document.getElementById("playAgainButton"),
+          pauseButton: document.getElementById("pauseButton"),
+          resumeButton: document.getElementById("resumeButton"),
+          exitGameButton: document.getElementById("exitGameButton"),
+          holdExitButton: document.getElementById("holdExitButton"),
+          holdExitFill: document.getElementById("holdExitFill"),
+          endKicker: document.getElementById("endKicker"),
+          endTitle: document.getElementById("endTitle"),
+          finalScore: document.getElementById("finalScore"),
+          finalDistance: document.getElementById("finalDistance"),
+          finalCargo: document.getElementById("finalCargo"),
+          finalStreak: document.getElementById("finalStreak"),
+          finalRecord: document.getElementById("finalRecord"),
+          rankTeaser: document.getElementById("rankTeaser"),
+          startBoard: document.getElementById("startBoard"),
+          endBoard: document.getElementById("endBoard"),
+          form: document.getElementById("registrationForm"),
+          name: document.getElementById("nameInput"),
+          email: document.getElementById("emailInput"),
+          phone: document.getElementById("phoneInput"),
+          consent: document.getElementById("consentInput"),
+          consentLabel: document.getElementById("consentLabel"),
+          saveButton: document.getElementById("saveScoreButton"),
+          message: document.getElementById("formMessage"),
+          companyName: document.getElementById("companyName")
+        };
+
+        var DEFAULTS = {
+          difficultyName: "Normal",
+          startSpeedPercent: 100,
+          speedRampPercent: 100,
+          maxSpeedPercent: 220,
+          obstacleDensityPercent: 100,
+          cargoDensityPercent: 100,
+          lives: 3,
+          cargoPoints: 25,
+          distancePointsPer100m: 10,
+          streakBonusPercent: 100,
+          shieldSeconds: 2,
+          enableJump: true,
+          enableWeather: true
+        };
+
+        var settings = Object.assign({}, DEFAULTS);
+        var pendingSettings = null;
+
+        var LANES = [-1, 0, 1];
+        var Z_FAR = 62;
+        var Z_NEAR = 5.5;
+        var BOAT_Z = 2.2;
+        var BASE_SPEED = 15;
+        var LANE_SPREAD = 0.3;
+        var JUMP_MS = 620;
+
+        var OBSTACLES = [
+          { type: "buoy", low: false, w: 0.9, h: 1.15 },
+          { type: "rock", low: false, w: 1.25, h: 0.95 },
+          { type: "barge", low: false, w: 1.5, h: 1.3 },
+          { type: "boom", low: true, w: 1.35, h: 0.42 }
+        ];
+
+        // Miljoet skifter med distansen, som i kranspillet.
+        var ZONES = [
+          { at: 0, name: "Morning fjord", top: [22, 84, 122], bottom: [126, 176, 196], sea: [16, 74, 104], stars: 0 },
+          { at: 900, name: "Open water", top: [12, 58, 96], bottom: [78, 148, 178], sea: [10, 58, 88], stars: 0 },
+          { at: 2000, name: "Sunset run", top: [42, 40, 86], bottom: [222, 122, 74], sea: [58, 46, 78], stars: 0.2 },
+          { at: 3400, name: "Night passage", top: [4, 10, 24], bottom: [14, 36, 60], sea: [5, 20, 38], stars: 1 },
+          { at: 5200, name: "Storm front", top: [10, 14, 26], bottom: [46, 58, 74], sea: [12, 26, 40], stars: 0.3 }
+        ];
+
+        var state = null;
+        var view = { w: 0, h: 0, horizon: 0 };
+        var stars = [];
+        var animationId = 0;
+        var lastTime = 0;
+        var holdExitTimer = null;
+        var holdExitProgressTimer = null;
+        var endOverlayTimer = null;
+        var HOLD_EXIT_MS = 1200;
+        var idleTimer = null;
+        var IDLE_RESET_MS = 90000;
+        var boardEntries = [];
+        var gesture = null;
+
+        function percent(value) {
+          return Number(value || 0) / 100;
+        }
+
+        function clamp(value, min, max) {
+          return Math.max(min, Math.min(max, value));
+        }
+
+        function lerp(a, b, t) {
+          return a + (b - a) * t;
+        }
+
+        function rgb(channels, alpha) {
+          return (
+            "rgba(" +
+            Math.round(channels[0]) +
+            "," +
+            Math.round(channels[1]) +
+            "," +
+            Math.round(channels[2]) +
+            "," +
+            (alpha === undefined ? 1 : alpha) +
+            ")"
+          );
+        }
+
+        function mixChannels(a, b, t) {
+          return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+        }
+
+        function zoneAt(distance) {
+          // Vaer-syklusen kan slaas av fra admin - da blir det morgenfjord
+          // hele runden.
+          if (!settings.enableWeather) distance = 0;
+          var lower = ZONES[0];
+          var upper = ZONES[ZONES.length - 1];
+
+          for (var i = 0; i < ZONES.length - 1; i += 1) {
+            if (distance >= ZONES[i].at && distance < ZONES[i + 1].at) {
+              lower = ZONES[i];
+              upper = ZONES[i + 1];
+              break;
+            }
+            if (distance >= ZONES[ZONES.length - 1].at) {
+              lower = ZONES[ZONES.length - 1];
+              upper = ZONES[ZONES.length - 1];
+            }
+          }
+
+          var span = Math.max(1, upper.at - lower.at);
+          var t = clamp((distance - lower.at) / span, 0, 1);
+
+          return {
+            name: t > 0.5 ? upper.name : lower.name,
+            top: mixChannels(lower.top, upper.top, t),
+            bottom: mixChannels(lower.bottom, upper.bottom, t),
+            sea: mixChannels(lower.sea, upper.sea, t),
+            stars: lerp(lower.stars, upper.stars, t)
+          };
+        }
+
+        function zoneNameFor(distance) {
+          if (!settings.enableWeather) distance = 0;
+          var name = ZONES[0].name;
+          for (var i = 0; i < ZONES.length; i += 1) {
+            if (distance >= ZONES[i].at) name = ZONES[i].name;
+          }
+          return name;
+        }
+
+        function createState() {
+          return {
+            running: false,
+            paused: false,
+            over: false,
+            score: 0,
+            distance: 0,
+            cargo: 0,
+            streak: 0,
+            bestStreak: 0,
+            lives: Math.max(1, Math.round(Number(settings.lives || 3))),
+            lane: 1,
+            laneOffset: 1,
+            targetLane: 1,
+            jumpUntil: 0,
+            shieldUntil: 0,
+            speed: BASE_SPEED * percent(settings.startSpeedPercent),
+            entities: [],
+            particles: [],
+            pops: [],
+            banner: null,
+            zoneName: ZONES[0].name,
+            nextSpawnZ: Z_FAR,
+            wavePhase: 0,
+            shake: 0,
+            flash: 0,
+            damageFlash: 0,
+            recordScore: getRecord(),
+            recordAnnounced: false,
+            elapsed: 0
+          };
+        }
+
+        function resizeCanvas() {
+          var rect = canvas.getBoundingClientRect();
+          var ratio = Math.min(window.devicePixelRatio || 1, 2);
+          view.w = Math.max(1, Math.round(rect.width));
+          view.h = Math.max(1, Math.round(rect.height));
+          canvas.width = Math.round(view.w * ratio);
+          canvas.height = Math.round(view.h * ratio);
+          ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+          view.horizon = view.h * 0.38;
+          buildStars();
+          render();
+        }
+
+        function buildStars() {
+          stars = [];
+          for (var i = 0; i < 80; i += 1) {
+            stars.push({
+              x: Math.random() * view.w,
+              y: Math.random() * view.horizon * 0.92,
+              r: Math.random() * 1.4 + 0.4,
+              twinkle: Math.random() * Math.PI * 2
+            });
+          }
+        }
+
+        // Perspektiv: p gaar mot 1 naer kamera og mot 0 ved horisonten.
+        function projection(z) {
+          var p = Z_NEAR / (Math.max(0.001, z) + Z_NEAR);
+          return {
+            p: p,
+            y: view.horizon + (view.h - view.horizon) * p,
+            scale: p
+          };
+        }
+
+        function laneScreenX(lane, p) {
+          return view.w / 2 + lane * LANE_SPREAD * view.w * p;
+        }
+
+        function boatLane() {
+          return state.laneOffset;
+        }
+
+        function jumpHeight() {
+          if (state.jumpUntil <= 0) return 0;
+          var remaining = state.jumpUntil - state.elapsed;
+          if (remaining <= 0) return 0;
+          var t = 1 - remaining / JUMP_MS;
+          return Math.sin(t * Math.PI);
+        }
+
+        function steer(direction) {
+          if (!state.running || state.paused) return;
+          var next = clamp(state.targetLane + direction, 0, LANES.length - 1);
+          if (next === state.targetLane) return;
+          state.targetLane = next;
+          addSpray(6);
+        }
+
+        function jump() {
+          if (!state.running || state.paused || !settings.enableJump) return;
+          if (state.jumpUntil > state.elapsed) return;
+          state.jumpUntil = state.elapsed + JUMP_MS;
+          addSpray(10);
+        }
+
+        function addSpray(count) {
+          var boatY = projection(BOAT_Z).y;
+          for (var i = 0; i < count; i += 1) {
+            if (state.particles.length > 200) break;
+            state.particles.push({
+              x: laneScreenX(LANES[state.lane], projection(BOAT_Z).p) + (Math.random() - 0.5) * 60,
+              y: boatY + (Math.random() - 0.5) * 18,
+              vx: (Math.random() - 0.5) * 190,
+              vy: -(50 + Math.random() * 130),
+              life: 0.35 + Math.random() * 0.4,
+              size: 2 + Math.random() * 3.4
+            });
+          }
+        }
+
+        function addPop(text, x, y, color) {
+          state.pops.push({ text: text, x: x, y: y, life: 1, color: color || "#68f2a6" });
+        }
+
+        function showBanner(text, color) {
+          state.banner = { text: text, color: color || "#f4fbff", life: 1.5 };
+        }
+
+        function spawnRow() {
+          var density = percent(settings.obstacleDensityPercent);
+          var cargoDensity = percent(settings.cargoDensityPercent);
+          var difficulty = clamp(state.distance / 2600, 0, 1);
+
+          // Aldri blokker alle tre lop - det skal alltid finnes en vei gjennom.
+          var blocked = [];
+          var maxBlocked = Math.random() < 0.32 + difficulty * 0.28 ? 2 : 1;
+
+          for (var i = 0; i < maxBlocked; i += 1) {
+            if (Math.random() > 0.55 + difficulty * 0.35 * density) continue;
+            var lane = Math.floor(Math.random() * 3);
+            if (blocked.indexOf(lane) === -1) blocked.push(lane);
+          }
+
+          if (blocked.length >= 3) blocked.length = 2;
+
+          blocked.forEach(function (lane) {
+            var spec = OBSTACLES[Math.floor(Math.random() * OBSTACLES.length)];
+            if (spec.low && !settings.enableJump) {
+              spec = OBSTACLES[0];
+            }
+            state.entities.push({
+              kind: "obstacle",
+              type: spec.type,
+              low: spec.low,
+              lane: lane,
+              z: Z_FAR,
+              w: spec.w,
+              h: spec.h,
+              hit: false
+            });
+          });
+
+          // Last i et av de aapne lopene, saa det lonner seg aa styre aktivt.
+          var free = [0, 1, 2].filter(function (lane) {
+            return blocked.indexOf(lane) === -1;
+          });
+
+          if (free.length && Math.random() < 0.72 * cargoDensity) {
+            var cargoLane = free[Math.floor(Math.random() * free.length)];
+            var count = 1 + (Math.random() < 0.4 ? 1 : 0);
+            for (var c = 0; c < count; c += 1) {
+              state.entities.push({
+                kind: "cargo",
+                lane: cargoLane,
+                z: Z_FAR + c * 2.4,
+                taken: false
+              });
+            }
+          }
+        }
+
+        function damage() {
+          if (state.shieldUntil > state.elapsed) return;
+          state.lives -= 1;
+          state.streak = 0;
+          state.shieldUntil = state.elapsed + (Number.isFinite(Number(settings.shieldSeconds)) ? Number(settings.shieldSeconds) : 2) * 1000;
+          state.shake = 1;
+          state.damageFlash = 1;
+          renderLives();
+
+          if (state.lives <= 0) {
+            endGame();
+          } else {
+            showBanner("HULL DAMAGE", "#ff5d6c");
+          }
+        }
+
+        function collect(entity) {
+          entity.taken = true;
+          state.cargo += 1;
+          state.streak += 1;
+          state.bestStreak = Math.max(state.bestStreak, state.streak);
+
+          var multiplier = 1 + Math.floor(state.streak / 5) * percent(settings.streakBonusPercent) * 0.5;
+          var points = Math.round(Number(settings.cargoPoints || 25) * multiplier);
+          state.score += points;
+          state.flash = Math.max(state.flash, 0.35);
+
+          var projected = projection(entity.z);
+          addPop("+" + points, laneScreenX(LANES[entity.lane], projected.p), projected.y - 30, "#68f2a6");
+
+          if (state.streak > 0 && state.streak % 5 === 0) {
+            showBanner("CARGO STREAK x" + state.streak, "#f5c84b");
+          }
+        }
+
+        function update(dt) {
+          // Ingen tilstandsendringer etter at runden er over - ellers kan
+          // en sen last i samme frame endre score etter at den er laast.
+          if (state.over) return;
+          state.elapsed += dt * 1000;
+          state.wavePhase += dt;
+          state.shake = Math.max(0, state.shake - dt * 3);
+          state.flash = Math.max(0, state.flash - dt * 2.4);
+          state.damageFlash = Math.max(0, state.damageFlash - dt * 1.8);
+
+          var maxSpeed = BASE_SPEED * percent(settings.maxSpeedPercent);
+          state.speed = Math.min(maxSpeed, state.speed + dt * 0.42 * percent(settings.speedRampPercent));
+          state.distance += state.speed * dt * 1.4;
+
+          // Myk banestyring gir baaten vekt.
+          state.laneOffset += (state.targetLane - state.laneOffset) * Math.min(1, dt * 11);
+          state.lane = Math.round(state.laneOffset);
+
+          var nextZone = zoneNameFor(state.distance);
+          if (nextZone !== state.zoneName) {
+            state.zoneName = nextZone;
+            showBanner(nextZone.toUpperCase(), "#4fe3ff");
+          }
+
+          state.nextSpawnZ -= state.speed * dt;
+          var gap = lerp(15, 8.5, clamp(state.distance / 3200, 0, 1));
+          if (state.nextSpawnZ <= Z_FAR - gap) {
+            state.nextSpawnZ = Z_FAR;
+            spawnRow();
+          }
+
+          var jumping = jumpHeight() > 0.22;
+          var boatLaneExact = state.laneOffset;
+
+          state.entities = state.entities.filter(function (entity) {
+            // Svept vindu: paa hoy fart kan z hoppe forbi baaten paa en
+            // treg frame, saa sjekk hele strekningen fra forrige posisjon.
+            var previousZ = entity.z;
+            entity.z -= state.speed * dt;
+
+            if (entity.z < BOAT_Z + 0.9 && previousZ > BOAT_Z - 0.9) {
+              var laneDistance = Math.abs(entity.lane - boatLaneExact);
+
+              if (entity.kind === "cargo" && !entity.taken && laneDistance < 0.55) {
+                collect(entity);
+              }
+
+              // 0.45, ikke 0.6: baaten er visuelt smalere enn et helt lop,
+              // og med 0.6 kunne den treffe i to lop samtidig midt i bytte.
+              if (entity.kind === "obstacle" && !entity.hit && laneDistance < 0.45) {
+                // Lave hindringer kan hoppes over.
+                if (!(entity.low && jumping)) {
+                  entity.hit = true;
+                  damage();
+                } else {
+                  entity.hit = true;
+                  state.score += 15;
+                  var projected = projection(entity.z);
+                  addPop("+15 CLEARED", laneScreenX(LANES[entity.lane], projected.p), projected.y - 34, "#4fe3ff");
+                }
+              }
+            }
+
+            // Naer-miss: hindringen passerte i nabolopet - liten bonus og
+            // en synlig bekreftelse paa at du saa vidt klarte deg.
+            if (
+              entity.kind === "obstacle" &&
+              !entity.hit &&
+              !entity.rewarded &&
+              entity.z < BOAT_Z - 0.9
+            ) {
+              entity.rewarded = true;
+              var passDistance = Math.abs(entity.lane - boatLaneExact);
+              if (passDistance >= 0.45 && passDistance < 1.05) {
+                state.score += 5;
+                addPop("+5 CLOSE", subPopX(), projection(BOAT_Z).y - 60, "#4fe3ff");
+              }
+            }
+
+            return entity.z > -3;
+          });
+
+          if (Math.random() < dt * 26) addSpray(1);
+
+          state.particles = state.particles.filter(function (particle) {
+            particle.vy += 520 * dt;
+            particle.x += particle.vx * dt;
+            particle.y += particle.vy * dt;
+            particle.life -= dt;
+            return particle.life > 0;
+          });
+
+          state.pops = state.pops.filter(function (pop) {
+            pop.life -= dt * 1.2;
+            pop.y -= dt * 60;
+            return pop.life > 0;
+          });
+
+          if (state.banner) {
+            state.banner.life -= dt;
+            if (state.banner.life <= 0) state.banner = null;
+          }
+
+          var scorePoints = Math.floor(state.distance / 100) * (Number.isFinite(Number(settings.distancePointsPer100m)) ? Number(settings.distancePointsPer100m) : 10);
+          state.displayScore = state.score + scorePoints;
+
+          // Rekordtempo midt i runden - den sterkeste grunnen til aa holde ut.
+          if (state.recordScore > 0 && !state.recordAnnounced && state.displayScore > state.recordScore) {
+            state.recordAnnounced = true;
+            state.flash = Math.max(state.flash, 0.5);
+            showBanner("NEW RECORD PACE", "#f5c84b");
+          }
+
+          updateHud();
+        }
+
+        function subPopX() {
+          return laneScreenX(LANES[state.lane], projection(BOAT_Z).p);
+        }
+
+        function renderLives() {
+          ui.lives.innerHTML = "";
+          var total = Math.max(1, Math.round(Number(settings.lives || 3)));
+          for (var i = 0; i < total; i += 1) {
+            var pip = document.createElement("i");
+            if (i >= state.lives) pip.className = "spent";
+            ui.lives.appendChild(pip);
+          }
+        }
+
+        function updateHud() {
+          ui.score.textContent = String(state.displayScore || state.score);
+          ui.cargo.textContent = String(state.cargo);
+          ui.speed.textContent = String(Math.round(state.speed * 1.4));
+        }
+
+        function roundRect(x, y, w, h, r) {
+          var radius = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+          ctx.beginPath();
+          ctx.moveTo(x + radius, y);
+          ctx.lineTo(x + w - radius, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+          ctx.lineTo(x + w, y + h - radius);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+          ctx.lineTo(x + radius, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+          ctx.lineTo(x, y + radius);
+          ctx.quadraticCurveTo(x, y, x + radius, y);
+          ctx.closePath();
+        }
+
+        function drawSky(zone) {
+          var gradient = ctx.createLinearGradient(0, 0, 0, view.horizon + 40);
+          gradient.addColorStop(0, rgb(zone.top));
+          gradient.addColorStop(1, rgb(zone.bottom));
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, view.w, view.horizon + 40);
+
+          if (zone.stars > 0.02) {
+            ctx.save();
+            for (var i = 0; i < stars.length; i += 1) {
+              var star = stars[i];
+              ctx.globalAlpha =
+                zone.stars * (0.35 + 0.65 * Math.abs(Math.sin(state.wavePhase * 0.7 + star.twinkle)));
+              ctx.fillStyle = "#ffffff";
+              ctx.beginPath();
+              ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.restore();
+          }
+        }
+
+        function drawShores(zone) {
+          // Fjellsider som glir forbi og gir fart-folelse.
+          var scroll = state.distance * 0.6;
+
+          [-1, 1].forEach(function (side) {
+            ctx.save();
+            ctx.fillStyle = rgb(mixChannels(zone.sea, [4, 12, 20], 0.55));
+            ctx.beginPath();
+            ctx.moveTo(side < 0 ? 0 : view.w, view.horizon);
+
+            for (var i = 0; i <= 14; i += 1) {
+              var seed = Math.sin((Math.floor(scroll / 120) + i) * 12.9898) * 43758.5453;
+              var peak = (Math.abs(seed - Math.floor(seed)) * 0.55 + 0.3) * view.h * 0.2;
+              var t = i / 14;
+              var x = side < 0 ? t * view.w * 0.32 : view.w - t * view.w * 0.32;
+              var y = view.horizon - peak * (1 - t * 0.55) + ((scroll % 120) / 120) * 4;
+              ctx.lineTo(x, y);
+            }
+
+            ctx.lineTo(side < 0 ? view.w * 0.32 : view.w * 0.68, view.horizon + 8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          });
+        }
+
+        function drawSea(zone) {
+          var gradient = ctx.createLinearGradient(0, view.horizon, 0, view.h);
+          gradient.addColorStop(0, rgb(mixChannels(zone.sea, zone.bottom, 0.45)));
+          gradient.addColorStop(1, rgb(zone.sea));
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, view.horizon, view.w, view.h - view.horizon);
+
+          // Boelgelinjer i perspektiv, ruller mot kamera.
+          ctx.save();
+          var offset = (state.distance * 0.9) % 4;
+          for (var z = Z_FAR; z > 0; z -= 4) {
+            var zz = z - offset;
+            if (zz <= 0.2) continue;
+            var projected = projection(zz);
+            ctx.globalAlpha = 0.05 + projected.p * 0.16;
+            ctx.strokeStyle = "#bfe9fb";
+            ctx.lineWidth = Math.max(1, projected.p * 3);
+            ctx.beginPath();
+            ctx.moveTo(0, projected.y);
+            ctx.lineTo(view.w, projected.y);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        function drawChannel() {
+          // Ledelinjer mellom lopene, tegnet som bolgende bane.
+          ctx.save();
+          [-0.5, 0.5].forEach(function (edge) {
+            ctx.beginPath();
+            for (var z = Z_FAR; z > 0.2; z -= 1.6) {
+              var projected = projection(z);
+              var x = laneScreenX(edge * 2, projected.p);
+              if (z === Z_FAR) ctx.moveTo(x, projected.y);
+              else ctx.lineTo(x, projected.y);
+            }
+            ctx.strokeStyle = "rgba(191, 233, 251, 0.16)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          });
+
+          // Markorbøyer langs kanten gir tydelig fartsfolelse.
+          var spacing = 9;
+          var offset = (state.distance * 0.9) % spacing;
+          for (var z = Z_FAR; z > 0.4; z -= spacing) {
+            var zz = z - offset;
+            if (zz <= 0.4) continue;
+            var projected = projection(zz);
+            [-1.5, 1.5].forEach(function (edge) {
+              var x = laneScreenX(edge, projected.p);
+              var size = projected.p * 26;
+              ctx.globalAlpha = clamp(projected.p * 2.4, 0, 1);
+              ctx.fillStyle = edge < 0 ? "#ff5d6c" : "#68f2a6";
+              ctx.beginPath();
+              ctx.arc(x, projected.y - size * 0.5, Math.max(1, size * 0.32), 0, Math.PI * 2);
+              ctx.fill();
+            });
+          }
+          ctx.restore();
+        }
+
+        function drawObstacle(entity) {
+          var projected = projection(entity.z);
+          if (projected.p <= 0.02) return;
+
+          var x = laneScreenX(LANES[entity.lane], projected.p);
+          var baseY = projected.y;
+          var w = projected.p * view.w * 0.2 * entity.w;
+          var h = projected.p * view.h * 0.3 * entity.h;
+
+          ctx.save();
+          ctx.globalAlpha = clamp(projected.p * 3.2, 0, 1);
+
+          if (entity.type === "buoy") {
+            ctx.fillStyle = "#ff5d6c";
+            roundRect(x - w * 0.22, baseY - h, w * 0.44, h, w * 0.14);
+            ctx.fill();
+            ctx.fillStyle = "#f4fbff";
+            ctx.fillRect(x - w * 0.22, baseY - h * 0.62, w * 0.44, h * 0.16);
+            ctx.fillStyle = "rgba(2,12,22,0.5)";
+            ctx.beginPath();
+            ctx.ellipse(x, baseY, w * 0.3, h * 0.08, 0, 0, Math.PI * 2);
+            ctx.fill();
+          } else if (entity.type === "rock") {
+            ctx.fillStyle = "#4a5b68";
+            ctx.beginPath();
+            ctx.moveTo(x - w * 0.4, baseY);
+            ctx.lineTo(x - w * 0.16, baseY - h * 0.85);
+            ctx.lineTo(x + w * 0.1, baseY - h * 0.55);
+            ctx.lineTo(x + w * 0.38, baseY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = "rgba(244,251,255,0.16)";
+            ctx.beginPath();
+            ctx.moveTo(x - w * 0.16, baseY - h * 0.85);
+            ctx.lineTo(x + w * 0.1, baseY - h * 0.55);
+            ctx.lineTo(x + w * 0.02, baseY);
+            ctx.closePath();
+            ctx.fill();
+          } else if (entity.type === "barge") {
+            ctx.fillStyle = "#26506b";
+            roundRect(x - w * 0.44, baseY - h * 0.7, w * 0.88, h * 0.7, w * 0.06);
+            ctx.fill();
+            ctx.fillStyle = "#f5c84b";
+            ctx.fillRect(x - w * 0.44, baseY - h * 0.7, w * 0.88, Math.max(2, h * 0.07));
+            ctx.fillStyle = "#0f3247";
+            ctx.fillRect(x - w * 0.2, baseY - h * 1.02, w * 0.4, h * 0.34);
+          } else {
+            // Lensebom - kan hoppes over.
+            ctx.fillStyle = "#c08a4a";
+            roundRect(x - w * 0.5, baseY - h * 0.5, w, h * 0.5, h * 0.24);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(2,12,22,0.4)";
+            ctx.lineWidth = Math.max(1, projected.p * 3);
+            for (var i = -2; i <= 2; i += 1) {
+              ctx.beginPath();
+              ctx.moveTo(x + i * w * 0.19, baseY - h * 0.5);
+              ctx.lineTo(x + i * w * 0.19, baseY);
+              ctx.stroke();
+            }
+          }
+          ctx.restore();
+        }
+
+        function drawCargo(entity) {
+          if (entity.taken) return;
+          var projected = projection(entity.z);
+          if (projected.p <= 0.02) return;
+
+          var x = laneScreenX(LANES[entity.lane], projected.p);
+          var size = projected.p * view.w * 0.075;
+          var bob = Math.sin(state.wavePhase * 3 + entity.z) * size * 0.14;
+          var y = projected.y - size * 0.75 + bob;
+
+          ctx.save();
+          ctx.globalAlpha = clamp(projected.p * 3.2, 0, 1);
+          ctx.shadowColor = "rgba(245, 200, 75, 0.6)";
+          ctx.shadowBlur = size * 0.6;
+          var gradient = ctx.createLinearGradient(x, y - size / 2, x, y + size / 2);
+          gradient.addColorStop(0, "#ffe08a");
+          gradient.addColorStop(1, "#e0a220");
+          ctx.fillStyle = gradient;
+          roundRect(x - size / 2, y - size / 2, size, size, size * 0.16);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "rgba(2,12,22,0.35)";
+          ctx.lineWidth = Math.max(1, size * 0.05);
+          ctx.beginPath();
+          ctx.moveTo(x - size / 2, y);
+          ctx.lineTo(x + size / 2, y);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function drawBoat() {
+          var projected = projection(BOAT_Z);
+          var jump = jumpHeight();
+          var x = laneScreenX(boatLane() - 1, projected.p);
+          var y = projected.y - jump * view.h * 0.12 + Math.sin(state.wavePhase * 5) * 3;
+          var w = view.w * 0.2;
+          var h = view.h * 0.13;
+          var tilt = (state.targetLane - state.laneOffset) * 0.34;
+          var invulnerable = state.shieldUntil > state.elapsed;
+
+          // Kjolvann.
+          ctx.save();
+          ctx.globalAlpha = 0.32;
+          ctx.fillStyle = "#bfe9fb";
+          ctx.beginPath();
+          ctx.moveTo(x - w * 0.34, y + h * 0.12);
+          ctx.lineTo(x + w * 0.34, y + h * 0.12);
+          ctx.lineTo(x + w * 0.9, y + h * 0.75);
+          ctx.lineTo(x - w * 0.9, y + h * 0.75);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(tilt);
+
+          if (invulnerable && Math.floor(state.elapsed / 90) % 2 === 0) {
+            ctx.globalAlpha = 0.45;
+          }
+
+          if (jump > 0.02) {
+            ctx.shadowColor = "rgba(0,0,0,0.4)";
+            ctx.shadowBlur = 26;
+            ctx.shadowOffsetY = 16;
+          }
+
+          // Skrog.
+          var hull = ctx.createLinearGradient(0, -h * 0.3, 0, h * 0.35);
+          hull.addColorStop(0, "#2c6d90");
+          hull.addColorStop(1, "#123a52");
+          ctx.fillStyle = hull;
+          ctx.beginPath();
+          ctx.moveTo(-w * 0.34, -h * 0.05);
+          ctx.lineTo(w * 0.34, -h * 0.05);
+          ctx.lineTo(w * 0.26, h * 0.3);
+          ctx.lineTo(-w * 0.26, h * 0.3);
+          ctx.closePath();
+          ctx.fill();
+
+          // Dekkslinje i merkevarefarge.
+          ctx.fillStyle = "#f5c84b";
+          ctx.fillRect(-w * 0.34, -h * 0.08, w * 0.68, h * 0.05);
+
+          // Styrhus.
+          ctx.fillStyle = "#e8f4fa";
+          roundRect(-w * 0.15, -h * 0.34, w * 0.3, h * 0.3, w * 0.03);
+          ctx.fill();
+          ctx.fillStyle = "#0d2b3d";
+          ctx.fillRect(-w * 0.11, -h * 0.29, w * 0.22, h * 0.12);
+
+          // Mast med lanterne.
+          ctx.strokeStyle = "#dbeaf4";
+          ctx.lineWidth = Math.max(1.5, w * 0.012);
+          ctx.beginPath();
+          ctx.moveTo(0, -h * 0.34);
+          ctx.lineTo(0, -h * 0.5);
+          ctx.stroke();
+          ctx.fillStyle = "#68f2a6";
+          ctx.beginPath();
+          ctx.arc(0, -h * 0.52, Math.max(2, w * 0.014), 0, Math.PI * 2);
+          ctx.fill();
+
+          if (invulnerable) {
+            ctx.globalAlpha = 0.5;
+            ctx.strokeStyle = "#4fe3ff";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.ellipse(0, -h * 0.08, w * 0.46, h * 0.44, 0, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+
+          ctx.restore();
+        }
+
+        function render() {
+          if (!state) return;
+          var zone = zoneAt(state.distance);
+
+          ctx.clearRect(0, 0, view.w, view.h);
+          drawSky(zone);
+          drawShores(zone);
+
+          ctx.save();
+          if (state.shake > 0.01) {
+            var amount = state.shake * 10;
+            ctx.translate((Math.random() - 0.5) * amount, (Math.random() - 0.5) * amount);
+          }
+
+          drawSea(zone);
+          drawChannel();
+
+          // Tegn fjernest forst slik at naere objekter havner over.
+          var sorted = state.entities.slice().sort(function (a, b) {
+            return b.z - a.z;
+          });
+
+          sorted.forEach(function (entity) {
+            if (entity.kind === "cargo") drawCargo(entity);
+            else drawObstacle(entity);
+          });
+
+          drawBoat();
+
+          state.particles.forEach(function (particle) {
+            ctx.save();
+            ctx.globalAlpha = clamp(particle.life * 2, 0, 1) * 0.8;
+            ctx.fillStyle = "#dff3ff";
+            ctx.beginPath();
+            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          });
+
+          ctx.save();
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          state.pops.forEach(function (pop) {
+            var life = clamp(pop.life, 0, 1);
+            ctx.globalAlpha = life;
+            ctx.fillStyle = pop.color;
+            ctx.font = "900 " + Math.round(22 + (1 - life) * 8) + "px Segoe UI, Arial";
+            ctx.fillText(pop.text, pop.x, pop.y);
+          });
+          ctx.restore();
+
+          ctx.restore();
+
+          if (state.banner) {
+            var bannerLife = clamp(state.banner.life / 1.5, 0, 1);
+            var appear = clamp((1.5 - state.banner.life) * 6, 0, 1);
+            ctx.save();
+            ctx.globalAlpha = Math.min(bannerLife * 1.7, 1) * appear;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = state.banner.color;
+            ctx.font = "900 " + Math.round(Math.min(34, view.w * 0.028)) + "px Segoe UI, Arial";
+            ctx.shadowColor = "rgba(0,0,0,0.6)";
+            ctx.shadowBlur = 18;
+            ctx.fillText(state.banner.text, view.w / 2, view.h * 0.2);
+            ctx.restore();
+          }
+
+          if (state.flash > 0.01) {
+            ctx.save();
+            ctx.globalAlpha = state.flash * 0.14;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, view.w, view.h);
+            ctx.restore();
+          }
+
+          if (state.damageFlash > 0.01) {
+            ctx.save();
+            ctx.globalAlpha = state.damageFlash * 0.3;
+            var damageGradient = ctx.createRadialGradient(
+              view.w / 2,
+              view.h / 2,
+              Math.min(view.w, view.h) * 0.2,
+              view.w / 2,
+              view.h / 2,
+              Math.max(view.w, view.h) * 0.7
+            );
+            damageGradient.addColorStop(0, "rgba(255,93,108,0)");
+            damageGradient.addColorStop(1, "rgba(255,93,108,1)");
+            ctx.fillStyle = damageGradient;
+            ctx.fillRect(0, 0, view.w, view.h);
+            ctx.restore();
+          }
+
+          ctx.save();
+          var vignette = ctx.createRadialGradient(
+            view.w / 2,
+            view.h / 2,
+            Math.min(view.w, view.h) * 0.34,
+            view.w / 2,
+            view.h / 2,
+            Math.max(view.w, view.h) * 0.76
+          );
+          vignette.addColorStop(0, "rgba(0,0,0,0)");
+          vignette.addColorStop(1, "rgba(0,0,0,0.42)");
+          ctx.fillStyle = vignette;
+          ctx.fillRect(0, 0, view.w, view.h);
+          ctx.restore();
+        }
+
+        function loop(now) {
+          var dt = Math.min(0.05, (now - lastTime) / 1000 || 0);
+          lastTime = now;
+
+          if (!state.paused) {
+            update(dt);
+            render();
+          }
+
+          if (state.running && !state.paused) {
+            animationId = requestAnimationFrame(loop);
+          }
+        }
+
+        function startGame() {
+          cancelAnimationFrame(animationId);
+          clearHoldExit();
+          if (pendingSettings) {
+            settings = pendingSettings;
+            pendingSettings = null;
+          }
+          clearTimeout(endOverlayTimer);
+          if (document.activeElement && document.activeElement.blur) {
+            document.activeElement.blur();
+          }
+          state = createState();
+          state.running = true;
+          document.body.classList.add("game-running");
+          ui.startOverlay.classList.add("hidden");
+          ui.endOverlay.classList.add("hidden");
+          ui.pauseOverlay.classList.add("hidden");
+          ui.message.textContent = "";
+          ui.rankTeaser.textContent = "";
+          ui.form.classList.add("hidden");
+          resizeCanvas();
+          renderLives();
+          updateHud();
+          showBanner("FULL AHEAD", "#4fe3ff");
+          lastTime = performance.now();
+          animationId = requestAnimationFrame(loop);
+        }
+
+        function endGame() {
+          if (state.over) return;
+          state.over = true;
+          state.running = false;
+          state.paused = false;
+          document.body.classList.remove("game-running");
+          clearHoldExit();
+          ui.pauseOverlay.classList.add("hidden");
+
+          // Regn sluttsummen fra live-verdier - displayScore kan henge en
+          // frame etter naar doden inntreffer midt i en oppdatering.
+          var finalScore = Math.min(
+            99999,
+            state.score + Math.floor(state.distance / 100) * (Number.isFinite(Number(settings.distancePointsPer100m)) ? Number(settings.distancePointsPer100m) : 10)
+          );
+          var record = getRecord();
+          var isRecord = finalScore > record;
+          rememberRecord(finalScore);
+
+          ui.endKicker.textContent = "Run over";
+          ui.endTitle.textContent = isRecord
+            ? "New kiosk record."
+            : state.distance > 2000
+              ? "That is a long run."
+              : "Good run.";
+          ui.finalScore.textContent = String(finalScore);
+          ui.finalDistance.textContent = Math.round(state.distance) + " m";
+          ui.finalCargo.textContent = String(state.cargo);
+          ui.finalStreak.textContent = String(state.bestStreak);
+          ui.finalRecord.textContent = String(Math.max(record, finalScore));
+          state.lastFinalScore = finalScore;
+          updateRankTeaser(state.lastFinalScore);
+
+          ui.form.classList.remove("hidden");
+          ui.saveButton.disabled = false;
+          ui.saveButton.textContent = "Save score";
+          ui.name.value = "";
+          ui.email.value = "";
+          ui.phone.value = "";
+          ui.consent.checked = false;
+
+          state.finalScore = finalScore;
+
+          clearTimeout(endOverlayTimer);
+          var endedState = state;
+          endOverlayTimer = setTimeout(function () {
+            // Vis bare sluttskjermen hvis vi fortsatt er i samme runde.
+            if (state === endedState) {
+              ui.endOverlay.classList.remove("hidden");
+            }
+          }, 700);
+
+          refreshBoard();
+        }
+
+        function exitToStart() {
+          cancelAnimationFrame(animationId);
+          clearHoldExit();
+          clearTimeout(endOverlayTimer);
+          document.body.classList.remove("game-running");
+          state = createState();
+          ui.pauseOverlay.classList.add("hidden");
+          ui.endOverlay.classList.add("hidden");
+          ui.startOverlay.classList.remove("hidden");
+          renderLives();
+          updateHud();
+          render();
+          // Hent ferske innstillinger naar vi er tilbake paa startskjermen.
+          loadSettings();
+        }
+
+        function pauseGame() {
+          if (!state.running || state.paused) return;
+          state.paused = true;
+          clearHoldExit();
+          ui.pauseOverlay.classList.remove("hidden");
+          document.body.classList.remove("game-running");
+        }
+
+        function resumeGame() {
+          if (!state.paused) return;
+          state.paused = false;
+          ui.pauseOverlay.classList.add("hidden");
+          document.body.classList.add("game-running");
+          lastTime = performance.now();
+          // Avbryt et eventuelt ventende frame forst, ellers kan raske
+          // pause/fortsett-trykk gi to samtidige lokker og dobbel fart.
+          cancelAnimationFrame(animationId);
+          animationId = requestAnimationFrame(loop);
+        }
+
+        function clearHoldExit() {
+          clearTimeout(holdExitTimer);
+          clearInterval(holdExitProgressTimer);
+          holdExitTimer = null;
+          holdExitProgressTimer = null;
+          ui.holdExitFill.style.width = "0%";
+        }
+
+        function getRecord() {
+          return Number(localStorage.getItem("runnerRecordScore") || 0);
+        }
+
+        function rememberRecord(score) {
+          if (score > getRecord()) {
+            localStorage.setItem("runnerRecordScore", String(score));
+          }
+        }
+
+
+        // "Du ville tatt X. plass" - konkret grunn til aa lagre scoren.
+        function updateRankTeaser(finalScore) {
+          if (!ui.rankTeaser) return;
+          if (!boardEntries.length) {
+            ui.rankTeaser.textContent = "The board is empty. Save it and take #1.";
+            return;
+          }
+          var rank = boardEntries.filter(function (entry) {
+            return Number(entry.score || 0) >= finalScore;
+          }).length + 1;
+          if (rank <= 10) {
+            ui.rankTeaser.textContent = "That takes #" + rank + " on the board. Save it!";
+          } else {
+            ui.rankTeaser.textContent = "";
+          }
+        }
+
+        function renderBoard(list, entries) {
+          list.innerHTML = "";
+
+          if (!entries || !entries.length) {
+            var empty = document.createElement("li");
+            empty.innerHTML = "<span>Be the first on the board</span><b>0</b>";
+            list.appendChild(empty);
+            return;
+          }
+
+          entries.slice(0, 5).forEach(function (entry, index) {
+            var item = document.createElement("li");
+            var name = document.createElement("span");
+            var score = document.createElement("b");
+            name.textContent = index + 1 + ". " + entry.name;
+            score.textContent = String(entry.score);
+            item.append(name, score);
+            list.appendChild(item);
+          });
+        }
+
+        function refreshBoard() {
+          if (isFileMode || !window.fetch) return;
+          fetch("/api/leaderboard?game=" + GAME_ID, { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload) return;
+              boardEntries = payload.entries || [];
+              renderBoard(ui.startBoard, boardEntries);
+              renderBoard(ui.endBoard, boardEntries);
+              if (state && state.over && state.lastFinalScore !== undefined) {
+                updateRankTeaser(state.lastFinalScore);
+              }
+            })
+            .catch(function () {
+              /* offline */
+            });
+        }
+
+        function validateRegistration() {
+          var name = ui.name.value.trim();
+          var email = ui.email.value.trim();
+          var phone = ui.phone.value.trim();
+
+          if (name.length < 2) return "Name is required.";
+          if (!email && !phone) return "Email or phone is required.";
+          if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Email address is invalid.";
+          if (phone && (phone.length < 5 || phone.length > 30)) {
+            return "Phone must be between 5 and 30 characters.";
+          }
+          if (!ui.consent.checked) return "Consent is required to save your score.";
+          return "";
+        }
+
+        function saveScore() {
+          if (ui.saveButton.disabled) return;
+
+          var error = validateRegistration();
+          if (error) {
+            ui.message.textContent = error;
+            return;
+          }
+
+          ui.message.textContent = "";
+          ui.saveButton.disabled = true;
+          ui.saveButton.textContent = "Saving...";
+
+          fetch("/api/standalone-entry", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              game: GAME_ID,
+              name: ui.name.value.trim().slice(0, 40),
+              email: ui.email.value.trim(),
+              phone: ui.phone.value.trim(),
+              consent: true,
+              // Serveren avviser score over maxAcceptedScore.
+              score: Math.min(99999, state.finalScore || state.score),
+              playedAt: new Date().toISOString()
+            })
+          })
+            .then(function (response) {
+              return response.json().then(function (payload) {
+                return { ok: response.ok, payload: payload };
+              });
+            })
+            .then(function (result) {
+              if (!result.ok) {
+                ui.message.textContent = result.payload.error || "Could not save score.";
+                ui.saveButton.disabled = false;
+                ui.saveButton.textContent = "Save score";
+                return;
+              }
+              boardEntries = result.payload.leaderboard || [];
+              renderBoard(ui.endBoard, boardEntries);
+              renderBoard(ui.startBoard, boardEntries);
+              ui.message.textContent = "Saved to the Fjord Runner board.";
+              ui.rankTeaser.textContent = "You are on the board!";
+              ui.saveButton.textContent = "Saved";
+            })
+            .catch(function () {
+              // Ikke lås knappen ved nettverksglipp - la spilleren prove igjen.
+              ui.message.textContent = "No server connection. Tap to try again.";
+              ui.saveButton.disabled = false;
+              ui.saveButton.textContent = "Try again";
+            });
+        }
+
+        function loadSettings() {
+          if (isFileMode || !window.fetch) return;
+          fetch("/api/config", { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload) return;
+              if (payload.brand && payload.brand.companyName) {
+                ui.companyName.textContent = payload.brand.companyName;
+              }
+              if (payload.privacy && payload.privacy.consentLabel) {
+                ui.consentLabel.textContent = payload.privacy.consentLabel;
+              }
+
+              var next = Object.assign({}, DEFAULTS, payload.runnerGame || {});
+              if (state && (state.running || state.over)) {
+                // Ikke bytt regler midt i en runde, og ikke nullstill
+                // staten mens sluttskjermen (med lagre-knappen) vises.
+                pendingSettings = next;
+                return;
+              }
+              settings = next;
+              state = createState();
+              renderLives();
+              updateHud();
+              render();
+            })
+            .catch(function () {
+              /* standardverdier brukes */
+            });
+        }
+
+        function bindTap(element, handler) {
+          element.addEventListener("pointerup", function (event) {
+            event.preventDefault();
+            handler(event);
+          });
+        }
+
+        bindTap(ui.startButton, startGame);
+        bindTap(ui.playAgainButton, startGame);
+        bindTap(ui.pauseButton, pauseGame);
+        bindTap(ui.resumeButton, resumeGame);
+        bindTap(ui.exitGameButton, exitToStart);
+
+        ui.form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          saveScore();
+        });
+
+        // Styring: trykk paa venstre/hoyre side, eller sveip. Sveip opp hopper.
+        canvas.addEventListener("pointerdown", function (event) {
+          event.preventDefault();
+          var rect = canvas.getBoundingClientRect();
+          gesture = {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+            time: performance.now()
+          };
+
+          var side = gesture.x < view.w / 2 ? ui.steerLeft : ui.steerRight;
+          side.classList.add("pressed");
+        });
+
+        canvas.addEventListener("pointerup", function (event) {
+          event.preventDefault();
+          ui.steerLeft.classList.remove("pressed");
+          ui.steerRight.classList.remove("pressed");
+          if (!gesture) return;
+
+          var rect = canvas.getBoundingClientRect();
+          var dx = event.clientX - rect.left - gesture.x;
+          var dy = event.clientY - rect.top - gesture.y;
+          var swipe = Math.max(30, view.w * 0.04);
+
+          if (Math.abs(dy) > swipe && Math.abs(dy) > Math.abs(dx) && dy < 0) {
+            jump();
+          } else if (Math.abs(dx) > swipe) {
+            steer(dx > 0 ? 1 : -1);
+          } else {
+            // Kort trykk: den siden av skjermen du trykket paa.
+            steer(gesture.x < view.w / 2 ? -1 : 1);
+          }
+
+          gesture = null;
+        });
+
+        canvas.addEventListener("pointercancel", function () {
+          gesture = null;
+          ui.steerLeft.classList.remove("pressed");
+          ui.steerRight.classList.remove("pressed");
+        });
+
+        // Slipp utenfor canvas (f.eks. mus dratt ut) skal ogsaa slukke pilene.
+        window.addEventListener("pointerup", function () {
+          ui.steerLeft.classList.remove("pressed");
+          ui.steerRight.classList.remove("pressed");
+        });
+
+        window.addEventListener("keydown", function (event) {
+          var handled = ["ArrowLeft", "ArrowRight", "ArrowUp", " "].indexOf(event.key) !== -1;
+          if (!handled) return;
+          // Uten preventDefault ville mellomrom "klikke" den fortsatt
+          // fokuserte startknappen og restarte runden midt i spillet.
+          event.preventDefault();
+          if (event.key === "ArrowLeft") steer(-1);
+          if (event.key === "ArrowRight") steer(1);
+          if (event.key === "ArrowUp" || event.key === " ") jump();
+        });
+
+        ui.holdExitButton.addEventListener("pointerdown", function (event) {
+          if (!state.running || state.paused || holdExitTimer) return;
+          var pointerId = event.pointerId;
+          var startedAt = performance.now();
+          if (ui.holdExitButton.setPointerCapture) ui.holdExitButton.setPointerCapture(pointerId);
+          holdExitProgressTimer = setInterval(function () {
+            var progress = Math.min(1, (performance.now() - startedAt) / HOLD_EXIT_MS);
+            ui.holdExitFill.style.width = Math.round(progress * 100) + "%";
+          }, 16);
+          holdExitTimer = setTimeout(function () {
+            if (ui.holdExitButton.releasePointerCapture) {
+              ui.holdExitButton.releasePointerCapture(pointerId);
+            }
+            exitToStart();
+          }, HOLD_EXIT_MS);
+        });
+
+        ["pointerup", "pointerleave", "pointercancel", "lostpointercapture"].forEach(function (name) {
+          ui.holdExitButton.addEventListener(name, function (event) {
+            if (ui.holdExitButton.releasePointerCapture) {
+              ui.holdExitButton.releasePointerCapture(event.pointerId);
+            }
+            clearHoldExit();
+          });
+        });
+
+        window.addEventListener("resize", resizeCanvas);
+
+        // Kiosk: ingen kontekstmeny eller lenke-dragging ved lange trykk.
+        document.addEventListener("contextmenu", function (event) {
+          event.preventDefault();
+        });
+        document.addEventListener("dragstart", function (event) {
+          event.preventDefault();
+        });
+
+        function armIdleReset() {
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(function () {
+            // Ogsaa et pauset og forlatt spill skal tilbake til start.
+            if (state && (state.paused || (!state.running && ui.startOverlay.classList.contains("hidden")))) {
+              exitToStart();
+            }
+            armIdleReset();
+          }, IDLE_RESET_MS);
+        }
+
+        ["pointerdown", "pointermove", "keydown"].forEach(function (name) {
+          window.addEventListener(name, armIdleReset, { passive: true });
+        });
+
+        state = createState();
+        resizeCanvas();
+        renderLives();
+        updateHud();
+        render();
+        loadSettings();
+        refreshBoard();
+        armIdleReset();
+      })();
+      // Touch: lenker skal ogsaa virke for finger nr. 2 - "click" kommer bare
+    // fra primaerpekeren, saa en hvilende finger gjor ellers lenker doede.
+    (function () {
+      var links = document.querySelectorAll("a[href]");
+      for (var i = 0; i < links.length; i += 1) {
+        (function (link) {
+          link.addEventListener("pointerup", function (event) {
+            if (event.isPrimary) return;
+            event.preventDefault();
+            window.location.href = link.href;
+          });
+        })(links[i]);
+      }
+    })();
+  </script>
+  </body>
+</html>

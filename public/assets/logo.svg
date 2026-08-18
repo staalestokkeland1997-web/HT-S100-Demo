@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Hatteland Technology event mark</title>
+  <desc id="desc">Maritimt teknologimerke med H, horisont og kontrollsignal.</desc>
+  <defs>
+    <linearGradient id="panel" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f2e44" />
+      <stop offset="100%" stop-color="#07131f" />
+    </linearGradient>
+    <linearGradient id="signal" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#4fe3ff" />
+      <stop offset="100%" stop-color="#f5c84b" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="18" fill="url(#panel)" />
+  <path d="M17 86c17-12 30-12 47 0s30 12 47 0" fill="none" stroke="#4fe3ff" stroke-width="5" opacity=".55" />
+  <path d="M25 42h18v20h42V42h18v54H85V76H43v20H25V42Z" fill="#f4fbff" />
+  <path d="M20 30h88" stroke="url(#signal)" stroke-width="6" stroke-linecap="round" />
+  <path d="M73 22h35v16H73z" fill="#f5c84b" opacity=".95" />
+  <circle cx="25" cy="30" r="6" fill="#4fe3ff" />
+</svg>

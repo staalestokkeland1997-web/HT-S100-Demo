@@ -1,37 +1,25 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "outputDirectory": "public",
   "cleanUrls": false,
-  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/", "destination": "/select.html" },
+    { "source": "/proxy", "destination": "/api/proxy" },
+    { "source": "/favicon.ico", "destination": "/assets/logo.svg" }
+  ],
   "headers": [
     {
-      "source": "/",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=300" }
-      ]
+      "source": "/(.*)\\.(html|js|css|json|svg|webmanifest)",
+      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
     },
     {
-      "source": "/(.*)\\.html",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=300" }
-      ]
-    },
-    {
-      "source": "/(uploads|screenshots)/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
-      ]
-    },
-    {
-      "source": "/support.js",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=300" }
-      ]
-    },
-    {
-      "source": "/vendor/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
-      ]
+      "source": "/(.*)\\.(png|jpg|jpeg|gif|webp|ico|woff|woff2|txt)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
     }
-  ]
+  ],
+  "functions": {
+    "api/[[...path]].js": {
+      "maxDuration": 30
+    }
+  }
 }

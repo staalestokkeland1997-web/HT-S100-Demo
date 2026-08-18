@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Sonar Sequence | Hatteland Technology</title>
+    <link rel="stylesheet" href="game-ui.css" />
+    <style>
+      :root {
+        --game-accent: var(--violet); --game-accent-strong: #6f7dff; --game-on-accent: #0d1220;
+      }
+
+      .radar {
+        position: relative;
+        width: min(74vmin, 640px);
+        aspect-ratio: 1;
+        border-radius: 50%;
+        border: 1px solid var(--line);
+        background:
+          radial-gradient(circle, rgba(79, 227, 255, 0.06), transparent 70%),
+          rgba(255, 255, 255, 0.015);
+      }
+
+      .radar::before,
+      .radar::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        border: 1px solid var(--line);
+        opacity: 0.6;
+      }
+
+      .radar::before {
+        inset: 14%;
+      }
+
+      .radar::after {
+        inset: 30%;
+      }
+
+      .sweep {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        overflow: hidden;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 300ms ease;
+      }
+
+      .sweep i {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 150%;
+        height: 150%;
+        transform-origin: 0 0;
+        background: conic-gradient(from 0deg, rgba(79, 227, 255, 0.16), transparent 26%);
+        animation: sweep 3.6s linear infinite;
+      }
+
+      .node {
+        position: absolute;
+        width: clamp(64px, 13vmin, 118px);
+        height: clamp(64px, 13vmin, 118px);
+        margin: calc(clamp(64px, 13vmin, 118px) / -2) 0 0 calc(clamp(64px, 13vmin, 118px) / -2);
+        border-radius: 50%;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.05);
+        transition: transform 120ms ease, box-shadow 200ms ease, background 200ms ease;
+      }
+
+      .node span {
+        font-size: clamp(11px, 1.4vmin, 15px);
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+      }
+
+      .node.is-lit {
+        background: color-mix(in srgb, var(--tone) 32%, transparent);
+        border-color: var(--tone);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone) 40%, transparent), 0 0 42px color-mix(in srgb, var(--tone) 55%, transparent);
+        transform: scale(1.07);
+      }
+
+      .node.is-wrong {
+        background: rgba(255, 93, 108, 0.3);
+        border-color: var(--red);
+        box-shadow: 0 0 42px rgba(255, 93, 108, 0.5);
+      }
+
+      .center-readout {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        display: grid;
+        gap: 4px;
+        justify-items: center;
+        text-align: center;
+        pointer-events: none;
+      }
+
+      .center-readout span {
+        font-size: clamp(8px, 0.95vmin, 11px);
+        font-weight: 800;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .center-readout strong {
+        font-size: clamp(20px, 3vmin, 38px);
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      body.game-running .sweep {
+        opacity: 1;
+      }
+
+      @keyframes sweep {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Radaren er DOM-basert og skal ligge midt paa flaten. */
+      .stage {
+        display: grid;
+        place-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"><img src="/assets/image.png" alt="" /></span>
+          <div class="brand-text">
+            <p class="eyebrow" id="companyName">Hatteland Technology</p>
+            <h1>Sonar Sequence</h1>
+          </div>
+        </div>
+
+        <div class="hud">
+          <div class="stat stat--score">
+            <span>Score</span>
+            <strong id="scoreValue">0</strong>
+          </div>
+          <div class="stat">
+            <span>Level</span>
+            <strong id="levelValue">0</strong>
+          </div>
+          <nav class="kiosk-nav" aria-label="Kiosk navigation">
+            <a class="nav-button" href="/select.html">Main kiosk</a>
+            <button id="exitGameButton" class="nav-button nav-button--exit" type="button">Exit game</button>
+          </nav>
+        </div>
+      </header>
+
+      <section class="stage">
+        <div class="radar" id="radar">
+          <div class="sweep" aria-hidden="true"><i></i></div>
+          <div class="center-readout">
+            <span id="phaseLabel">Ready</span>
+            <strong id="phaseValue">Sonar</strong>
+          </div>
+        </div>
+
+        <button id="pauseButton" class="pause-button" type="button">Pause</button>
+
+        <div id="pauseOverlay" class="overlay hidden">
+          <div class="panel">
+            <p class="eyebrow">Paused</p>
+            <h2>Sonar Sequence</h2>
+            <button id="resumeButton" class="primary" type="button">Resume</button>
+          </div>
+        </div>
+
+        <div id="startOverlay" class="overlay">
+          <div class="panel">
+            <p class="eyebrow">Memory challenge</p>
+            <h2>Read the sonar. Repeat it.</h2>
+            <p>
+              The sonar pings a pattern across the contacts. Tap them back in the same order.
+              Every level adds one more ping and the sweep gets faster.
+            </p>
+            <button id="startButton" class="primary" type="button">Start listening</button>
+            <div class="board">
+              <span>Sonar Sequence top scores</span>
+              <ol id="startBoard">
+                <li><span>No scores yet</span><b>0</b></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div id="endOverlay" class="overlay hidden">
+          <div class="panel">
+            <p class="eyebrow" id="endKicker">Signal lost</p>
+            <h2 id="endTitle">Good listening.</h2>
+            <div class="result-figures">
+              <article class="figure">
+                <span>Score</span>
+                <strong id="finalScore">0</strong>
+              </article>
+              <article class="figure">
+                <span>Level</span>
+                <strong id="finalLevel">0</strong>
+              </article>
+              <article class="figure">
+                <span>Record</span>
+                <strong id="finalRecord">0</strong>
+              </article>
+            </div>
+            <p class="rank-teaser" id="rankTeaser" aria-live="polite"></p>
+
+            <form id="registrationForm" class="form" novalidate>
+              <input id="nameInput" type="text" maxlength="40" placeholder="Name *" autocomplete="name" />
+              <input id="emailInput" type="email" maxlength="80" placeholder="Email" autocomplete="email" />
+              <input id="phoneInput" type="tel" maxlength="30" placeholder="Phone" autocomplete="tel" />
+              <label class="consent">
+                <input id="consentInput" type="checkbox" />
+                <span id="consentLabel">
+                  I consent to Hatteland Technology storing my contact details only for this game and prize contact.
+                </span>
+              </label>
+              <button id="saveScoreButton" class="primary" type="submit">Save score</button>
+            </form>
+            <p id="formMessage" class="message" aria-live="polite"></p>
+
+            <div class="board">
+              <span>Sonar Sequence top scores</span>
+              <ol id="endBoard">
+                <li><span>No scores yet</span><b>0</b></li>
+              </ol>
+            </div>
+
+            <div class="row">
+              <button id="playAgainButton" class="secondary" type="button">Play again</button>
+              <a class="secondary" href="/select.html">Main kiosk</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        var GAME_ID = "sonar";
+        var isFileMode = window.location.protocol === "file:";
+
+        var ui = {
+          radar: document.getElementById("radar"),
+          score: document.getElementById("scoreValue"),
+          level: document.getElementById("levelValue"),
+          phaseLabel: document.getElementById("phaseLabel"),
+          phaseValue: document.getElementById("phaseValue"),
+          startOverlay: document.getElementById("startOverlay"),
+          endOverlay: document.getElementById("endOverlay"),
+          pauseOverlay: document.getElementById("pauseOverlay"),
+          startButton: document.getElementById("startButton"),
+          playAgainButton: document.getElementById("playAgainButton"),
+          pauseButton: document.getElementById("pauseButton"),
+          resumeButton: document.getElementById("resumeButton"),
+          exitGameButton: document.getElementById("exitGameButton"),
+          endKicker: document.getElementById("endKicker"),
+          endTitle: document.getElementById("endTitle"),
+          finalScore: document.getElementById("finalScore"),
+          finalLevel: document.getElementById("finalLevel"),
+          finalRecord: document.getElementById("finalRecord"),
+          rankTeaser: document.getElementById("rankTeaser"),
+          startBoard: document.getElementById("startBoard"),
+          endBoard: document.getElementById("endBoard"),
+          form: document.getElementById("registrationForm"),
+          name: document.getElementById("nameInput"),
+          email: document.getElementById("emailInput"),
+          phone: document.getElementById("phoneInput"),
+          consent: document.getElementById("consentInput"),
+          consentLabel: document.getElementById("consentLabel"),
+          saveButton: document.getElementById("saveScoreButton"),
+          message: document.getElementById("formMessage"),
+          companyName: document.getElementById("companyName")
+        };
+
+        var DEFAULTS = {
+          difficultyName: "Normal",
+          nodeCount: 6,
+          pingMs: 520,
+          gapMs: 180,
+          inputTimeoutSeconds: 6,
+          startLength: 1,
+          pointsPerStep: 10,
+          speedUpPercent: 4,
+                    enableTimeout: true
+        };
+
+        var TONES = ["#4fe3ff", "#f5c84b", "#68f2a6", "#ff8f5d", "#9d8bff", "#ff5d6c", "#5de5c0", "#ff7bd0", "#9fe870"];
+
+        var settings = Object.assign({}, DEFAULTS);
+        var pendingSettings = null;
+        var nodes = [];
+        var state = createState();
+        var timers = [];
+        var boardEntries = [];
+        var inputTimer = null;
+
+        function createState() {
+          return {
+            running: false,
+            paused: false,
+            over: false,
+            score: 0,
+            level: 0,
+            sequence: [],
+            inputIndex: 0,
+            // Vannmerke: hoyeste steg som allerede har gitt poeng dette
+            // nivaaet. Hindrer dobbel-scoring naar sekvensen replays
+            // etter pause.
+            scoredCount: 0,
+            betweenLevels: false,
+            acceptingInput: false
+          };
+        }
+
+        function clearTimers() {
+          timers.forEach(clearTimeout);
+          timers = [];
+          clearTimeout(inputTimer);
+          inputTimer = null;
+        }
+
+        function later(fn, delay) {
+          var id = setTimeout(fn, delay);
+          timers.push(id);
+          return id;
+        }
+
+        function buildNodes() {
+          nodes.forEach(function (node) {
+            node.remove();
+          });
+          nodes = [];
+
+          var count = Math.max(4, Math.min(9, Math.round(Number(settings.nodeCount || 6))));
+
+          for (var i = 0; i < count; i += 1) {
+            var angle = (i / count) * Math.PI * 2 - Math.PI / 2;
+            var node = document.createElement("button");
+            node.type = "button";
+            node.className = "node";
+            node.style.setProperty("--tone", TONES[i % TONES.length]);
+            node.style.left = (50 + Math.cos(angle) * 36).toFixed(2) + "%";
+            node.style.top = (50 + Math.sin(angle) * 36).toFixed(2) + "%";
+            node.innerHTML = "<span>" + String(i + 1).padStart(2, "0") + "</span>";
+            node.dataset.index = String(i);
+            bindTap(node, handleNodeTap);
+            ui.radar.appendChild(node);
+            nodes.push(node);
+          }
+        }
+
+
+        function currentPingMs() {
+          // Hvert nivaa strammer tempoet litt, med et gulv slik at det forblir lesbart.
+          var factor = Math.pow(1 - Number(settings.speedUpPercent || 0) / 100, Math.max(0, state.level - 1));
+          return Math.max(150, Math.round(Number(settings.pingMs || 520) * factor));
+        }
+
+        function lightNode(index, duration) {
+          var node = nodes[index];
+          if (!node) return;
+          node.classList.add("is-lit");
+          later(function () {
+            node.classList.remove("is-lit");
+          }, duration);
+        }
+
+        function setPhase(label, value) {
+          ui.phaseLabel.textContent = label;
+          ui.phaseValue.textContent = value;
+        }
+
+        function updateHud() {
+          ui.score.textContent = String(state.score);
+          ui.level.textContent = String(state.level);
+        }
+
+        function playSequence() {
+          state.acceptingInput = false;
+          setPhase("Listen", "Level " + state.level);
+
+          var ping = currentPingMs();
+          var gap = Math.max(40, Number(settings.gapMs || 180));
+          var cursor = 400;
+
+          state.sequence.forEach(function (nodeIndex) {
+            later(function () {
+              lightNode(nodeIndex, ping);
+            }, cursor);
+            cursor += ping + gap;
+          });
+
+          later(function () {
+            state.acceptingInput = true;
+            state.inputIndex = 0;
+            setPhase("Repeat", "Your turn");
+            armInputTimeout();
+          }, cursor);
+        }
+
+        function armInputTimeout() {
+          clearTimeout(inputTimer);
+          if (!settings.enableTimeout) return;
+          inputTimer = setTimeout(function () {
+            endGame("timeout");
+          }, Math.max(2000, Number(settings.inputTimeoutSeconds || 6) * 1000));
+        }
+
+        function nextLevel() {
+          state.betweenLevels = false;
+          state.scoredCount = 0;
+          state.level += 1;
+          var count = nodes.length;
+          var additions = state.level === 1 ? Math.max(1, Number(settings.startLength || 1)) : 1;
+
+          for (var i = 0; i < additions; i += 1) {
+            state.sequence.push(Math.floor(Math.random() * count));
+          }
+
+          updateHud();
+          playSequence();
+        }
+
+        function handleNodeTap(event) {
+          if (!state.running || state.paused || !state.acceptingInput) return;
+
+          var index = Number(event.currentTarget.dataset.index);
+          var expected = state.sequence[state.inputIndex];
+
+          if (index !== expected) {
+            event.currentTarget.classList.add("is-wrong");
+            endGame("wrong");
+            return;
+          }
+
+          lightNode(index, 220);
+          state.inputIndex += 1;
+
+          // Bare nye steg gir poeng - en replay etter pause skal ikke
+          // betale for steg som allerede er scoret.
+          if (state.inputIndex > state.scoredCount) {
+            state.score += Number(settings.pointsPerStep || 10);
+            state.scoredCount = state.inputIndex;
+          }
+          updateHud();
+
+          if (state.inputIndex >= state.sequence.length) {
+            state.acceptingInput = false;
+            clearTimeout(inputTimer);
+            setPhase("Locked", "Level clear");
+            state.betweenLevels = true;
+            later(nextLevel, 700);
+          } else {
+            armInputTimeout();
+          }
+        }
+
+        function startGame() {
+          clearTimers();
+          if (pendingSettings) {
+            settings = pendingSettings;
+            pendingSettings = null;
+          }
+          buildNodes();
+          state = createState();
+          state.running = true;
+          document.body.classList.add("game-running");
+          ui.startOverlay.classList.add("hidden");
+          ui.endOverlay.classList.add("hidden");
+          ui.pauseOverlay.classList.add("hidden");
+          ui.message.textContent = "";
+          ui.rankTeaser.textContent = "";
+          ui.form.classList.add("hidden");
+          updateHud();
+          nextLevel();
+        }
+
+        function endGame(reason) {
+          if (state.over) return;
+          state.over = true;
+          state.running = false;
+          state.acceptingInput = false;
+          document.body.classList.remove("game-running");
+          clearTimers();
+          setPhase("Signal lost", "Level " + state.level);
+
+          var record = getRecord();
+          var isRecord = state.score > record;
+          rememberRecord(state.score);
+
+          ui.endKicker.textContent = reason === "timeout" ? "Signal timed out" : "Wrong contact";
+          ui.endTitle.textContent = isRecord ? "New kiosk record." : "Good listening.";
+          ui.finalScore.textContent = String(state.score);
+          ui.finalLevel.textContent = String(state.level);
+          ui.finalRecord.textContent = String(Math.max(record, state.score));
+          state.lastFinalScore = Math.min(99999, state.score);
+          updateRankTeaser(state.lastFinalScore);
+
+          ui.form.classList.remove("hidden");
+          ui.saveButton.disabled = false;
+          ui.saveButton.textContent = "Save score";
+          ui.name.value = "";
+          ui.email.value = "";
+          ui.phone.value = "";
+          ui.consent.checked = false;
+
+          later(function () {
+            nodes.forEach(function (node) {
+              node.classList.remove("is-wrong", "is-lit");
+            });
+            ui.endOverlay.classList.remove("hidden");
+          }, 620);
+
+          refreshBoard();
+        }
+
+        function exitToStart() {
+          clearTimers();
+          document.body.classList.remove("game-running");
+          state = createState();
+          nodes.forEach(function (node) {
+            node.classList.remove("is-wrong", "is-lit");
+          });
+          ui.pauseOverlay.classList.add("hidden");
+          ui.endOverlay.classList.add("hidden");
+          ui.startOverlay.classList.remove("hidden");
+          setPhase("Ready", "Sonar");
+          updateHud();
+          // Hent ferske innstillinger naar vi er tilbake paa startskjermen.
+          loadSettings();
+        }
+
+        function pauseGame() {
+          if (!state.running || state.paused) return;
+          state.paused = true;
+          state.acceptingInput = false;
+          clearTimers();
+          ui.pauseOverlay.classList.remove("hidden");
+          document.body.classList.remove("game-running");
+        }
+
+        function resumeGame() {
+          if (!state.paused) return;
+          state.paused = false;
+          ui.pauseOverlay.classList.add("hidden");
+          document.body.classList.add("game-running");
+          if (state.betweenLevels) {
+            // Pausen avbrot overgangen til neste nivaa - fullfoer den,
+            // ellers kunne forrige nivaa replays for nye poeng.
+            nextLevel();
+          } else {
+            // Spill sekvensen paa nytt saa spilleren ikke straffes for
+            // pausen. Vannmerket hindrer dobbel-scoring.
+            playSequence();
+          }
+        }
+
+        function getRecord() {
+          return Number(localStorage.getItem("sonarRecordScore") || 0);
+        }
+
+        function rememberRecord(score) {
+          if (score > getRecord()) {
+            localStorage.setItem("sonarRecordScore", String(score));
+          }
+        }
+
+
+        // "Du ville tatt X. plass" - konkret grunn til aa lagre scoren.
+        function updateRankTeaser(finalScore) {
+          if (!ui.rankTeaser) return;
+          if (!boardEntries.length) {
+            ui.rankTeaser.textContent = "The board is empty. Save it and take #1.";
+            return;
+          }
+          var rank = boardEntries.filter(function (entry) {
+            return Number(entry.score || 0) >= finalScore;
+          }).length + 1;
+          if (rank <= 10) {
+            ui.rankTeaser.textContent = "That takes #" + rank + " on the board. Save it!";
+          } else {
+            ui.rankTeaser.textContent = "";
+          }
+        }
+
+        function renderBoard(list, entries) {
+          list.innerHTML = "";
+
+          if (!entries || !entries.length) {
+            var empty = document.createElement("li");
+            empty.innerHTML = "<span>Be the first on the board</span><b>0</b>";
+            list.appendChild(empty);
+            return;
+          }
+
+          entries.slice(0, 5).forEach(function (entry, index) {
+            var item = document.createElement("li");
+            var name = document.createElement("span");
+            var score = document.createElement("b");
+            name.textContent = index + 1 + ". " + entry.name;
+            score.textContent = String(entry.score);
+            item.append(name, score);
+            list.appendChild(item);
+          });
+        }
+
+        function refreshBoard() {
+          if (isFileMode || !window.fetch) return;
+          fetch("/api/leaderboard?game=" + GAME_ID, { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload) return;
+              boardEntries = payload.entries || [];
+              renderBoard(ui.startBoard, boardEntries);
+              renderBoard(ui.endBoard, boardEntries);
+              if (state && state.over && state.lastFinalScore !== undefined) {
+                updateRankTeaser(state.lastFinalScore);
+              }
+            })
+            .catch(function () {
+              /* offline */
+            });
+        }
+
+        function validateRegistration() {
+          var name = ui.name.value.trim();
+          var email = ui.email.value.trim();
+          var phone = ui.phone.value.trim();
+
+          if (name.length < 2) return "Name is required.";
+          if (!email && !phone) return "Email or phone is required.";
+          if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Email address is invalid.";
+          if (phone && (phone.length < 5 || phone.length > 30)) {
+            return "Phone must be between 5 and 30 characters.";
+          }
+          if (!ui.consent.checked) return "Consent is required to save your score.";
+          return "";
+        }
+
+        function saveScore() {
+          if (ui.saveButton.disabled) return;
+
+          var error = validateRegistration();
+          if (error) {
+            ui.message.textContent = error;
+            return;
+          }
+
+          ui.message.textContent = "";
+          ui.saveButton.disabled = true;
+          ui.saveButton.textContent = "Saving...";
+
+          fetch("/api/standalone-entry", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              game: GAME_ID,
+              name: ui.name.value.trim().slice(0, 40),
+              email: ui.email.value.trim(),
+              phone: ui.phone.value.trim(),
+              consent: true,
+              // Serveren avviser score over maxAcceptedScore.
+              score: Math.min(99999, state.score),
+              playedAt: new Date().toISOString()
+            })
+          })
+            .then(function (response) {
+              return response.json().then(function (payload) {
+                return { ok: response.ok, payload: payload };
+              });
+            })
+            .then(function (result) {
+              if (!result.ok) {
+                ui.message.textContent = result.payload.error || "Could not save score.";
+                ui.saveButton.disabled = false;
+                ui.saveButton.textContent = "Save score";
+                return;
+              }
+              boardEntries = result.payload.leaderboard || [];
+              renderBoard(ui.endBoard, boardEntries);
+              renderBoard(ui.startBoard, boardEntries);
+              ui.message.textContent = "Saved to the Sonar Sequence board.";
+              ui.rankTeaser.textContent = "You are on the board!";
+              ui.saveButton.textContent = "Saved";
+            })
+            .catch(function () {
+              // Ikke lås knappen ved nettverksglipp - la spilleren prove igjen.
+              ui.message.textContent = "No server connection. Tap to try again.";
+              ui.saveButton.disabled = false;
+              ui.saveButton.textContent = "Try again";
+            });
+        }
+
+        function loadSettings() {
+          if (isFileMode || !window.fetch) return;
+          fetch("/api/config", { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload) return;
+              if (payload.brand && payload.brand.companyName) {
+                ui.companyName.textContent = payload.brand.companyName;
+              }
+              if (payload.privacy && payload.privacy.consentLabel) {
+                ui.consentLabel.textContent = payload.privacy.consentLabel;
+              }
+              var next = Object.assign({}, DEFAULTS, payload.sonarGame || {});
+              if (state.running) {
+                // Ikke bytt regler midt i en runde - vent til neste start.
+                pendingSettings = next;
+                return;
+              }
+              settings = next;
+              buildNodes();
+            })
+            .catch(function () {
+              /* standardverdier brukes */
+            });
+        }
+
+        function bindTap(element, handler) {
+          element.addEventListener("pointerup", function (event) {
+            event.preventDefault();
+            handler(event);
+          });
+        }
+
+        bindTap(ui.startButton, startGame);
+        bindTap(ui.playAgainButton, startGame);
+        bindTap(ui.pauseButton, pauseGame);
+        bindTap(ui.resumeButton, resumeGame);
+        bindTap(ui.exitGameButton, exitToStart);
+
+        ui.form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          saveScore();
+        });
+
+        // Kiosk: ingen kontekstmeny eller lenke-dragging ved lange trykk.
+        document.addEventListener("contextmenu", function (event) {
+          event.preventDefault();
+        });
+        document.addEventListener("dragstart", function (event) {
+          event.preventDefault();
+        });
+
+        // Attract-modus: en glemt resultatskjerm gaar tilbake til start selv.
+        var idleTimer = null;
+        var IDLE_RESET_MS = 90000;
+
+        function armIdleReset() {
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(function () {
+            // Ogsaa et pauset og forlatt spill skal tilbake til start.
+            if (state.paused || (!state.running && ui.startOverlay.classList.contains("hidden"))) {
+              exitToStart();
+            }
+            armIdleReset();
+          }, IDLE_RESET_MS);
+        }
+
+        ["pointerdown", "pointermove", "keydown"].forEach(function (name) {
+          window.addEventListener(name, armIdleReset, { passive: true });
+        });
+
+        buildNodes();
+        updateHud();
+        loadSettings();
+        refreshBoard();
+        armIdleReset();
+      })();
+      // Touch: lenker skal ogsaa virke for finger nr. 2 - "click" kommer bare
+    // fra primaerpekeren, saa en hvilende finger gjor ellers lenker doede.
+    (function () {
+      var links = document.querySelectorAll("a[href]");
+      for (var i = 0; i < links.length; i += 1) {
+        (function (link) {
+          link.addEventListener("pointerup", function (event) {
+            if (event.isPrimary) return;
+            event.preventDefault();
+            window.location.href = link.href;
+          });
+        })(links[i]);
+      }
+    })();
+  </script>
+  </body>
+</html>

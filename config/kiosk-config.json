@@ -1,0 +1,28 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 3000
+  },
+  "kiosk": {
+    "defaultGame": "selector",
+    "browser": "edge",
+    "openBrowserOnStart": true,
+    "kioskMode": false,
+    "paths": {
+      "selector": "/select.html",
+      "harborRush": "/harbor-rush-standalone.html",
+      "bridgeDuel": "/bridge-duel-standalone.html",
+      "airHockey": "/air-hockey-standalone.html",
+      "containerStacker": "/container-stacker-standalone.html",
+      "fjordRunner": "/fjord-runner-standalone.html",
+      "deepDive": "/deep-dive-standalone.html",
+      "sonarSequence": "/sonar-sequence-standalone.html",
+      "ecdisDemo": "/ecdis/index.html?kiosk=1",
+      "radarDemo": "/ecdis/radar.html?kiosk=1",
+      "admin": "/admin.html",
+      "adminRush": "/admin-rush.html",
+      "adminDuel": "/admin-duel.html",
+      "adminGames": "/admin-games.html"
+    }
+  }
+}

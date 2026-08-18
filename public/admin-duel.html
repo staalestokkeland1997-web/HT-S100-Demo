@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Bridge Duel Admin | Hatteland Challenge</title>
+    <link rel="stylesheet" href="/styles.css?v=20260427a" />
+  </head>
+  <body class="admin-body">
+    <main class="admin-shell">
+      <section class="admin-panel">
+        <div class="admin-header">
+          <div>
+            <p class="eyebrow">Bridge Duel admin</p>
+            <h1>1v1 game settings</h1>
+          </div>
+          <a class="ghost-button" href="/admin.html">Admin home</a>
+        </div>
+
+        <form id="loginForm" class="admin-login">
+          <label class="field">
+            <span>Admin password</span>
+            <input id="passwordInput" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="primary-button" type="submit">Sign in</button>
+        </form>
+
+        <p id="adminMessage" class="form-error" aria-live="polite"></p>
+
+        <section id="adminContent" class="admin-content hidden">
+          <div class="stats-grid">
+            <article class="stat-card">
+              <span>Difficulty</span>
+              <strong id="currentDifficulty">Expo</strong>
+            </article>
+            <article class="stat-card">
+              <span>Round time</span>
+              <strong id="roundTimePreview">90 sec</strong>
+            </article>
+            <article class="stat-card">
+              <span>Attack duration</span>
+              <strong id="attackPreview">5 sec</strong>
+            </article>
+          </div>
+
+          <section class="table-card settings-card">
+            <div class="modal-header">
+              <div>
+                <p class="eyebrow">Difficulty presets</p>
+                <h3>Bridge Duel balance</h3>
+              </div>
+              <a class="secondary-button" href="/bridge-duel-standalone.html">Open game</a>
+            </div>
+
+            <div class="difficulty-presets" aria-label="Bridge Duel difficulty presets">
+              <button class="secondary-button" data-preset="recommended" type="button">Recommended Duel</button>
+              <button class="secondary-button" data-preset="calm" type="button">Calm</button>
+              <button class="secondary-button" data-preset="expo" type="button">Expo</button>
+              <button class="secondary-button" data-preset="intense" type="button">Intense</button>
+              <button class="secondary-button" data-preset="chaos" type="button">Chaos</button>
+            </div>
+
+            <form id="duelSettingsForm" class="settings-form">
+              <label class="field">
+                <span>Difficulty name</span>
+                <input id="difficultyNameInput" type="text" maxlength="40" />
+              </label>
+              <label class="field">
+                <span>Duration sec</span>
+                <input id="durationSecondsInput" type="number" min="45" max="300" step="1" />
+              </label>
+              <label class="field">
+                <span>Initial ships/player</span>
+                <input id="initialShipsInput" type="number" min="1" max="8" step="1" />
+              </label>
+              <label class="field">
+                <span>Spawn interval sec</span>
+                <input id="spawnIntervalInput" type="number" min="0.6" max="4" step="0.05" />
+              </label>
+              <label class="field">
+                <span>Correct dock points</span>
+                <input id="correctDockPointsInput" type="number" min="0" max="250" step="1" />
+              </label>
+              <label class="field">
+                <span>Combo bonus/dock</span>
+                <input id="comboBonusInput" type="number" min="0" max="80" step="1" />
+              </label>
+              <label class="field">
+                <span>Max combo bonus</span>
+                <input id="maxComboBonusInput" type="number" min="0" max="300" step="1" />
+              </label>
+              <label class="field">
+                <span>Streak every</span>
+                <input id="streakEveryInput" type="number" min="2" max="20" step="1" />
+              </label>
+              <label class="field">
+                <span>Streak bonus</span>
+                <input id="streakBonusInput" type="number" min="0" max="500" step="1" />
+              </label>
+              <label class="field">
+                <span>Priority bonus</span>
+                <input id="priorityBonusInput" type="number" min="0" max="500" step="1" />
+              </label>
+              <label class="field">
+                <span>Wrong dock penalty</span>
+                <input id="wrongDockPenaltyInput" type="number" min="0" max="200" step="1" />
+              </label>
+              <label class="field">
+                <span>Collision penalty</span>
+                <input id="collisionPenaltyInput" type="number" min="0" max="200" step="1" />
+              </label>
+              <label class="field">
+                <span>Traffic penalty</span>
+                <input id="trafficPenaltyInput" type="number" min="0" max="200" step="1" />
+              </label>
+              <label class="field">
+                <span>Attack duration sec</span>
+                <input id="attackDurationInput" type="number" min="2" max="15" step="1" />
+              </label>
+              <label class="field">
+                <span>Attack energy max</span>
+                <input id="attackMaxInput" type="number" min="40" max="200" step="1" />
+              </label>
+              <label class="field">
+                <span>Attack energy/dock</span>
+                <input id="attackEnergyBaseInput" type="number" min="0" max="100" step="1" />
+              </label>
+              <label class="field">
+                <span>Traffic vessels</span>
+                <input id="trafficVesselsInput" type="number" min="1" max="6" step="1" />
+              </label>
+              <label class="field">
+                <span>Storm speed %</span>
+                <input id="stormSpeedInput" type="number" min="100" max="350" step="1" />
+              </label>
+              <label class="field">
+                <span>Fog opacity %</span>
+                <input id="fogOpacityInput" type="number" min="0" max="85" step="1" />
+              </label>
+              <label class="field">
+                <span>Glitch intensity %</span>
+                <input id="glitchIntensityInput" type="number" min="0" max="100" step="1" />
+              </label>
+              <label class="field">
+                <span>Beacon score points</span>
+                <input id="beaconScoreInput" type="number" min="0" max="500" step="1" />
+              </label>
+              <label class="field">
+                <span>Beacon attack energy</span>
+                <input id="beaconAttackInput" type="number" min="0" max="150" step="1" />
+              </label>
+              <label class="field">
+                <span>Beacon min sec</span>
+                <input id="beaconMinInput" type="number" min="3" max="60" step="1" />
+              </label>
+              <label class="field">
+                <span>Beacon max sec</span>
+                <input id="beaconMaxInput" type="number" min="3" max="90" step="1" />
+              </label>
+
+              <div class="feature-toggles feature-toggles--wide">
+                <label class="checkbox-row">
+                  <input id="priorityShipsInput" type="checkbox" />
+                  <span>Priority ships</span>
+                </label>
+                <label class="checkbox-row">
+                  <input id="beaconsInput" type="checkbox" />
+                  <span>Bonus beacons</span>
+                </label>
+                <label class="checkbox-row">
+                  <input id="finalSurgeInput" type="checkbox" />
+                  <span>Final surge</span>
+                </label>
+                <label class="checkbox-row">
+                  <input id="stormInput" type="checkbox" />
+                  <span>Storm attack</span>
+                </label>
+                <label class="checkbox-row">
+                  <input id="fogInput" type="checkbox" />
+                  <span>Fog attack</span>
+                </label>
+                <label class="checkbox-row">
+                  <input id="trafficInput" type="checkbox" />
+                  <span>Traffic attack</span>
+                </label>
+                <label class="checkbox-row">
+                  <input id="glitchInput" type="checkbox" />
+                  <span>Glitch attack</span>
+                </label>
+              </div>
+
+              <div class="cta-row">
+                <button class="primary-button" type="submit">Save Bridge Duel settings</button>
+                <button id="reloadSettingsButton" class="secondary-button" type="button">Reload</button>
+              </div>
+            </form>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="/admin-duel.js?v=20260427a" type="module"></script>
+  </body>
+</html>

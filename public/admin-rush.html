@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Harbor Rush Admin | Hatteland Challenge</title>
+    <link rel="stylesheet" href="/styles.css?v=20260424y" />
+  </head>
+  <body class="admin-body">
+    <main class="admin-shell">
+      <section class="admin-panel">
+        <div class="admin-header">
+          <div>
+            <p class="eyebrow">Harbor Rush admin</p>
+            <h1>Export, leaderboard and settings</h1>
+          </div>
+          <a class="ghost-button" href="/admin.html">Admin home</a>
+        </div>
+
+        <form id="loginForm" class="admin-login">
+          <label class="field">
+            <span>Admin password</span>
+            <input id="passwordInput" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="primary-button" type="submit">Sign in</button>
+        </form>
+
+        <p id="adminMessage" class="form-error" aria-live="polite"></p>
+
+        <section id="adminContent" class="admin-content hidden">
+          <div class="stats-grid">
+            <article class="stat-card">
+              <span>Entries</span>
+              <strong id="entriesCount">0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Best score</span>
+              <strong id="bestScore">0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Latest player</span>
+              <strong id="latestEntry">None</strong>
+            </article>
+          </div>
+
+          <div class="cta-row">
+            <button id="refreshAdminButton" class="secondary-button" type="button">Refresh</button>
+            <button id="exportButton" class="primary-button" type="button">Export CSV</button>
+            <button id="resetButton" class="danger-button" type="button">Reset leaderboard</button>
+          </div>
+          <section class="table-card round-card">
+            <div class="modal-header">
+              <div>
+                <p class="eyebrow">Fairness mode</p>
+                <h3>Planned round content</h3>
+              </div>
+              <strong id="roundTotalTargets">0 targets</strong>
+            </div>
+            <div id="roundPlanGrid" class="round-plan-grid"></div>
+            <p class="subtle-note">Same settings give the same amount of each object for every player during the event.</p>
+          </section>
+
+          <div class="admin-grid">
+            <section class="table-card settings-card">
+              <div class="modal-header">
+                <div>
+                  <p class="eyebrow">Game settings</p>
+                  <h3>Difficulty</h3>
+                </div>
+                <strong id="currentDifficulty">Hard</strong>
+              </div>
+
+              <div class="difficulty-presets" aria-label="Difficulty presets">
+                <button class="secondary-button" data-preset="expo" type="button">Recommended Expo</button>
+                <button class="secondary-button" data-preset="easy" type="button">Easy</button>
+                <button class="secondary-button" data-preset="normal" type="button">Normal</button>
+                <button class="secondary-button" data-preset="hard" type="button">Hard</button>
+                <button class="secondary-button" data-preset="extreme" type="button">Extreme</button>
+              </div>
+
+              <form id="settingsForm" class="settings-form">
+                <label class="field field--checkbox">
+                  <span>Sound default</span>
+                  <label class="checkbox-row">
+                    <input id="soundDefaultInput" type="checkbox" />
+                    <span>Sound on when app starts</span>
+                  </label>
+                </label>
+                <label class="field">
+                  <span>Duration sec</span>
+                  <input id="durationSecondsInput" type="number" min="15" max="90" step="1" />
+                </label>
+                <label class="field">
+                  <span>Spawn ms</span>
+                  <input id="spawnIntervalInput" type="number" min="180" max="1000" step="10" />
+                </label>
+                <label class="field">
+                  <span>Lifetime ms</span>
+                  <input id="targetLifetimeInput" type="number" min="650" max="3000" step="10" />
+                </label>
+                <label class="field">
+                  <span>Visible targets</span>
+                  <input id="maxVisibleTargetsInput" type="number" min="2" max="8" step="1" />
+                </label>
+                <label class="field">
+                  <span>Min size</span>
+                  <input id="minTargetSizeInput" type="number" min="48" max="180" step="1" />
+                </label>
+                <label class="field">
+                  <span>Max size</span>
+                  <input id="maxTargetSizeInput" type="number" min="64" max="220" step="1" />
+                </label>
+                <label class="field">
+                  <span>Hazard penalty</span>
+                  <input id="badPenaltyInput" type="number" min="0" max="100" step="1" />
+                </label>
+                <label class="field">
+                  <span>Signal points</span>
+                  <input id="goodPointsInput" type="number" min="0" max="250" step="1" />
+                </label>
+                <label class="field">
+                  <span>Cargo points</span>
+                  <input id="bonusPointsInput" type="number" min="0" max="500" step="1" />
+                </label>
+                <label class="field">
+                  <span>Dual input points</span>
+                  <input id="multiPointsInput" type="number" min="0" max="750" step="1" />
+                </label>
+                <label class="field">
+                  <span>Dual window ms</span>
+                  <input id="multiTouchWindowInput" type="number" min="160" max="800" step="10" />
+                </label>
+                <label class="field">
+                  <span>Power-up duration</span>
+                  <input id="powerDurationInput" type="number" min="2" max="15" step="1" />
+                </label>
+                <label class="field">
+                  <span>Power-up chance %</span>
+                  <input id="powerChanceInput" type="number" min="0" max="25" step="1" />
+                </label>
+                <label class="field">
+                  <span>Seconds plate value</span>
+                  <input id="timeBonusInput" type="number" min="1" max="15" step="1" />
+                </label>
+                <label class="field">
+                  <span>Max extra seconds</span>
+                  <input id="maxTimeBonusInput" type="number" min="0" max="60" step="1" />
+                </label>
+                <label class="field">
+                  <span>Seconds plate chance %</span>
+                  <input id="timeChanceInput" type="number" min="0" max="20" step="1" />
+                </label>
+                <label class="field">
+                  <span>Brand intensity</span>
+                  <select id="brandIntensityInput">
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </label>
+                <div class="feature-toggles">
+                  <label class="checkbox-row">
+                    <input id="nearMissInput" type="checkbox" />
+                    <span>Hazard warning</span>
+                  </label>
+                  <label class="checkbox-row">
+                    <input id="progressiveInput" type="checkbox" />
+                    <span>Progressive difficulty</span>
+                  </label>
+                  <label class="checkbox-row">
+                    <input id="powerUpsInput" type="checkbox" />
+                    <span>Power-ups</span>
+                  </label>
+                  <label class="checkbox-row">
+                    <input id="streakVisualsInput" type="checkbox" />
+                    <span>Streak visuals</span>
+                  </label>
+                  <label class="checkbox-row">
+                    <input id="finalAlarmInput" type="checkbox" />
+                    <span>Final 5 sec alarm</span>
+                  </label>
+                  <label class="checkbox-row">
+                    <input id="rankRevealInput" type="checkbox" />
+                    <span>Rank reveal</span>
+                  </label>
+                  <label class="checkbox-row">
+                    <input id="hattelandLabelsInput" type="checkbox" />
+                    <span>Hatteland labels</span>
+                  </label>
+                </div>
+                <div class="cta-row">
+                  <button class="primary-button" type="submit">Save settings</button>
+                  <button id="reloadSettingsButton" class="secondary-button" type="button">Reload</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="table-card">
+              <div class="modal-header">
+                <div>
+                  <p class="eyebrow">Leaderboard</p>
+                  <h3>Top 10</h3>
+                </div>
+              </div>
+              <ol id="adminLeaderboard" class="leaderboard-list leaderboard-list--admin"></ol>
+            </section>
+
+            <section class="table-card">
+              <div class="modal-header">
+                <div>
+                  <p class="eyebrow">Players</p>
+                  <h3>Saved entries</h3>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Score</th>
+                      <th>Time</th>
+                    </tr>
+                  </thead>
+                  <tbody id="entriesTableBody"></tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/admin-rush.js?v=20260427a" type="module"></script>
+  </body>
+</html>
