@@ -178,6 +178,7 @@ filen er uten funksjon paa Vercel.
 Samme API som den lokale serveren, naa under Vercel-domenet:
 
 ```text
+GET  /api/health                     (lagringsmodus + oppetid, uten passord)
 GET  /api/config
 GET  /api/leaderboard?game=<id>
 GET  /api/games
