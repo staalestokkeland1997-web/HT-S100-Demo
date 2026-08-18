@@ -35,6 +35,9 @@
   // The Fullscreen API needs a user gesture, and it still shows the browser's
   // "press Esc to exit" hint — use run-kiosk.* for a hint-free display.
   function goFullscreen() {
+    // fullscreen.js (lastet paa alle sider) eier fullskjerm naar den finnes,
+    // saa samme trykk ikke utloeser to konkurrerende requestFullscreen-kall.
+    if (window.__htFS) return;
     if (doc.fullscreenElement || doc.webkitFullscreenElement) return;
     var fn = root.requestFullscreen || root.webkitRequestFullscreen;
     if (fn) { try { fn.call(root); } catch (e) {} }

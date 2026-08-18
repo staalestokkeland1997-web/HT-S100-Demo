@@ -25,7 +25,14 @@ Sju touchspill med maritimt preg, alle med egen highscoreliste:
 
 I tillegg:
 
-- Spillvelger (forsiden): `/` eller `/select.html`.
+- Forsiden `/` er **fullskjerm-skallet** (`app.html`): spillvelgeren og alt
+  annet kjorer i en iframe, mens skallet selv aldri navigerer. Forste trykk
+  paa skjermen setter ekte fullskjerm (nettlesere krever en brukerhandling
+  for det), og deretter kan den ikke falle ut naar man gaar mellom sider.
+  Esc avslutter som vanlig; neste trykk tar fullskjermen inn igjen.
+- Spillvelgeren direkte (uten skall): `/select.html`. Alle sider har ogsaa
+  `fullscreen.js` som gir fullskjerm ved forste trykk om de aapnes direkte,
+  men bare skallet garanterer at den aldri slipper mellom sidebytter.
 - Admin hub: `/admin.html`.
 - Spillinnstillinger og highscore per spill: `/admin-games.html`.
 - Harbor Rush detaljadmin: `/admin-rush.html`.
@@ -144,7 +151,9 @@ config/
   contest-config.json    (standardverdier for spill/branding/admin)
   kiosk-config.json      (standardrute for forsiden)
 public/                  (alt som serveres statisk)
-  select.html            (forsiden)
+  app.html               (fullskjerm-skall — `/` gaar hit; app i iframe)
+  fullscreen.js          (fullskjerm-keeper, lastes paa alle kiosksider)
+  select.html            (spillvelgeren)
   *-standalone.html      (spillene)
   admin*.html/js, status.html/js
   ecdis/                 (HT ECDIS + HT Radar med vendored React/fonter)
