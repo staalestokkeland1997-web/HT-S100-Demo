@@ -362,12 +362,14 @@ async function handleApi(request, response, url) {
         mode: store.mode,
         persistent: store.persistent,
         note: store.persistent
-          ? "Redis-database tilkoblet - data lagres varig."
-          : "INGEN database konfigurert - data er midlertidige og kan nullstilles naar som helst. Koble til Upstash Redis i Vercel (Storage-fanen)."
+          ? (store.mode === "supabase"
+            ? "Supabase database connected - data is stored permanently."
+            : "Redis database connected - data is stored permanently.")
+          : "NO database configured - data is temporary and can reset at any time. Connect Upstash Redis in Vercel (Storage tab) or set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY."
       },
       data: {
         entries: entries.length,
-        dataPath: store.persistent ? "redis" : "/tmp (ephemeral)",
+        dataPath: store.persistent ? store.mode : "/tmp (ephemeral)",
         dataBytes: JSON.stringify(entries, null, 2).length + 1,
         latestEntry: entries[entries.length - 1] || null,
         latestBackup: await contest.latestBackupInfo()

@@ -77,7 +77,7 @@
   <div style="position:absolute;left:50%;bottom:5px;transform:translateX(-50%);z-index:4;font-size:9px;color:var(--attr,rgba(70,80,90,.8));background:var(--attrbg,rgba(255,255,255,.55));padding:2px 9px;border-radius:7px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none;">© Kartverket charts · OpenSeaMap · EMODnet Bathymetry</div>
 
   <sc-if value="{{ showIntro }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;{{ glass }}padding:10px 18px;border-radius:15px;font-size:11.5px;font-weight:600;color:var(--ink,#1c1c1e);white-space:nowrap;pointer-events:none;">Dra for å panorere · Knip eller scroll for å zoome · <b style="color:var(--accent,#0A84FF);">Plan route</b> + trykk i kartet legger rute</div>
+    <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;{{ glass }}padding:10px 18px;border-radius:15px;font-size:11.5px;font-weight:600;color:var(--ink,#1c1c1e);white-space:nowrap;pointer-events:none;">Drag to pan · Pinch or scroll to zoom · <b style="color:var(--accent,#0A84FF);">Plan route</b> + tap the chart to build a route</div>
   </sc-if>
 
   <!-- brand -->
@@ -329,7 +329,7 @@
         <div style="display:flex;flex-direction:column;gap:8px;">
           <div style="{{ cardInner }}padding:13px 14px;">
             <div style="font-size:11px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;margin-bottom:3px;">KOLLISJONSVARSEL · CPA / TCPA</div>
-            <div style="font-size:10.5px;color:var(--muted,#8e8e93);line-height:1.4;margin-bottom:12px;">Mål innenfor begge grensene gir fare-alarm og rød vaktsirkel.</div>
+            <div style="font-size:10.5px;color:var(--muted,#8e8e93);line-height:1.4;margin-bottom:12px;">Targets inside both limits raise a danger alarm and a red guard ring.</div>
             <label style="display:block;margin-bottom:12px;">
               <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:500;margin-bottom:7px;color:var(--ink,#1c1c1e);"><span>CPA-grense</span><span ref="{{ roRef }}" data-ro="vCpa" style="font-variant-numeric:tabular-nums;color:#FF3B30;font-weight:700;">0.50 nm</span></div>
               <input type="range" min="0.1" max="3" step="0.1" defaultValue="0.5" onInput="{{ onCpaLimit }}" style="width:100%;accent-color:#FF3B30;"/>
@@ -338,7 +338,7 @@
               <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:500;margin-bottom:7px;color:var(--ink,#1c1c1e);"><span>TCPA-grense</span><span ref="{{ roRef }}" data-ro="vTcpa" style="font-variant-numeric:tabular-nums;color:#FF9F0A;font-weight:700;">12 min</span></div>
               <input type="range" min="2" max="30" step="1" defaultValue="12" onInput="{{ onTcpaLimit }}" style="width:100%;accent-color:#FF9F0A;"/>
             </label>
-            <div style="display:flex;align-items:center;justify-content:space-between;border-top:0.5px solid var(--hair,rgba(60,60,67,.1));padding-top:10px;margin-top:12px;"><span style="font-size:11.5px;color:var(--muted,#8e8e93);">Farlige mål nå</span><span style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:{{ dangerCountColor }};">{{ dangerCount }}</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;border-top:0.5px solid var(--hair,rgba(60,60,67,.1));padding-top:10px;margin-top:12px;"><span style="font-size:11.5px;color:var(--muted,#8e8e93);">Dangerous targets now</span><span style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:{{ dangerCountColor }};">{{ dangerCount }}</span></div>
           </div>
           <sc-for list="{{ aisRows }}" as="t" hint-placeholder-count="5">
             <div style="{{ t.style }}">
@@ -413,10 +413,10 @@
         <span ref="{{ roRef }}" data-ro="wxTemp" style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:var(--ink,#1c1c1e);">—</span>
       </span>
     </button>
-    <button onClick="{{ onToggleTide }}" title="Tidevann — Kartverket sehavnivå" style="{{ st.tideChip }}">
+    <button onClick="{{ onToggleTide }}" title="Tide — Kartverket sea level" style="{{ st.tideChip }}">
       <span ref="{{ roRef }}" data-ro="tideIcon" style="font-size:15px;line-height:1;color:var(--accent,#0A84FF);">〜</span>
       <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.05;">
-        <span style="font-size:8px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">TIDEVANN</span>
+        <span style="font-size:8px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">TIDE</span>
         <span ref="{{ roRef }}" data-ro="tideDock" style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:var(--ink,#1c1c1e);">—</span>
       </span>
     </button>
@@ -427,9 +427,9 @@
         <span ref="{{ roRef }}" data-ro="gyroDock" style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:var(--ink,#1c1c1e);">—</span>
       </span>
     </button>
-    <button onClick="{{ onOpenAuto }}" title="Autonom seilas" style="{{ autoDockStyle }}">
+    <button onClick="{{ onOpenAuto }}" title="Autonomous voyage" style="{{ autoDockStyle }}">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="8" width="15" height="11" rx="2.5"/><line x1="12" y1="8" x2="12" y2="4.5"/><circle cx="12" cy="3.4" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="13" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="13" r="1.2" fill="currentColor" stroke="none"/></svg>
-      <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.05;"><span style="font-size:8px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">AUTO</span><span ref="{{ roRef }}" data-ro="autoDock" style="font-size:12px;font-weight:700;color:var(--ink,#1c1c1e);">Seilas</span></span>
+      <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.05;"><span style="font-size:8px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">AUTO</span><span ref="{{ roRef }}" data-ro="autoDock" style="font-size:12px;font-weight:700;color:var(--ink,#1c1c1e);">Voyage</span></span>
     </button>
     <div style="display:flex;flex-direction:column;align-items:flex-start;padding:0 12px;flex:none;white-space:nowrap;">
       <span style="font-size:8px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;white-space:nowrap;">SOG · COG</span>
@@ -440,7 +440,7 @@
       <span ref="{{ roRef }}" data-ro="depthukc" style="font-variant-numeric:tabular-nums;font-size:15px;font-weight:700;line-height:1.1;color:var(--ink,#1c1c1e);white-space:nowrap;">— · —</span>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-start;padding:0 4px 0 12px;flex:none;white-space:nowrap;border-left:0.5px solid var(--hair,rgba(60,60,67,.15));">
-      <span style="font-size:8px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;white-space:nowrap;">STRØM · S-111</span>
+      <span style="font-size:8px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;white-space:nowrap;">CURRENT · S-111</span>
       <span ref="{{ roRef }}" data-ro="tidecur" style="font-variant-numeric:tabular-nums;font-size:15px;font-weight:700;line-height:1.1;color:#0A84FF;white-space:nowrap;">— · —</span>
     </div>
     <button onClick="{{ onGoConning }}" title="Open Conning / Helm" style="display:flex;align-items:center;gap:7px;margin-left:6px;padding:6px 12px;border:none;border-left:0.5px solid var(--hair,rgba(60,60,67,.15));background:transparent;color:var(--muted,#8e8e93);cursor:pointer;font-family:inherit;flex:none;">
@@ -458,7 +458,7 @@
       </div>
       <div style="font-size:10px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;margin:12px 0 6px;">PREDIKTOR-PIL · FORUT-POSISJON</div>
       <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:9px;padding:2px;"><button onClick="{{ onPredOff }}" style="{{ predOffS }}">Av</button><button onClick="{{ onPred3 }}" style="{{ pred3S }}">3 min</button><button onClick="{{ onPred5 }}" style="{{ pred5S }}">5 min</button><button onClick="{{ onPred10 }}" style="{{ pred10S }}">10 min</button></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;"><div style="line-height:1.2;"><div style="font-size:12px;font-weight:600;color:var(--ink,#1c1c1e);">Varsel forut</div><div style="font-size:9.5px;color:var(--muted,#8e8e93);">Skjær / land i kursretningen</div></div><button onClick="{{ onToggleHazard }}" style="{{ hazardSwitch }}"><span style="{{ hazardKnob }}"></span></button></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;"><div style="line-height:1.2;"><div style="font-size:12px;font-weight:600;color:var(--ink,#1c1c1e);">Hazard ahead</div><div style="font-size:9.5px;color:var(--muted,#8e8e93);">Rocks / land on the current course</div></div><button onClick="{{ onToggleHazard }}" style="{{ hazardSwitch }}"><span style="{{ hazardKnob }}"></span></button></div>
     </div>
   </sc-if>
 
@@ -526,7 +526,7 @@
         </div>
       </sc-if>
       <sc-if value="{{ hasForecast }}" hint-placeholder-val="{{ false }}">
-        <div style="font-size:10px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;margin:11px 0 3px;">7-DØGNSVARSEL · MET</div>
+        <div style="font-size:10px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;margin:11px 0 3px;">7-DAY FORECAST · MET</div>
         <div style="display:flex;flex-direction:column;">
           <sc-for list="{{ forecastRows }}" as="d" hint-placeholder-count="7">
             <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-top:0.5px solid var(--hair,rgba(60,60,67,.1));font-size:11.5px;">
@@ -549,7 +549,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <div style="display:flex;align-items:center;gap:11px;">
           <span style="font-size:26px;line-height:1;color:var(--accent,#0A84FF);">{{ tideArrowBig }}</span>
-          <div style="line-height:1.18;"><div style="font-weight:700;font-size:14px;color:var(--ink,#1c1c1e);">Tidevann · {{ tideStation }}</div><div style="font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted,#8e8e93);">{{ tideNowLabel }} · {{ tideTrend }}</div></div>
+          <div style="line-height:1.18;"><div style="font-weight:700;font-size:14px;color:var(--ink,#1c1c1e);">Tide · {{ tideStation }}</div><div style="font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted,#8e8e93);">{{ tideNowLabel }} · {{ tideTrend }}</div></div>
         </div>
         <button onClick="{{ onToggleTide }}" style="background:var(--seg,rgba(118,118,128,.16));border:none;color:var(--muted,#8e8e93);cursor:pointer;font-size:13px;width:24px;height:24px;border-radius:50%;flex:none;line-height:1;">✕</button>
       </div>
@@ -580,7 +580,7 @@
           </div>
         </sc-for>
       </div>
-      <div style="margin-top:10px;font-size:9.5px;color:var(--muted,#8e8e93);">Live · Kartverket sehavnivå · prediksjon ±12 t · nærmeste vannstandsstasjon</div>
+      <div style="margin-top:10px;font-size:9.5px;color:var(--muted,#8e8e93);">Live · Kartverket sea level · prediction ±12 h · nearest tide gauge</div>
     </div>
   </sc-if>
 
@@ -612,7 +612,7 @@
       <sc-if value="{{ planWorking }}" hint-placeholder-val="{{ false }}">
         <div style="display:flex;align-items:center;gap:9px;width:100%;padding:11px;border-radius:11px;background:var(--seg,rgba(118,118,128,.12));box-sizing:border-box;">
           <span style="width:9px;height:9px;border-radius:50%;background:var(--accent,#0A84FF);box-shadow:0 0 7px var(--accent,#0A84FF);animation:mrdPulse 1.1s infinite;flex:none;"></span>
-          <span style="font-weight:600;font-size:12px;color:var(--ink,#1c1c1e);">Beregner trygg rute…</span>
+          <span style="font-weight:600;font-size:12px;color:var(--ink,#1c1c1e);">Computing safe route…</span>
         </div>
       </sc-if>
       <sc-if value="{{ planIdle }}" hint-placeholder-val="{{ true }}">
@@ -626,7 +626,7 @@
     <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:16px;padding:13px 15px;width:340px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;">
         <span style="font-size:19px;line-height:1;">🤖</span>
-        <div style="line-height:1.25;flex:1;"><div style="font-weight:700;font-size:13px;color:var(--ink,#1c1c1e);">Foreslått autonom rute</div><div ref="{{ roRef }}" data-ro="rpStats" style="font-size:11px;color:var(--muted,#8e8e93);font-variant-numeric:tabular-nums;">—</div></div>
+        <div style="line-height:1.25;flex:1;"><div style="font-weight:700;font-size:13px;color:var(--ink,#1c1c1e);">Proposed autonomous route</div><div ref="{{ roRef }}" data-ro="rpStats" style="font-size:11px;color:var(--muted,#8e8e93);font-variant-numeric:tabular-nums;">—</div></div>
       </div>
       <div style="display:flex;gap:8px;">
         <button onClick="{{ onStartAuto }}" style="flex:1;padding:11px;border-radius:11px;border:none;background:#34C759;color:#fff;font-weight:700;font-size:12px;letter-spacing:.3px;cursor:pointer;font-family:inherit;">▶ START SEILAS</button>
@@ -640,8 +640,8 @@
     <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:16px;padding:12px 15px;width:392px;">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;">
         <span style="width:8px;height:8px;border-radius:50%;background:#34C759;box-shadow:0 0 7px #34C759;animation:mrdPulse 2s infinite;flex:none;"></span>
-        <span style="font-weight:700;font-size:12px;letter-spacing:.5px;color:var(--ink,#1c1c1e);flex:1;">AUTONOM SEILAS · TRACK</span>
-        <button onClick="{{ onToggleAutoMin }}" title="Minimer til verktøylinja" style="width:28px;height:28px;flex:none;border-radius:9px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);cursor:pointer;font-family:inherit;font-size:15px;line-height:1;">—</button>
+        <span style="font-weight:700;font-size:12px;letter-spacing:.5px;color:var(--ink,#1c1c1e);flex:1;">AUTONOMOUS VOYAGE · TRACK</span>
+        <button onClick="{{ onToggleAutoMin }}" title="Minimise to the toolbar" style="width:28px;height:28px;flex:none;border-radius:9px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);cursor:pointer;font-family:inherit;font-size:15px;line-height:1;">—</button>
         <button onClick="{{ onPauseAuto }}" style="padding:6px 12px;border-radius:9px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font-weight:700;font-size:10.5px;cursor:pointer;font-family:inherit;">{{ pauseLabel }}</button>
         <button onClick="{{ onCancelRoute }}" style="padding:6px 12px;border-radius:9px;border:none;background:#FF3B30;color:#fff;font-weight:700;font-size:10.5px;cursor:pointer;font-family:inherit;">Avbryt</button>
       </div>
@@ -652,7 +652,7 @@
         <div style="display:flex;flex-direction:column;"><span style="font-size:8.5px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">NESTE KURS</span><span ref="{{ roRef }}" data-ro="anBrg" style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:var(--ink,#1c1c1e);">—</span></div>
         <div style="display:flex;flex-direction:column;grid-column:span 2;"><span style="font-size:8.5px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">XTD · AVVIK FRA LINJE</span><span ref="{{ roRef }}" data-ro="anXtd" style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:var(--ink,#1c1c1e);">—</span></div>
       </div>
-      <button onClick="{{ onPickNewPoint }}" style="width:100%;margin-top:11px;padding:10px;border-radius:11px;border:none;background:var(--accent,#0A84FF);color:#fff;font-weight:700;font-size:11.5px;letter-spacing:.3px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10Z"/><circle cx="12" cy="11" r="2"/></svg>VELG NYTT REISEPUNKT</button>
+      <button onClick="{{ onPickNewPoint }}" style="width:100%;margin-top:11px;padding:10px;border-radius:11px;border:none;background:var(--accent,#0A84FF);color:#fff;font-weight:700;font-size:11.5px;letter-spacing:.3px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10Z"/><circle cx="12" cy="11" r="2"/></svg>PICK NEW DESTINATION</button>
     </div>
   </sc-if>
 
@@ -690,7 +690,15 @@ class Component extends DCLogic {
     this.aisBox = { latMin: 57.0, latMax: 71.8, lonMin: 1.5, lonMax: 31.5 };
     this.cosMid = Math.cos(60.0 * Math.PI / 180);
     this.view = { lat: 60.12, lon: 5.06, zoom: 10.2, bearing: 0 };
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // res-modus: ?res=sharp laaser full opploesning (4K-kiosk med grei GPU),
+    // ?res=low laaser 1x (svak GPU), ellers 'auto' med adaptiv nedtrapping.
+    // Valget huskes i localStorage saa kiosk-URL-en bare trenger det een gang.
+    this.resMode = (() => {
+      const m = /[?&]res=(sharp|low|auto)(&|$)/.exec(location.search);
+      if (m) { try { localStorage.setItem('mrd_res', m[1]); } catch (e) {} return m[1]; }
+      try { return localStorage.getItem('mrd_res') || 'auto'; } catch (e) { return 'auto'; }
+    })();
+    this.dpr = this.resMode === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     this.cursor = null; this.drag = null; this.simTime = 9 * 3600; this.mob = null; this.draughtV = 8.0;
     this.lastAlarmCheck = 0; this.lastAisPush = 0; this.groundFired = false; this._xtdFired = false; this._prev = {};
     this.track = []; this.route = null; this.activeLeg = 1; this.channel = 0.2;
@@ -893,7 +901,7 @@ class Component extends DCLogic {
     if (!path) {
       // quiet === true means data may still be loading and a retry is scheduled — don't flash a failure yet, just show a working status.
       if (quiet) { if (!this._planWorking) { this._planWorking = true; this.setState({ routeVer: this.state.routeVer + 1 }); } return; }
-      this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false; this.addAlarm('warning', 'Fant ikke en trygg rute til punktet — det er sperret av land/grunner. Velg et punkt i farbart farvann.'); this.setState({ routeVer: this.state.routeVer + 1 }); return;
+      this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false; this.addAlarm('warning', 'No safe route found to that point — it is blocked by land/shoals. Pick a point in navigable water.'); this.setState({ routeVer: this.state.routeVer + 1 }); return;
     }
     // A route that passed STRICT routeClear is validated against loaded chart data along its whole length, so it is safe to commit immediately (no separate tile-readiness gate needed).
     this._planWorking = false;
@@ -903,9 +911,9 @@ class Component extends DCLogic {
     } catch (e) {}
   }
   routeStats() { const R = this.route; if (!R || R.length < 2) return null; const o = this.ownShip; let rem = this.distNm(o, R[Math.min(this.activeLeg, R.length - 1)]); for (let i = this.activeLeg + 1; i < R.length; i++) rem += this.distNm(R[i - 1], R[i]); const total = R.reduce((a, p, i) => i ? a + this.distNm(R[i - 1], p) : 0, 0); const spd = (this.autoNav && o.sog > 0.3) ? o.sog : 14; return { rem, total, legs: R.length - 1, eta: rem / Math.max(6, spd) * 60 }; }
-  startAutoNav() { if (!this.route) return; this.routePending = false; this.autoNav = true; this.helm = Object.assign(this.helm || {}, { active: false, ap: false }); this.saveRoute(); this.setState({ simRunning: true, routeVer: this.state.routeVer + 1 }); const st = this.routeStats(); this.addAlarm('info', 'Autonom seilas startet — ' + (st ? st.legs + ' legs · ' + st.total.toFixed(1) + ' nm · ≥ ' + (this._routeClr || this.state.safetyC).toFixed(0) + ' m UKC · ETA ~' + Math.round(st.eta) + ' min.' : 'styrer mot mål.')); }
+  startAutoNav() { if (!this.route) return; this.routePending = false; this.autoNav = true; this.helm = Object.assign(this.helm || {}, { active: false, ap: false }); this.saveRoute(); this.setState({ simRunning: true, routeVer: this.state.routeVer + 1 }); const st = this.routeStats(); this.addAlarm('info', 'Autonomous voyage started — ' + (st ? st.legs + ' legs · ' + st.total.toFixed(1) + ' nm · ≥ ' + (this._routeClr || this.state.safetyC).toFixed(0) + ' m UKC · ETA ~' + Math.round(st.eta) + ' min.' : 'steering to destination.')); }
   pauseAutoNav() { this.setState({ simRunning: !this.state.simRunning }); }
-  cancelAutoNav() { clearInterval(this._planRetry); this._planDest = null; this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false; this.activeLeg = 1; this.routeCheck = null; this.saveRoute(); this.setState({ simRunning: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonom seilas avbrutt — manuell styring.'); }
+  cancelAutoNav() { clearInterval(this._planRetry); this._planDest = null; this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false; this.activeLeg = 1; this.routeCheck = null; this.saveRoute(); this.setState({ simRunning: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonomous voyage cancelled — manual steering.'); }
   planRoute(lat0, lon0, lat1, lon1, clr, noAis, div, padK, dil) {
     try {
     div = div || 340; padK = padK || 1; dil = dil || 0;
@@ -1069,7 +1077,7 @@ class Component extends DCLogic {
         const byDay = {};
         for (const e of w.properties.timeseries) { const day = e.time.slice(0, 10); const inst = e.data.instant.details || {}; const n6 = e.data.next_6_hours; if (!byDay[day]) byDay[day] = { temps: [], winds: [], gusts: [], dirs: [], precip: 0, syms: [], noon: null }; const D = byDay[day]; if (inst.air_temperature != null) D.temps.push(inst.air_temperature); if (inst.wind_speed != null) D.winds.push(inst.wind_speed); if (inst.wind_speed_of_gust != null) D.gusts.push(inst.wind_speed_of_gust); if (inst.wind_from_direction != null) D.dirs.push(inst.wind_from_direction); if (n6) { if (n6.details && n6.details.precipitation_amount != null) D.precip += n6.details.precipitation_amount; if (n6.summary && n6.summary.symbol_code) { D.syms.push(n6.summary.symbol_code); const hr = +e.time.slice(11, 13); if (hr >= 9 && hr <= 15 && !D.noon) D.noon = n6.summary.symbol_code; } } }
         const days = Object.keys(byDay).sort().slice(0, 7);
-        this.met.forecast = days.map(day => { const D = byDay[day]; const dt = new Date(day + 'T12:00:00Z'); return { date: day, label: ['Søn', 'Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør'][dt.getUTCDay()], dnum: dt.getUTCDate(), symbol: D.noon || D.syms[Math.floor(D.syms.length / 2)] || D.syms[0] || '', tMin: D.temps.length ? Math.min(...D.temps) : null, tMax: D.temps.length ? Math.max(...D.temps) : null, windMax: D.winds.length ? Math.max(...D.winds) : null, gustMax: D.gusts.length ? Math.max(...D.gusts) : null, windDir: D.dirs.length ? D.dirs[Math.floor(D.dirs.length / 2)] : null, precip: D.precip }; });
+        this.met.forecast = days.map(day => { const D = byDay[day]; const dt = new Date(day + 'T12:00:00Z'); return { date: day, label: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dt.getUTCDay()], dnum: dt.getUTCDate(), symbol: D.noon || D.syms[Math.floor(D.syms.length / 2)] || D.syms[0] || '', tMin: D.temps.length ? Math.min(...D.temps) : null, tMax: D.temps.length ? Math.max(...D.temps) : null, windMax: D.winds.length ? Math.max(...D.winds) : null, gustMax: D.gusts.length ? Math.max(...D.gusts) : null, windDir: D.dirs.length ? D.dirs[Math.floor(D.dirs.length / 2)] : null, precip: D.precip }; });
       } catch (e) {}
       this.buildTempField();
       this.setSrc('met', 'ok');
@@ -1104,7 +1112,7 @@ class Component extends DCLogic {
     // Query Kartverket at the ship's EXACT position first (harmonic prediction is interpolated to any point in Norwegian waters); fall back to reference stations.
     const fb = [ { name: 'Bergen', lat: 60.398, lon: 5.320 }, { name: 'Haugesund', lat: 59.426, lon: 5.267 }, { name: 'Stavanger', lat: 58.974, lon: 5.730 }, { name: 'Måløy', lat: 61.934, lon: 5.113 } ];
     fb.sort((a, b) => this.distNm(o, a) - this.distNm(o, b));
-    const stations = [ { name: 'Egen posisjon', lat: o.lat, lon: o.lon }, ...fb ];
+    const stations = [ { name: 'Own position', lat: o.lat, lon: o.lon }, ...fb ];
     const now = new Date(); const fmt = d => d.toISOString().slice(0, 16);
     const from = fmt(new Date(now.getTime() - 13 * 3600e3)), to = fmt(new Date(now.getTime() + 13 * 3600e3));
     for (const st of stations) {
@@ -1137,7 +1145,7 @@ class Component extends DCLogic {
     try {
       const ws = new WebSocket('wss://stream.aisstream.io/v0/stream'); this.aisWs = ws;
       ws.onopen = () => { ws.send(JSON.stringify({ APIKey: key, BoundingBoxes: [[[B.latMin, B.lonMin], [B.latMax, B.lonMax]]], FilterMessageTypes: ['PositionReport', 'ShipStaticData'] })); this._aisKeyInput = key; this.saveSrcCfg(); this.setState({ aisStatus: 'connected', aisMode: 'live' }); };
-      ws.onmessage = async (ev) => { let txt; try { txt = (ev.data && typeof ev.data.text === 'function') ? await ev.data.text() : (ev.data instanceof ArrayBuffer ? new TextDecoder().decode(ev.data) : ev.data); } catch (e) { return; } let m; try { m = JSON.parse(txt); } catch (e) { return; } if (m.error) { if (this.state.aisStatus !== 'key error') this.addAlarm('warning', 'Live AIS - aisstream.io avviste tilkoblingen (' + m.error + '). Sjekk apiKeys.aisstream i config, og merk at en gratisnokkel bare tillater EN samtidig tilkobling - lukk andre apne ECDIS-faner.'); this.setState({ aisStatus: 'key error' }); return; } this._aisLastMsg = Date.now(); const meta = m.MetaData || {}; const mmsi = meta.MMSI || (m.Message && m.Message.PositionReport && m.Message.PositionReport.UserID); if (!mmsi) return; const t = this.aisLive[mmsi] || (this.aisLive[mmsi] = { mmsi, name: 'MMSI ' + mmsi, type: 'Vessel', col: this.aisColor(mmsi) }); if (m.MessageType === 'PositionReport') { const pr = m.Message.PositionReport || {}; t.lat = meta.latitude != null ? meta.latitude : pr.Latitude; t.lon = meta.longitude != null ? meta.longitude : pr.Longitude; t.sog = pr.Sog || 0; t.cog = pr.Cog || 0; t.hdg = (pr.TrueHeading != null && pr.TrueHeading < 360) ? pr.TrueHeading : t.cog; if (pr.NavigationalStatus != null) t.navStatus = pr.NavigationalStatus; t.last = Date.now(); if (meta.ShipName && meta.ShipName.trim()) t.name = meta.ShipName.trim(); } else if (m.MessageType === 'ShipStaticData') { const sd = m.Message.ShipStaticData || {}; const clean = (v) => (v || '').replace(/[@\s]+$/, '').trim(); if (meta.ShipName && meta.ShipName.trim()) t.name = meta.ShipName.trim(); t.type = this.shipTypeName(sd.Type); const cs = clean(sd.CallSign); if (cs) t.callsign = cs; if (sd.ImoNumber) t.imo = sd.ImoNumber; const ds = clean(sd.Destination); if (ds) t.dest = ds; if (sd.MaximumStaticDraught) t.draught = sd.MaximumStaticDraught; const dm = sd.Dimension; if (dm) t.dim = { l: (dm.A || 0) + (dm.B || 0), b: (dm.C || 0) + (dm.D || 0) }; } };
+      ws.onmessage = async (ev) => { let txt; try { txt = (ev.data && typeof ev.data.text === 'function') ? await ev.data.text() : (ev.data instanceof ArrayBuffer ? new TextDecoder().decode(ev.data) : ev.data); } catch (e) { return; } let m; try { m = JSON.parse(txt); } catch (e) { return; } if (m.error) { if (this.state.aisStatus !== 'key error') this.addAlarm('warning', 'Live AIS - aisstream.io rejected the connection (' + m.error + '). Check apiKeys.aisstream in config, and note that a free key allows only ONE concurrent connection - close other open ECDIS tabs.'); this.setState({ aisStatus: 'key error' }); return; } this._aisLastMsg = Date.now(); const meta = m.MetaData || {}; const mmsi = meta.MMSI || (m.Message && m.Message.PositionReport && m.Message.PositionReport.UserID); if (!mmsi) return; const t = this.aisLive[mmsi] || (this.aisLive[mmsi] = { mmsi, name: 'MMSI ' + mmsi, type: 'Vessel', col: this.aisColor(mmsi) }); if (m.MessageType === 'PositionReport') { const pr = m.Message.PositionReport || {}; t.lat = meta.latitude != null ? meta.latitude : pr.Latitude; t.lon = meta.longitude != null ? meta.longitude : pr.Longitude; t.sog = pr.Sog || 0; t.cog = pr.Cog || 0; t.hdg = (pr.TrueHeading != null && pr.TrueHeading < 360) ? pr.TrueHeading : t.cog; if (pr.NavigationalStatus != null) t.navStatus = pr.NavigationalStatus; t.last = Date.now(); if (meta.ShipName && meta.ShipName.trim()) t.name = meta.ShipName.trim(); } else if (m.MessageType === 'ShipStaticData') { const sd = m.Message.ShipStaticData || {}; const clean = (v) => (v || '').replace(/[@\s]+$/, '').trim(); if (meta.ShipName && meta.ShipName.trim()) t.name = meta.ShipName.trim(); t.type = this.shipTypeName(sd.Type); const cs = clean(sd.CallSign); if (cs) t.callsign = cs; if (sd.ImoNumber) t.imo = sd.ImoNumber; const ds = clean(sd.Destination); if (ds) t.dest = ds; if (sd.MaximumStaticDraught) t.draught = sd.MaximumStaticDraught; const dm = sd.Dimension; if (dm) t.dim = { l: (dm.A || 0) + (dm.B || 0), b: (dm.C || 0) + (dm.D || 0) }; } };
       ws.onerror = () => { this.setState({ aisStatus: 'error' }); };
       ws.onclose = () => { if (this.aisKey && this.state.aisStatus !== 'key error') { this.setState({ aisStatus: 'reconnecting' }); clearTimeout(this._aisReWS); this._aisReWS = setTimeout(() => this.connectAis(this.aisKey), 4000); } };
       this.setState({ aisStatus: 'connecting', aisMode: 'live' });
@@ -1170,7 +1178,7 @@ class Component extends DCLogic {
           // (non-heartbeat with the helm engaged) counts as a takeover.
           const takeover = m.cmd.active && !m.cmd.heartbeat;
           if (this.autoNav && !takeover) { this.postShipState(true); return; }
-          if (this.autoNav && takeover) { this.autoNav = false; this.addAlarm('info', 'Helm Console har tatt over — autonom seilas frakoblet.'); this.setState({ routeVer: this.state.routeVer + 1 }); }
+          if (this.autoNav && takeover) { this.autoNav = false; this.addAlarm('info', 'Helm Console has taken over — autonomous voyage disengaged.'); this.setState({ routeVer: this.state.routeVer + 1 }); }
           this.helm = Object.assign(this.helm, m.cmd);
           if (this.helm.active) { this.gpsMode = false; if (!this.state.simRunning) this.setState({ simRunning: true }); }
           // TRACK mode engages the ECDIS route controller when a route exists.
@@ -1278,7 +1286,7 @@ class Component extends DCLogic {
     const stwNow = (o.stw != null ? o.stw : o.sog);
     const avoid = this.colregAvoid(o, cts, stwNow);
     const av = avoid ? (avoid.alter > 0.1 ? 'starboard' : 'slow') : 'none';
-    if (av !== this._avoidState) { this._avoidState = av; if (av === 'starboard') this.addAlarm('info', 'Autonom vikemanøver — styrbord for kryssende/møtende fartøy.'); else if (av === 'slow') this.addAlarm('warning', 'Autonom — senker fart for kryssende fartøy (trangt for styrbord unnamanøver).'); }
+    if (av !== this._avoidState) { this._avoidState = av; if (av === 'starboard') this.addAlarm('info', 'Autonomous avoidance — going starboard for crossing/oncoming vessel.'); else if (av === 'slow') this.addAlarm('warning', 'Autonomous — reducing speed for crossing vessel (no room for a starboard manoeuvre).'); }
     const cmdCourse = avoid ? (cts + avoid.alter + 360) % 360 : cts;
     // SET & DRIFT — feed-forward crab against the live MET surface current (S-111)
     // so the GROUND track follows the leg; the LOS track-keeping above removes
@@ -1320,7 +1328,7 @@ class Component extends DCLogic {
     // the ship rolls onto the next leg inside the corridor (wod computed above).
     if (dToWp < Math.max(wod, 0.05)) {
       this.activeLeg++;
-      if (this.activeLeg >= R.length) { this.addAlarm('info', 'Rute fullført — ankommet siste veipunkt.'); o.sog = 0; this.autoNav = false; const demo = this._demoSail; this._demoSail = false; this.setState({ simRunning: false, routeVer: this.state.routeVer + 1 }); if (demo && this._kiosk) { clearTimeout(this._attractT); this._attractT = setTimeout(() => { if (!this.gpsMode && !(this.helm && this.helm.active)) this.loadDemoRoute(); }, 25000); } }
+      if (this.activeLeg >= R.length) { this.addAlarm('info', 'Route completed — arrived at final waypoint.'); o.sog = 0; this.autoNav = false; const demo = this._demoSail; this._demoSail = false; this.setState({ simRunning: false, routeVer: this.state.routeVer + 1 }); if (demo && this._kiosk) { clearTimeout(this._attractT); this._attractT = setTimeout(() => { if (!this.gpsMode && !(this.helm && this.helm.active)) this.loadDemoRoute(); }, 25000); } }
     }
   }
   // Shared turn geometry — single source for the autonomous controller AND the
@@ -1413,7 +1421,7 @@ class Component extends DCLogic {
       const combos = [[560, 1, 2], [400, 2.0, 1], [300, 3.2, 0]];
       let path = null;
       for (const [dv, pk, dl] of combos) { for (const clr of tries) { const p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, clr, false, dv, pk, dl); if (p && this.routeClear(p)) { path = p; break; } } if (path) break; }
-      if (path && path.length >= 2) { this.route = path; this.activeLeg = 1; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonom omruting — ny trygg rute fra gjeldende posisjon.'); }
+      if (path && path.length >= 2) { this.route = path; this.activeLeg = 1; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonomous rerouting — new safe route from present position.'); }
     } catch (e) {}
   }
   tick(dt) {
@@ -1465,11 +1473,11 @@ class Component extends DCLogic {
     const s = this.state, o = this.ownShip; let minD = 999; let landNm = null;
     for (let i = 1; i <= 18; i++) { const dnm = i / 18 * 1.8; for (let k = 0; k < 9; k++) { const p = this.moveLL(o.lat, o.lon, o.hdg + (k - 4) * 4, dnm); minD = Math.min(minD, this.depthAt(p.lat, p.lon)); if (landNm == null && (this.coastLandAt(p.lat, p.lon) || this.landAt(p.lat, p.lon))) landNm = dnm; } }
     const moving = (s.simRunning || this.gpsMode) && o.sog > 0.5;
-    if (landNm != null && moving) { if (!this._landFired) { this._landFired = true; this.addAlarm('alarm', '⚠ LAND AHEAD — kurs ' + o.hdg.toFixed(0) + '° møter land om ' + landNm.toFixed(1) + ' nm. Endre kurs eller stopp.'); } } else if (landNm == null) this._landFired = false;
+    if (landNm != null && moving) { if (!this._landFired) { this._landFired = true; this.addAlarm('alarm', '⚠ LAND AHEAD — course ' + o.hdg.toFixed(0) + '° meets land in ' + landNm.toFixed(1) + ' nm. Alter course or stop.'); } } else if (landNm == null) this._landFired = false;
     if (minD < s.safetyC && !this.groundFired && moving) { this.groundFired = true; this.addAlarm('alarm', 'ANTI-GROUNDING — sikkerhetskontur ' + s.safetyC + ' m krysses ' + (minD < 0 ? 'av land' : 'om kort tid (' + minD.toFixed(1) + ' m)') + ' i kursretningen.'); }
     if (this.route && this.activeLeg < this.route.length) { const xtd = this.crossTrack(this.route[this.activeLeg - 1], this.route[this.activeLeg], o); if (Math.abs(xtd) > this.channel && (s.simRunning || this.gpsMode) && o.sog > 0.5) { if (!this._xtdFired) { this._xtdFired = true; this.addAlarm('warning', 'Cross-track ' + Math.abs(xtd).toFixed(2) + ' nm exceeds XTD limit ' + this.channel.toFixed(2) + ' nm.'); } } else this._xtdFired = false; }
     for (const t of this.aisArr()) { const cp = this.cpa(o, t); t.dangerous = cp.cpa < s.cpaLimit && cp.tcpa > 0 && cp.tcpa < s.tcpaLimit; if (t.dangerous && !t._fired) { t._fired = true; this.addAlarm('warning', 'Dangerous target ' + t.name + ' — CPA ' + cp.cpa.toFixed(2) + ' nm in ' + cp.tcpa.toFixed(0) + ' min.'); } if (!t.dangerous) t._fired = false; }
-    { const pm = s.predMin || 6; const dir = (o.cog != null ? o.cog : o.hdg); const reach = Math.max(1.5, o.sog * pm / 60); const half = Math.max(0.05, (o.beam || 28) / 1852 / 2 + 0.04); let hz = null; if (s.hazardWarn) { outer: for (let i = 1; i <= 72; i++) { const dnm = i / 72 * reach; const c = this.moveLL(o.lat, o.lon, dir, dnm); for (let k = -2; k <= 2; k++) { const p = k === 0 ? c : this.moveLL(c.lat, c.lon, (dir + 90) % 360, k * half); const cl = this.chartLandAt(p.lat, p.lon); const land = cl === true || (cl == null && this.landAt && this.landAt(p.lat, p.lon)); if (land || this.depthAt(p.lat, p.lon) < s.safetyC) { hz = { lat: c.lat, lon: c.lon, d: dnm, land, dir }; break outer; } } } } this.hazardPt = hz; if (hz && o.sog > 1) { if (!this._hzFired) { this._hzFired = true; this.addAlarm('warning', (hz.land ? 'LAND' : 'GRUNNE / SKJÆR') + ' i predikert kurs — ' + hz.d.toFixed(1) + ' nm forut i kurs ' + dir.toFixed(0) + '°.'); } } else if (!hz) this._hzFired = false; }
+    { const pm = s.predMin || 6; const dir = (o.cog != null ? o.cog : o.hdg); const reach = Math.max(1.5, o.sog * pm / 60); const half = Math.max(0.05, (o.beam || 28) / 1852 / 2 + 0.04); let hz = null; if (s.hazardWarn) { outer: for (let i = 1; i <= 72; i++) { const dnm = i / 72 * reach; const c = this.moveLL(o.lat, o.lon, dir, dnm); for (let k = -2; k <= 2; k++) { const p = k === 0 ? c : this.moveLL(c.lat, c.lon, (dir + 90) % 360, k * half); const cl = this.chartLandAt(p.lat, p.lon); const land = cl === true || (cl == null && this.landAt && this.landAt(p.lat, p.lon)); if (land || this.depthAt(p.lat, p.lon) < s.safetyC) { hz = { lat: c.lat, lon: c.lon, d: dnm, land, dir }; break outer; } } } } this.hazardPt = hz; if (hz && o.sog > 1) { if (!this._hzFired) { this._hzFired = true; this.addAlarm('warning', (hz.land ? 'LAND' : 'SHOAL / ROCK') + ' in predicted track — ' + hz.d.toFixed(1) + ' nm ahead on course ' + dir.toFixed(0) + '°.'); } } else if (!hz) this._hzFired = false; }
   }
   crossTrack(a, b, p) { const ax = a.lon * this.cosMid, ay = a.lat, bx = b.lon * this.cosMid, by = b.lat, px = p.lon * this.cosMid, py = p.lat; const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1; return ((px - ax) * dy - (py - ay) * dx) / L * 60; }
   cpa(o, t) { const oc = (o.cog != null ? o.cog : o.hdg) * Math.PI / 180, tc2 = (t.cog != null ? t.cog : t.hdg) * Math.PI / 180; const ov = [Math.sin(oc) * o.sog, Math.cos(oc) * o.sog]; const tv = [Math.sin(tc2) * t.sog, Math.cos(tc2) * t.sog]; const rx = (t.lon - o.lon) * 60 * this.cosMid, ry = (t.lat - o.lat) * 60, rvx = tv[0] - ov[0], rvy = tv[1] - ov[1], rv2 = rvx * rvx + rvy * rvy; let tc = rv2 < 1e-6 ? 0 : -(rx * rvx + ry * rvy) / rv2; if (tc < 0) tc = 0; return { cpa: Math.hypot(rx + rvx * tc, ry + rvy * tc), tcpa: tc * 60 }; }
@@ -1483,6 +1491,7 @@ class Component extends DCLogic {
   // floor of 0.75x CSS pixels) and drop resampling quality, and step back up
   // once the machine proves fast again. Strong hardware never leaves full res.
   adaptPerf(rdt, ts) {
+    if (this.resMode !== 'auto') return; // sharp/low pins the resolution
     if (rdt > 0.25) return; // tab was hidden / debugger pause — not a real frame time
     this._ftE = this._ftE == null ? rdt : this._ftE * 0.92 + rdt * 0.08;
     if (!this._perfT) { this._perfT = ts; return; }
@@ -1598,7 +1607,7 @@ class Component extends DCLogic {
   // 'low' while the chart is actually moving and restore full quality ~250 ms
   // after the gesture ends, where the difference is actually visible.
   gesturing() { return performance.now() - (this._gestureT || 0) < 250; }
-  drawTiles(ctx, layer, op) { const L = this.TILE(layer); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = (this.gesturing() || this._perfLow) ? 'low' : 'high'; const z = this.view.zoom; const Zt = Math.max(2, Math.min(L.max, Math.round(z))); const f = Math.pow(2, z - Zt); const ts = 256 * f; const cw = this._cw; const n = Math.pow(2, Zt); const [cpx, cpy] = this.project(this.view.lat, this.view.lon, Zt); const ctx0 = cpx / 256, cty0 = cpy / 256; const reach = Math.hypot(this.W, this.H) / ts / 2 + 1; const x0 = Math.floor(ctx0 - reach), x1 = Math.ceil(ctx0 + reach), y0 = Math.max(0, Math.floor(cty0 - reach)), y1 = Math.min(n - 1, Math.ceil(cty0 + reach)); ctx.globalAlpha = op; for (let xt = x0; xt <= x1; xt++) for (let yt = y0; yt <= y1; yt++) { const dx = xt * 256 * f - cw[0], dy = yt * 256 * f - cw[1]; const img = this.tileImg(layer, Zt, xt, yt, Math.hypot(dx + ts / 2, dy + ts / 2)); if (img) ctx.drawImage(img, dx, dy, ts + 0.6, ts + 0.6); else this.drawTileFallback(ctx, layer, Zt, xt, yt, dx, dy, ts + 0.6, ts + 0.6); } ctx.globalAlpha = 1; }
+  drawTiles(ctx, layer, op) { const L = this.TILE(layer); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = (this.gesturing() || this._perfLow) ? 'low' : 'high'; const z = this.view.zoom; const over = (this.resMode === 'sharp' && this.dpr >= 1.5 && (layer === this.state.base || layer === 'oceanref' || layer === 'seamark')) ? 1 : 0; const Zt = Math.max(2, Math.min(L.max, Math.round(z) + over)); const f = Math.pow(2, z - Zt); const ts = 256 * f; const cw = this._cw; const n = Math.pow(2, Zt); const [cpx, cpy] = this.project(this.view.lat, this.view.lon, Zt); const ctx0 = cpx / 256, cty0 = cpy / 256; const reach = Math.hypot(this.W, this.H) / ts / 2 + 1; const x0 = Math.floor(ctx0 - reach), x1 = Math.ceil(ctx0 + reach), y0 = Math.max(0, Math.floor(cty0 - reach)), y1 = Math.min(n - 1, Math.ceil(cty0 + reach)); ctx.globalAlpha = op; for (let xt = x0; xt <= x1; xt++) for (let yt = y0; yt <= y1; yt++) { const dx = xt * 256 * f - cw[0], dy = yt * 256 * f - cw[1]; const img = this.tileImg(layer, Zt, xt, yt, Math.hypot(dx + ts / 2, dy + ts / 2)); if (img) ctx.drawImage(img, dx, dy, ts + 0.6, ts + 0.6); else this.drawTileFallback(ctx, layer, Zt, xt, yt, dx, dy, ts + 0.6, ts + 0.6); } ctx.globalAlpha = 1; }
   // While the target-zoom tile streams in, fill its rect from the nearest cached
   // coarser-zoom (ancestor) tile so the map is never blank — it shows immediately
   // and sharpens as tiles arrive. Bootstraps one coarse level if nothing is cached.
@@ -1624,7 +1633,7 @@ class Component extends DCLogic {
   drawLights(ctx, P) { const now = performance.now() / 1000; ctx.save(); ctx.textBaseline = 'middle'; for (const L of (this.lights || [])) { if (!this.inView(L.lat, L.lon, 16)) continue; const [x, y] = this.ll2s(L.lat, L.lon); const ph = now % L.per; const lit = ph < (L.on || 0.5); ctx.fillStyle = '#BF5AF2'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 7); ctx.fill(); ctx.stroke(); if (lit) { const rad = 17; const g = ctx.createRadialGradient(x, y, 0, x, y, rad); const c = L.col === 'R' ? '255,70,70' : L.col === 'G' ? '60,220,120' : '255,240,180'; g.addColorStop(0, 'rgba(' + c + ',.95)'); g.addColorStop(0.5, 'rgba(' + c + ',.45)'); g.addColorStop(1, 'rgba(' + c + ',0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill(); } if (this.view.zoom > 9.2) { ctx.font = '600 8px Inter'; ctx.textAlign = 'left'; ctx.lineWidth = 2.6; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.strokeText(L.label, x + 7, y + 8); ctx.fillStyle = P.ui.muted; ctx.fillText(L.label, x + 7, y + 8); } } ctx.restore(); }
   drawShip(ctx) { const o = this.ownShip; const [x, y] = this.ll2s(o.lat, o.lon); const dark = this.state.palette !== 'day'; ctx.save(); ctx.translate(x, y); ctx.rotate(o.cog * Math.PI / 180 + this.view.bearing); ctx.setLineDash([5, 4]); ctx.strokeStyle = this.hazardPt ? '#FF3B30' : '#34C759'; ctx.lineWidth = this.hazardPt ? 2.2 : 1.6; ctx.beginPath(); ctx.moveTo(0, 0); const _pm = this.state.predMin || 0; const _vl = _pm ? Math.max(20, this.nmToPx(o.sog * _pm / 60)) : Math.max(26, this.nmToPx(o.sog / 10)); ctx.lineTo(0, -_vl); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); ctx.save(); ctx.translate(x, y); ctx.rotate(o.hdg * Math.PI / 180 + this.view.bearing); const Lpx = this.nmToPx(o.len / 1852); ctx.strokeStyle = dark ? '#fff' : '#0A2540'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -Math.max(34, Lpx * 1.4)); ctx.stroke(); if (Lpx > 13) { const l = Lpx / 2, b = Math.max(2.4, this.nmToPx(o.beam / 1852) / 2); ctx.fillStyle = dark ? 'rgba(255,255,255,.6)' : 'rgba(10,37,64,.55)'; ctx.strokeStyle = dark ? '#fff' : '#0A2540'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, -l); ctx.lineTo(b, -l + b * 1.4); ctx.lineTo(b, l); ctx.lineTo(-b, l); ctx.lineTo(-b, -l + b * 1.4); ctx.closePath(); ctx.fill(); ctx.stroke(); } else { ctx.fillStyle = dark ? '#fff' : '#0A2540'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill(); ctx.strokeStyle = this.accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 8, 0, 7); ctx.stroke(); } ctx.restore(); }
   drawPredictor(ctx) { const o = this.ownShip; const pm = this.state.predMin || 0; if (!pm || o.sog < 0.3) return; const pp = this.moveLL(o.lat, o.lon, o.cog, o.sog * pm / 60); const [px, py] = this.ll2s(pp.lat, pp.lon); const dark = this.state.palette !== 'day'; ctx.save(); ctx.fillStyle = this.hazardPt ? '#FF3B30' : '#34C759'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(px, py, 4.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.font = '700 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 2.6; ctx.strokeStyle = dark ? 'rgba(0,0,0,.5)' : 'rgba(255,255,255,.85)'; ctx.strokeText(pm + ' min', px, py - 10); ctx.fillStyle = dark ? '#fff' : '#0A2540'; ctx.fillText(pm + ' min', px, py - 10); ctx.restore(); }
-  drawHazard(ctx) { const h = this.hazardPt; if (!h) return; const o = this.ownShip; const [sx, sy] = this.ll2s(o.lat, o.lon); const [hx, hy] = this.ll2s(h.lat, h.lon); const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180); ctx.save(); ctx.strokeStyle = 'rgba(255,59,48,' + (0.4 + 0.4 * pulse).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(255,59,48,' + (0.22 + 0.3 * pulse).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(hx, hy, 12 + pulse * 3, 0, 7); ctx.fill(); ctx.fillStyle = '#FF3B30'; ctx.font = '700 14px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚠', hx, hy); ctx.font = '700 8px Inter'; ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(0,0,0,.5)'; const lbl = (h.land ? 'LAND' : 'GRUNNE') + ' ' + h.d.toFixed(1) + ' nm'; ctx.strokeText(lbl, hx, hy + 18); ctx.fillStyle = '#fff'; ctx.fillText(lbl, hx, hy + 18); ctx.restore(); }
+  drawHazard(ctx) { const h = this.hazardPt; if (!h) return; const o = this.ownShip; const [sx, sy] = this.ll2s(o.lat, o.lon); const [hx, hy] = this.ll2s(h.lat, h.lon); const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180); ctx.save(); ctx.strokeStyle = 'rgba(255,59,48,' + (0.4 + 0.4 * pulse).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(255,59,48,' + (0.22 + 0.3 * pulse).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(hx, hy, 12 + pulse * 3, 0, 7); ctx.fill(); ctx.fillStyle = '#FF3B30'; ctx.font = '700 14px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚠', hx, hy); ctx.font = '700 8px Inter'; ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(0,0,0,.5)'; const lbl = (h.land ? 'LAND' : 'SHOAL') + ' ' + h.d.toFixed(1) + ' nm'; ctx.strokeText(lbl, hx, hy + 18); ctx.fillStyle = '#fff'; ctx.fillText(lbl, hx, hy + 18); ctx.restore(); }
   drawCursor(ctx) { const [x, y] = this.ll2s(this.cursor.lat, this.cursor.lon); ctx.save(); ctx.strokeStyle = this.accent; ctx.lineWidth = 1.4; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x - 14, y); ctx.lineTo(x + 14, y); ctx.moveTo(x, y - 14); ctx.lineTo(x, y + 14); ctx.stroke(); ctx.restore(); }
   drawMOB(ctx) { const [x, y] = this.ll2s(this.mob.lat, this.mob.lon); ctx.save(); ctx.fillStyle = '#FF3B30'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, 8, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = '700 8px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('MOB', x, y + 17); ctx.restore(); }
 
@@ -1651,7 +1660,7 @@ class Component extends DCLogic {
     const m = this.met; if (m && m.curSpd != null) { this.set('tidecur', m.curSpd.toFixed(1) + ' kn' + (m.curDir != null ? ' ' + Math.round(m.curDir) + '°' : '')); } else { const phase = Math.sin(this.simTime / 22350 * Math.PI * 2); this.set('tidecur', (0.4 + Math.abs(phase) * 1.3).toFixed(1) + ' kn'); }
     const tnow = this.tideNow(); if (tnow) { this.set('tideDock', (tnow.v >= 0 ? '+' : '') + tnow.v.toFixed(1) + ' m'); const ti = this.ros.tideIcon; if (ti) { ti.textContent = tnow.rate >= 0 ? '▲' : '▼'; ti.style.color = tnow.rate >= 0 ? this.accent : '#FF9F0A'; } } else this.set('tideDock', '—');
     // auto-route panel readouts
-    this.set('autoDock', this.autoNav ? 'Aktiv' : this.routePending ? 'Klar' : 'Seilas');
+    this.set('autoDock', this.autoNav ? 'Active' : this.routePending ? 'Ready' : 'Voyage');
     if (this.routePending) { const st = this.routeStats(); if (st) this.set('rpStats', st.legs + ' legs · ' + st.total.toFixed(1) + ' nm · ≥ ' + (this._routeClr || s.safetyC).toFixed(0) + ' m UKC · ETA ~' + Math.round(st.eta) + ' min'); }
     if (this.autoNav && this.route) { const st = this.routeStats(); const R = this.route, leg = Math.min(this.activeLeg, R.length - 1); this.set('anWp', leg + ' / ' + (R.length - 1)); if (st) { this.set('anDist', st.rem.toFixed(2) + ' nm'); this.set('anEta', st.eta < 1 ? '< 1 min' : Math.round(st.eta) + ' min'); } const wp = R[leg]; if (wp) this.set('anBrg', this.bearingDeg(o, wp).toFixed(0).padStart(3, '0') + '°'); const a = R[leg - 1] || R[0]; const xt = this.crossTrack(a, R[leg], o); this.set('anXtd', (Math.abs(xt) * 1).toFixed(2) + ' nm ' + (xt > 0.005 ? 'STB' : xt < -0.005 ? 'BB' : '·')); }
     if (m) { this.set('wxIcon', this.wxIconFor(m.symbol)); this.set('wxTemp', m.airTemp != null ? m.airTemp.toFixed(0) + '°C' : '—'); }
@@ -1708,7 +1717,7 @@ class Component extends DCLogic {
     if (!this.drag) return; const moved = this.drag.moved, wp = this.drag.wp, ship = this.drag.ship; const r = this.canvas.getBoundingClientRect(); const w = this.s2ll(e.clientX - r.left, e.clientY - r.top); this.drag = null; if (ship) { this.track = []; this.groundFired = false; this.setState({ shipUnlocked: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Own-ship repositioned to ' + this.fmtPos(this.ownShip.lat, this.ownShip.lon) + ' — drag-lock re-engaged.'); return; } if (wp >= 0) { if (moved) this.saveRoute(); return; } if (moved) return; const pt = { lat: w[0], lon: w[1] }; const t = this.state.tool; if (t === 'route') { if (!this.route) { this.route = []; this.channel = 0.2; this.activeLeg = 1; } this.route.push(pt); this.routeCheck = null; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1 }); } else if (t === 'autoroute') { this.autoRouteTo(pt); } else { this.doPick(pt, e.clientX - r.left, e.clientY - r.top); } };
   saveRoute() { try { if (this.route && this.route.length) localStorage.setItem('mrd_route', JSON.stringify({ route: this.route, channel: this.channel, activeLeg: this.activeLeg })); else localStorage.removeItem('mrd_route'); } catch (e) {} }
   loadRoute() { try { const raw = localStorage.getItem('mrd_route'); if (raw) { const d = JSON.parse(raw); if (d && d.route && d.route.length) { this.route = d.route; this.channel = d.channel || 0.2; this.activeLeg = d.activeLeg || 1; } } } catch (e) {} }
-  doPick(pt, mx, my) { let best = null, bd = 16; const test = (lat, lon, obj) => { const [x, y] = this.ll2s(lat, lon); const d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = obj; } }; for (const t of this.aisArr()) test(t.lat, t.lon, this.aisPickInfo(t)); for (const sh of this.shoals) test(sh.lat, sh.lon, { title: sh.name, cls: 'Charted danger · UWTROC', rows: [['Least depth', sh.d.toFixed(1) + ' m'], ['Vs safety contour', sh.d < this.state.safetyC ? 'SHALLOWER ⚠' : 'clear'], ['Source', 'Kartverket sjøkart']] }); if (best) { this.setState({ pick: best }); return; } const dep = this.depthAt(pt.lat, pt.lon); const land = dep <= 0; const pid = 'p' + Date.now(); this.setState({ pick: { id: pid, lat: pt.lat, lon: pt.lon, title: land ? 'Land area' : 'Sounding', cls: 'S-102 / EMODnet bathymetry', rows: [['Position', this.fmtPos(pt.lat, pt.lon)], ['Depth', land ? '— (land)' : dep.toFixed(1) + ' m'], ['Band', land ? 'land' : dep >= this.state.deepC ? 'deep water' : dep >= this.state.safetyC ? 'safe' : 'UNSAFE'], ['Source', land ? '—' : 'henter EMODnet…']] } }); if (!land) this.fetchPointDepth(pt, pid); }
+  doPick(pt, mx, my) { let best = null, bd = 16; const test = (lat, lon, obj) => { const [x, y] = this.ll2s(lat, lon); const d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = obj; } }; for (const t of this.aisArr()) test(t.lat, t.lon, this.aisPickInfo(t)); for (const sh of this.shoals) test(sh.lat, sh.lon, { title: sh.name, cls: 'Charted danger · UWTROC', rows: [['Least depth', sh.d.toFixed(1) + ' m'], ['Vs safety contour', sh.d < this.state.safetyC ? 'SHALLOWER ⚠' : 'clear'], ['Source', 'Kartverket chart']] }); if (best) { this.setState({ pick: best }); return; } const dep = this.depthAt(pt.lat, pt.lon); const land = dep <= 0; const pid = 'p' + Date.now(); this.setState({ pick: { id: pid, lat: pt.lat, lon: pt.lon, title: land ? 'Land area' : 'Sounding', cls: 'S-102 / EMODnet bathymetry', rows: [['Position', this.fmtPos(pt.lat, pt.lon)], ['Depth', land ? '— (land)' : dep.toFixed(1) + ' m'], ['Band', land ? 'land' : dep >= this.state.deepC ? 'deep water' : dep >= this.state.safetyC ? 'safe' : 'UNSAFE'], ['Source', land ? '—' : 'fetching EMODnet…']] } }); if (!land) this.fetchPointDepth(pt, pid); }
   async fetchPointDepth(pt, pid) {
     // Query EMODnet bathymetry for the REAL depth (metres) at the clicked point via WMS GetFeatureInfo.
     try {
@@ -1733,24 +1742,24 @@ class Component extends DCLogic {
     }
   }
   dropMOB() { this.mob = { lat: this.ownShip.lat, lon: this.ownShip.lon }; this.addAlarm('alarm', 'MAN OVERBOARD marker dropped at ' + this.fmtPos(this.ownShip.lat, this.ownShip.lon) + '.'); }
-  navStatusName(n) { return ({ 0: 'På vei (motor)', 1: 'Til ankers', 2: 'Manøvreringsudyktig', 3: 'Begrenset manøvr.', 4: 'Hindret av dypgang', 5: 'Fortøyd', 6: 'På grunn', 7: 'Driver med fiske', 8: 'På vei (seil)', 9: 'Reservert (HSC)', 11: 'Slep akter', 12: 'Skyver/sleper', 14: 'AIS-SART', 15: 'Udefinert' }[n] || '—'); }
+  navStatusName(n) { return ({ 0: 'Under way (engine)', 1: 'At anchor', 2: 'Not under command', 3: 'Restricted manoeuvr.', 4: 'Constrained by draught', 5: 'Moored', 6: 'Aground', 7: 'Engaged in fishing', 8: 'Under way (sail)', 9: 'Reserved (HSC)', 11: 'Towing astern', 12: 'Pushing/towing', 14: 'AIS-SART', 15: 'Undefined' }[n] || '—'); }
   aisPickInfo(t) {
     const cp = this.cpa(this.ownShip, t); const live = this.state.aisMode === 'live'; const rows = [];
     rows.push(['MMSI', t.mmsi ? String(t.mmsi) : (t.name ? '2576' + (t.name.length * 137 % 1000) : '—')]);
-    if (t.callsign) rows.push(['Kallesignal', t.callsign]);
+    if (t.callsign) rows.push(['Call sign', t.callsign]);
     if (t.imo) rows.push(['IMO', String(t.imo)]);
-    rows.push(['Posisjon', this.fmtPos(t.lat, t.lon)]);
+    rows.push(['Position', this.fmtPos(t.lat, t.lon)]);
     rows.push(['SOG / COG', (t.sog != null ? t.sog.toFixed(1) : '—') + ' kn / ' + (t.cog != null ? t.cog.toFixed(0) : '—') + '°']);
-    if (t.hdg != null) rows.push(['Baug (HDG)', t.hdg.toFixed(0) + '°']);
+    if (t.hdg != null) rows.push(['Heading (HDG)', t.hdg.toFixed(0) + '°']);
     if (t.navStatus != null) rows.push(['Status', this.navStatusName(t.navStatus)]);
-    rows.push(['Avstand / peiling', this.distNm(this.ownShip, t).toFixed(2) + ' nm / ' + this.bearingDeg(this.ownShip, t).toFixed(0) + '°']);
+    rows.push(['Range / bearing', this.distNm(this.ownShip, t).toFixed(2) + ' nm / ' + this.bearingDeg(this.ownShip, t).toFixed(0) + '°']);
     rows.push(['CPA / TCPA', cp.cpa.toFixed(2) + ' nm / ' + cp.tcpa.toFixed(0) + ' min']);
-    if (t.dim && (t.dim.l || t.dim.b)) rows.push(['Lengde × bredde', t.dim.l + ' × ' + t.dim.b + ' m']);
-    if (t.draught) rows.push(['Dypgang', t.draught.toFixed(1) + ' m']);
-    if (t.dest) rows.push(['Destinasjon', t.dest]);
-    if (t.last) rows.push(['Sist sett', Math.max(0, Math.round((Date.now() - t.last) / 1000)) + ' s siden']);
-    rows.push(['Kilde', live ? 'Live AIS · aisstream.io' : 'Simulert AIS klasse A']);
-    return { title: t.name || (t.mmsi ? 'MMSI ' + t.mmsi : 'Ukjent fartøy'), cls: 'AIS · ' + (t.type || 'Vessel') + (t.dangerous ? ' · ⚠ FARE' : ''), rows };
+    if (t.dim && (t.dim.l || t.dim.b)) rows.push(['Length × beam', t.dim.l + ' × ' + t.dim.b + ' m']);
+    if (t.draught) rows.push(['Draught', t.draught.toFixed(1) + ' m']);
+    if (t.dest) rows.push(['Destination', t.dest]);
+    if (t.last) rows.push(['Last seen', Math.max(0, Math.round((Date.now() - t.last) / 1000)) + ' s ago']);
+    rows.push(['Source', live ? 'Live AIS · aisstream.io' : 'Simulated AIS class A']);
+    return { title: t.name || (t.mmsi ? 'MMSI ' + t.mmsi : 'Unknown vessel'), cls: 'AIS · ' + (t.type || 'Vessel') + (t.dangerous ? ' · ⚠ DANGER' : ''), rows };
   }
 
   css(str) { const o = {}; (str || '').split(';').forEach(p => { const i = p.indexOf(':'); if (i < 0) return; const k = p.slice(0, i).trim(); if (!k) return; o[k.replace(/-([a-z])/g, (m, c) => c.toUpperCase())] = p.slice(i + 1).trim(); }); return o; }
@@ -1795,7 +1804,7 @@ class Component extends DCLogic {
       ['wind', '🌬', 'Wind streamlines', (this.met && this.met.windSpd != null) ? 'MET wind · colour by speed' : 'Modelled wind field', 'rgba(94,205,250,.18)'],
       ['temp', '🌡', 'Air temperature', (this.met && this.met.airTemp != null) ? 'MET temp field · heatmap' : 'Modelled temp field', 'rgba(240,150,58,.2)'],
       ['clouds', '☁', 'Cloud cover', (this.met && this.met.cloudFrac != null) ? 'MET cloud fraction · drifting' : 'Modelled clouds', 'rgba(180,195,210,.25)'],
-      ['precip', '🌧', 'Nedbør', (this.met && this.met.precip != null) ? 'MET precip · radar-style' : 'Modelled rain cells', 'rgba(40,140,235,.2)'],
+      ['precip', '🌧', 'Precipitation', (this.met && this.met.precip != null) ? 'MET precip · radar-style' : 'Modelled rain cells', 'rgba(40,140,235,.2)'],
       ['density', '📊', 'Traffic density', 'AIS heatmap · accumulates', 'rgba(240,150,58,.2)'],
       ['waves', '🌊', 'Sea state / swell', (this.met && this.met.waveH != null) ? 'MET wave field · animated' : 'Modelled swell', 'rgba(48,176,199,.18)'],
       ['radar', '📡', 'Radar overlay', 'Range rings + sweep · own ship', 'rgba(52,199,89,.16)'],
@@ -1836,14 +1845,14 @@ class Component extends DCLogic {
     const allV = (T && T.pts || []).map(p => p.v); const rangeV = allV.length ? Math.max(...allV) - Math.min(...allV) : null;
     const stationLabel = T ? (T.atShip ? 'Egen posisjon · ' + T.station : T.station) : '—';
     const tideRows = [
-      ['Nå', tn ? tideNowLabel + '  ' + (rising ? '↑ stiger' : '↓ synker') : '—'],
-      ['Endring', tn ? ((ratePerH >= 0 ? '+' : '') + (ratePerH * 100).toFixed(0) + ' cm/t') : '—'],
-      ['Neste flo', nh ? fmtT(nh.t) + ' · ' + fmtV(nh.v) : '—'],
-      ['Neste fjære', nl ? fmtT(nl.t) + ' · ' + fmtV(nl.v) : '—'],
-      ['Tidevannsforskjell', rangeV != null ? rangeV.toFixed(2) + ' m' : '—'],
-      ['Posisjon', this.fmtPos(this.ownShip.lat, this.ownShip.lon)],
-      ['Referanse', 'Middelvann (MSL)'],
-      ['Oppdatert', T ? fmtT(T.t) + ' UTC' : '—'],
+      ['Now', tn ? tideNowLabel + '  ' + (rising ? '↑ rising' : '↓ falling') : '—'],
+      ['Change', tn ? ((ratePerH >= 0 ? '+' : '') + (ratePerH * 100).toFixed(0) + ' cm/h') : '—'],
+      ['Next high', nh ? fmtT(nh.t) + ' · ' + fmtV(nh.v) : '—'],
+      ['Next low', nl ? fmtT(nl.t) + ' · ' + fmtV(nl.v) : '—'],
+      ['Tidal range', rangeV != null ? rangeV.toFixed(2) + ' m' : '—'],
+      ['Position', this.fmtPos(this.ownShip.lat, this.ownShip.lon)],
+      ['Reference', 'Mean sea level (MSL)'],
+      ['Updated', T ? fmtT(T.t) + ' UTC' : '—'],
     ].map(([k, v]) => ({ k, v }));
     const tideReady = !!(T && T.pts.length > 3);
     let tideLine = '', tideArea = '', tideNowX = 0, tideNowY = 0, tideZeroY = 0, tideMarks = [], tideAxis = [];
@@ -1862,7 +1871,7 @@ class Component extends DCLogic {
       }
       tideNowX = +X(nowMs).toFixed(1); tideNowY = +Y(tn ? tn.v : 0).toFixed(1); tideZeroY = +Y(0).toFixed(1);
       tideMarks = ex.filter(e => e.t >= tMin && e.t <= tMax).map(e => ({ x: +X(e.t).toFixed(1), y: +Y(e.v).toFixed(1), ly: +(e.type === 'high' ? Y(e.v) - 6 : Y(e.v) + 13).toFixed(1), label: (e.v >= 0 ? '+' : '') + e.v.toFixed(1), color: e.type === 'high' ? A : P.ui.muted }));
-      tideAxis = [-12, -6, 0, 6, 12].map(h => ({ x: +X(nowMs + h * 3600e3).toFixed(1), label: h === 0 ? 'nå' : (h > 0 ? '+' + h : '' + h) + 't' }));
+      tideAxis = [-12, -6, 0, 6, 12].map(h => ({ x: +X(nowMs + h * 3600e3).toFixed(1), label: h === 0 ? 'now' : (h > 0 ? '+' + h : '' + h) + 'h' }));
     }
     return {
       onToggleTide: () => this.setState({ tideOpen: !s.tideOpen, wxOpen: false, gyroOpen: false }), tideOpen: s.tideOpen, tideReady,
@@ -1889,7 +1898,7 @@ class Component extends DCLogic {
       shipLockStyle: C('width:38px;height:38px;border-radius:13px;border:none;background:' + (s.shipUnlocked ? '#FF9F0A' : 'transparent') + ';color:' + (s.shipUnlocked ? '#fff' : 'var(--ink,#1c1c1e)') + ';cursor:pointer;display:flex;align-items:center;justify-content:center;'),
       toolPanStyle: tool(s.tool === 'pan'), toolRouteStyle: tool(s.tool === 'route'), toolAutoStyle: tool(s.tool === 'autoroute' || !!this.autoNav), toolPickStyle: tool(s.tool === 'pick'), toolEblStyle: tool(s.tool === 'ebl'),
       toolMobStyle: C(`width:38px;height:38px;border-radius:13px;border:none;background:transparent;color:#FF3B30;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;`),
-      routeCheckMsg: (() => { const rc = this.routeCheck; if (!rc || !rc.ran) return ''; return rc.ok ? '✓ Rute klar — ingen kryssing av sikkerhetskontur eller varselområde' : ('⚠ ' + rc.dangerLegs.length + ' legg krysser sikkerhetskonturen' + (rc.minD != null ? ' (min ' + rc.minD.toFixed(1) + ' m)' : '') + (rc.warnings.length ? ' · ' + rc.warnings.length + ' varselområde' : '')); })(),
+      routeCheckMsg: (() => { const rc = this.routeCheck; if (!rc || !rc.ran) return ''; return rc.ok ? '✓ Route clear — no safety-contour crossings or warning areas' : ('⚠ ' + rc.dangerLegs.length + ' leg(s) cross the safety contour' + (rc.minD != null ? ' (min ' + rc.minD.toFixed(1) + ' m)' : '') + (rc.warnings.length ? ' · ' + rc.warnings.length + ' warning area(s)' : '')); })(),
       routeCheckColor: (() => { const rc = this.routeCheck; if (!rc || !rc.ran) return '#8e8e93'; return rc.ok ? '#34C759' : '#FF3B30'; })(),
       onFailGnss: () => this.failSensor('gnss'), onFailGyro: () => this.failSensor('gyro'),
       failGnssStyle: C(`padding:5px 9px;border-radius:8px;border:0.5px solid ${s.sensorFail.gnss ? '#FF3B30' : 'var(--hair,rgba(60,60,67,.15))'};background:${s.sensorFail.gnss ? 'rgba(255,59,48,.12)' : 'var(--card,rgba(255,255,255,.5))'};color:${s.sensorFail.gnss ? '#FF3B30' : 'var(--muted,#8e8e93)'};font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;flex:1;`),
@@ -1900,7 +1909,7 @@ class Component extends DCLogic {
       onReplayScrub: (e) => { this._replayPos = (+e.target.value) / 100; this.setState({ replay: { ...s.replay, playing: false } }); },
       replayOn: s.replay.on, replayPlayIcon: s.replay.playing ? '❚❚' : '▶',
       replayToggleStyle: C(`padding:5px 11px;border-radius:8px;border:0.5px solid ${s.replay.on ? A : 'var(--hair,rgba(60,60,67,.15))'};background:${s.replay.on ? A : 'var(--card,rgba(255,255,255,.5))'};color:${s.replay.on ? '#fff' : 'var(--muted,#8e8e93)'};font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;`),
-      trackInfo: (() => { const T = this.track; if (!T || T.length < 2) return 'Ingen track logget ennå'; const mins = Math.round(((T[T.length - 1].t || 0) - (T[0].t || 0)) / 60000); return T.length + ' punkter · ' + (mins >= 60 ? (mins / 60).toFixed(1) + ' t' : mins + ' min') + ' logget (maks 12 t)'; })(),
+      trackInfo: (() => { const T = this.track; if (!T || T.length < 2) return 'No track logged yet'; const mins = Math.round(((T[T.length - 1].t || 0) - (T[0].t || 0)) / 60000); return T.length + ' points · ' + (mins >= 60 ? (mins / 60).toFixed(1) + ' h' : mins + ' min') + ' logged (max 12 h)'; })(),
       onTabRoute: () => this.setState({ rightTab: 'route' }), onTabTargets: () => this.setState({ rightTab: 'targets' }), onTabAlarms: () => this.setState({ rightTab: 'alarms' }),
       tabIsChart: s.rightTab === 'chart', tabIsRoute: s.rightTab === 'route', tabIsTargets: s.rightTab === 'targets', tabIsAlarms: s.rightTab === 'alarms',
       onPlanToggle: () => this.setState({ planning: !plan, tool: !plan ? 'route' : 'pan' }), planBtnLabel: plan ? 'Done' : 'Plan route',
@@ -1910,7 +1919,7 @@ class Component extends DCLogic {
       onLoadDemo: () => this.loadDemoRoute(), onClearRoute: () => this.clearRoute(), channelLabel: (this.channel || 0.2).toFixed(2) + ' nm',
       noWaypoints: !R.length, alarmCount: s.alarms.filter(a => !a.ack).length, noAlarms: !s.alarms.length, onAckAll: () => this.setState({ alarms: s.alarms.map(a => ({ ...a, ack: true })) }),
       onZoomIn: () => { this.view.zoom = Math.min(18, this.view.zoom + 0.6); }, onZoomOut: () => { this.view.zoom = Math.max(4.5, this.view.zoom - 0.6); },
-      onCenterShip: () => { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; }, onToggleFollow: () => { const f = !this.state.followShip; if (f) { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; } this.setState({ followShip: f }); }, followTitle: s.followShip ? 'Følger skipet — trykk for å låse opp' : 'Følg skipet (kartet sentreres på skipet)', followStyle: C('width:34px;height:34px;border:none;background:' + (s.followShip ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (s.followShip ? '#fff' : 'var(--accent,#0A84FF)') + ';cursor:pointer;border-radius:11px;display:flex;align-items:center;justify-content:center;'), onCycleOrient: () => this.setState({ orient: s.orient === 'north' ? 'course' : s.orient === 'course' ? 'head' : 'north' }),
+      onCenterShip: () => { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; }, onToggleFollow: () => { const f = !this.state.followShip; if (f) { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; } this.setState({ followShip: f }); }, followTitle: s.followShip ? 'Following ship — tap to unlock' : 'Follow ship (chart centres on the ship)', followStyle: C('width:34px;height:34px;border:none;background:' + (s.followShip ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (s.followShip ? '#fff' : 'var(--accent,#0A84FF)') + ';cursor:pointer;border-radius:11px;display:flex;align-items:center;justify-content:center;'), onCycleOrient: () => this.setState({ orient: s.orient === 'north' ? 'course' : s.orient === 'course' ? 'head' : 'north' }),
       onToggleSim: () => this.setState({ simRunning: !s.simRunning }), playIcon: s.simRunning ? '❚❚' : '▶', simStateLabel: (s.simRunning ? 'Running' : 'Paused') + ' · ' + s.simSpeed + '×',
       onSpeed1: () => this.setState({ simSpeed: 1 }), onSpeed8: () => this.setState({ simSpeed: 8 }), onSpeed30: () => this.setState({ simSpeed: 30 }),
       pick: s.pick ? { title: s.pick.title, cls: s.pick.cls, rows: (s.pick.rows || []).map(r => Array.isArray(r) ? { k: r[0], v: r[1] } : r) } : null, onClosePick: () => this.setState({ pick: null }),
@@ -1923,21 +1932,21 @@ class Component extends DCLogic {
       autoOpen: !!s.autoOpen, autoIdleOpen: !!s.autoOpen && !this.routePending && !this.autoNav, routePendingOpen: !!s.autoOpen && !!this.routePending, autoNavOpen: !!s.autoOpen && !!this.autoNav,
       planWorking: !!this._planWorking && !this.routePending && !this.autoNav,
       planIdle: !(this._planWorking && !this.routePending && !this.autoNav),
-      autoIdleTitle: (this._planWorking && !this.routePending && !this.autoNav) ? 'Beregner rute…' : 'Autonom seilas',
-      autoIdleSub: (this._planWorking && !this.routePending && !this.autoNav) ? 'Henter sjøkart og finner et dybdetrygt løp — et øyeblikk.' : 'Velg et reisepunkt på kartet for å bygge en dybdetrygg rute.',
+      autoIdleTitle: (this._planWorking && !this.routePending && !this.autoNav) ? 'Computing route…' : 'Autonomous voyage',
+      autoIdleSub: (this._planWorking && !this.routePending && !this.autoNav) ? 'Fetching charts and finding a depth-safe passage — one moment.' : 'Pick a destination on the chart to build a depth-safe route.',
       pauseLabel: this.state.simRunning ? '❚❚ Pause' : '▶ Fortsett',
       onStartAuto: () => this.startAutoNav(), onCancelRoute: () => this.cancelAutoNav(), onPauseAuto: () => this.pauseAutoNav(),
       onOpenAuto: () => this.setState({ autoOpen: !s.autoOpen }), onCloseAuto: () => this.setState({ autoOpen: false }),
       onToggleAutoMin: () => this.setState({ autoOpen: false }),
       onPickNewPoint: () => this.setState({ autoOpen: true, tool: 'autoroute' }),
-      pickLabel: s.tool === 'autoroute' ? '⊕ Trykk på kartet for å sette punkt…' : '⊕ Velg reisepunkt',
+      pickLabel: s.tool === 'autoroute' ? '⊕ Tap the chart to set a point…' : '⊕ Pick destination',
       autoDockStyle: C('display:flex;align-items:center;gap:8px;padding:0 14px;flex:none;white-space:nowrap;border:none;background:transparent;border-right:0.5px solid var(--hair,rgba(60,60,67,.15));cursor:pointer;font-family:inherit;'),
       onPredOff: () => this.setState({ predMin: 0 }), onPred3: () => this.setState({ predMin: 3 }), onPred5: () => this.setState({ predMin: 5 }), onPred10: () => this.setState({ predMin: 10 }),
       predOffS: segCat(s.predMin === 0), pred3S: segCat(s.predMin === 3), pred5S: segCat(s.predMin === 5), pred10S: segCat(s.predMin === 10),
       onToggleHazard: () => this.setState({ hazardWarn: !s.hazardWarn }), hazardSwitch: C(`width:42px;height:25px;border-radius:13px;border:none;background:${s.hazardWarn ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;cursor:pointer;padding:0;`), hazardKnob: C(`position:absolute;top:2px;left:${s.hazardWarn ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`),
-      voyRows: (() => { try { if (!this.bbox) return []; const o = this.ownShip; const cur = this.currentAt(o.lat, o.lon); const dep = Math.max(0, this.depthAt(o.lat, o.lon)); return [['Kurs (HDG)', o.hdg.toFixed(0) + '°'], ['Rate of turn', (this._rot != null ? (this._rot >= 0 ? '+' : '') + this._rot.toFixed(0) : '0') + ' °/min'], ['Set / drift', Math.round((((cur.ang * 180 / Math.PI) % 360) + 360) % 360) + '° · ' + cur.spd.toFixed(1) + ' kn'], ['Sann vind', mw.windSpd != null ? mw.windSpd.toFixed(1) + ' m/s ' + this.compass8(mw.windDir) : '—'], ['Dybde / UKC', dep.toFixed(0) + ' · ' + (dep - this.draughtV).toFixed(1) + ' m'], ['Dypgang', this.draughtV.toFixed(1) + ' m']].map(([k, v]) => ({ k, v })); } catch (e) { return []; } })(),
+      voyRows: (() => { try { if (!this.bbox) return []; const o = this.ownShip; const cur = this.currentAt(o.lat, o.lon); const dep = Math.max(0, this.depthAt(o.lat, o.lon)); return [['Course (HDG)', o.hdg.toFixed(0) + '°'], ['Rate of turn', (this._rot != null ? (this._rot >= 0 ? '+' : '') + this._rot.toFixed(0) : '0') + ' °/min'], ['Set / drift', Math.round((((cur.ang * 180 / Math.PI) % 360) + 360) % 360) + '° · ' + cur.spd.toFixed(1) + ' kn'], ['True wind', mw.windSpd != null ? mw.windSpd.toFixed(1) + ' m/s ' + this.compass8(mw.windDir) : '—'], ['Depth / UKC', dep.toFixed(0) + ' · ' + (dep - this.draughtV).toFixed(1) + ' m'], ['Draught', this.draughtV.toFixed(1) + ' m']].map(([k, v]) => ({ k, v })); } catch (e) { return []; } })(),
       wxBigIcon: this.wxIconFor(mw.symbol), wxCondition: this.wxLabelFor(mw.symbol), wxBigTemp: mw.airTemp != null ? mw.airTemp.toFixed(1) + ' °C' : '—', wxUpdated: mw.t ? new Date(mw.t).toISOString().slice(11, 16) + ' UTC' : '—',
-      weatherRows: [ ['Vind', mw.windSpd != null ? mw.windSpd.toFixed(1) + ' m/s ' + this.compass8(mw.windDir) : '—'], ['Vindkast', mw.gust != null ? mw.gust.toFixed(1) + ' m/s' : '—'], ['Lufttemp.', mw.airTemp != null ? mw.airTemp.toFixed(1) + ' °C' : '—'], ['Duggpunkt', mw.dewPoint != null ? mw.dewPoint.toFixed(1) + ' °C' : '—'], ['Lufttrykk', mw.pressure != null ? Math.round(mw.pressure) + ' hPa' : '—'], ['Luftfukt.', mw.humidity != null ? Math.round(mw.humidity) + ' %' : '—'], ['Nedbør 1t', mw.precip != null ? mw.precip.toFixed(1) + ' mm' + (mw.precipMax != null && mw.precipMax > mw.precip ? '–' + mw.precipMax.toFixed(1) : '') : '—'], ['Nedbørsjanse', mw.precipProb != null ? Math.round(mw.precipProb) + ' %' : '—'], ['Tåke', mw.fog != null ? Math.round(mw.fog) + ' %' : '—'], ['UV-indeks', mw.uv != null ? mw.uv.toFixed(0) : '—'], ['Sjøtemp.', mw.seaTemp != null ? mw.seaTemp.toFixed(1) + ' °C' : '—'], ['Bølgehøyde', mw.waveH != null ? mw.waveH.toFixed(1) + ' m ' + (mw.waveDir != null ? this.compass8(mw.waveDir) : '') : '—'], ['Havstrøm', mw.curSpd != null ? mw.curSpd.toFixed(1) + ' kn ' + this.compass8(mw.curDir) : '—'], ['Soloppgang', mw.sunrise || '—'], ['Solnedgang', mw.sunset || '—'] ].map(([k, v]) => ({ k, v })),
+      weatherRows: [ ['Wind', mw.windSpd != null ? mw.windSpd.toFixed(1) + ' m/s ' + this.compass8(mw.windDir) : '—'], ['Gusts', mw.gust != null ? mw.gust.toFixed(1) + ' m/s' : '—'], ['Air temp.', mw.airTemp != null ? mw.airTemp.toFixed(1) + ' °C' : '—'], ['Dew point', mw.dewPoint != null ? mw.dewPoint.toFixed(1) + ' °C' : '—'], ['Pressure', mw.pressure != null ? Math.round(mw.pressure) + ' hPa' : '—'], ['Humidity', mw.humidity != null ? Math.round(mw.humidity) + ' %' : '—'], ['Precip 1h', mw.precip != null ? mw.precip.toFixed(1) + ' mm' + (mw.precipMax != null && mw.precipMax > mw.precip ? '–' + mw.precipMax.toFixed(1) : '') : '—'], ['Precip chance', mw.precipProb != null ? Math.round(mw.precipProb) + ' %' : '—'], ['Fog', mw.fog != null ? Math.round(mw.fog) + ' %' : '—'], ['UV index', mw.uv != null ? mw.uv.toFixed(0) : '—'], ['Sea temp.', mw.seaTemp != null ? mw.seaTemp.toFixed(1) + ' °C' : '—'], ['Wave height', mw.waveH != null ? mw.waveH.toFixed(1) + ' m ' + (mw.waveDir != null ? this.compass8(mw.waveDir) : '') : '—'], ['Current', mw.curSpd != null ? mw.curSpd.toFixed(1) + ' kn ' + this.compass8(mw.curDir) : '—'], ['Sunrise', mw.sunrise || '—'], ['Sunset', mw.sunset || '—'] ].map(([k, v]) => ({ k, v })),
       hasAlerts: (this.metAlerts || []).length > 0, alertRows: (this.metAlerts || []).map(a => ({ event: a.event, color: a.color, meta: [a.area, a.level].filter(Boolean).join(' · ') || a.title })),
       forecastRows: (mw.forecast || []).map(d => ({ day: d.label, icon: this.wxIconFor(d.symbol), hi: d.tMax != null ? Math.round(d.tMax) + '°' : '—', lo: d.tMin != null ? Math.round(d.tMin) + '°' : '—', wind: d.windMax != null ? Math.round(d.windMax) + (d.gustMax != null ? '(' + Math.round(d.gustMax) + ')' : '') + ' m/s' : '—', windDir: d.windDir != null ? this.compass8(d.windDir) : '', precip: d.precip != null ? (d.precip >= 0.1 ? d.precip.toFixed(1) + ' mm' : '—') : '—', precipColor: d.precip >= 0.1 ? '#2C6FDB' : 'var(--muted,#8e8e93)' })),
       hasForecast: !!(mw.forecast && mw.forecast.length),
@@ -1989,8 +1998,18 @@ class Component extends DCLogic {
         ui: { palette: s.palette, base: s.base, orient: s.orient, displayCat: s.displayCat, layers: s.layers, followShip: s.followShip, rightTab: s.rightTab, rightOpen: s.rightOpen }
       };
       localStorage.setItem('mrd_ship', JSON.stringify(snap));
-      this.persistTrack();
-      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null });
+      // AIS-bildet lagres sammen med skipet slik at radaren viser SAMME maal
+      // som ECDIS ogsaa naar sidene ikke er aapne samtidig (kiosken bytter
+      // side) eller kjorer paa hver sin skjerm (radaren poller serveren).
+      const tgts = {
+        savedAt: snap.savedAt,
+        targets: (this.aisArr() || []).filter(t => t && t.lat != null).slice(0, 40).map(t => ({
+          name: t.name || '', type: t.type || 'Vessel', lat: t.lat, lon: t.lon,
+          cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0
+        }))
+      };
+      localStorage.setItem('mrd_targets', JSON.stringify(tgts));
+      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null, targets: tgts });
       if (unloading && navigator.sendBeacon) navigator.sendBeacon('/api/ecdis-state', new Blob([doc], { type: 'application/json' }));
       else fetch('/api/ecdis-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: doc, keepalive: !!unloading }).catch(() => {});
     } catch (e) {}
@@ -2500,7 +2519,7 @@ class Component extends DCLogic {
         return;
       }
       var failed = (ap.state.alarms || []).some(function (al) {
-        return !before[al.id] && al.level === "warning" && /Fant ikke en trygg rute/.test(al.text || "");
+        return !before[al.id] && al.level === "warning" && /No safe route found/.test(al.text || "");
       });
       if (failed || ticks > 55) {
         clearInterval(routePoll);

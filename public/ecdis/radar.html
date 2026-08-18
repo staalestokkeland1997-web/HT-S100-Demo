@@ -255,24 +255,32 @@
   function loadJson(key) { try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; } }
 
   var route = DEFAULT_ROUTE;
-  var savedRoute = loadJson("mrd_route");
-  if (savedRoute && savedRoute.route && savedRoute.route.length > 1) route = savedRoute.route;
+  function adoptRoute(r) {
+    if (r && r.route && r.route.length > 1) route = r.route;
+  }
+  adoptRoute(loadJson("mrd_route"));
 
   var own = { lat: route[0].lat, lon: route[0].lon, hdg: bearingDeg(route[0], route[1]), cog: 0, sog: CRUISE, leg: 1 };
   own.cog = own.hdg;
+  var cruiseSog = CRUISE;               // farten dodregningen soker mot (fra ECDIS-snapshot)
+  var snapAt = 0;                       // savedAt for sist adopterte skips-snapshot
 
-  (function restore() {
-    var snap = loadJson("mrd_ship");
-    if (!snap || !snap.ship || !snap.savedAt) return;
+  // Adopter et skips-snapshot fra ECDIS (localStorage eller server) og dodregn
+  // det frem langs ruten etter veggklokken hvis det er gammelt. Nyere snapshot
+  // vinner alltid; samme snapshot adopteres aldri to ganger.
+  function adoptShip(snap) {
+    if (!snap || !snap.ship || !snap.savedAt || snap.savedAt <= snapAt) return false;
+    snapAt = snap.savedAt;
     own.lat = snap.ship.lat; own.lon = snap.ship.lon;
     own.hdg = snap.ship.hdg || own.hdg; own.cog = snap.ship.cog || own.hdg;
     own.sog = snap.sailing ? Math.max(6, Math.min(16, snap.ship.sog || CRUISE)) : (snap.ship.sog || 0);
+    cruiseSog = snap.sailing ? Math.max(4, Math.min(20, snap.ship.sog || CRUISE)) : (snap.ship.sog || 0);
     own.leg = Math.max(1, Math.min(snap.activeLeg || 1, route.length - 1));
     var seconds = (Date.now() - snap.savedAt) / 1000;
-    if (!snap.sailing || route.length < 2 || seconds < 20) return;
+    if (!snap.sailing || route.length < 2 || seconds < 20) return true;
     var legLen = [], total = 0, i;
     for (i = 1; i < route.length; i++) { var d = distNm(route[i - 1], route[i]); legLen.push(d); total += d; }
-    if (total < 0.1) return;
+    if (total < 0.1) return true;
     var pos = 0;
     for (i = 1; i < own.leg; i++) pos += legLen[i - 1];
     var legD = legLen[own.leg - 1] || 0.0001;
@@ -285,8 +293,31 @@
     own.lat = fa.lat + (fb.lat - fa.lat) * f;
     own.lon = fa.lon + (fb.lon - fa.lon) * f;
     own.hdg = own.cog = bearingDeg(fa, fb);
-    own.sog = CRUISE; own.leg = li;
-  })();
+    own.sog = cruiseSog = CRUISE; own.leg = li;
+    return true;
+  }
+  adoptShip(loadJson("mrd_ship"));
+
+  // AIS-bildet ECDIS lagrer hvert 5. sekund: samme maal som paa kartet,
+  // dodregnet frem langs egen COG/SOG for tiden som er gaatt.
+  var snapTargets = null, snapTargetsAt = 0;
+  function adoptTargets(tg) {
+    if (!tg || !Array.isArray(tg.targets) || !tg.savedAt || tg.savedAt <= snapTargetsAt) return false;
+    snapTargetsAt = tg.savedAt;
+    var sec = Math.max(0, (Date.now() - tg.savedAt) / 1000);
+    snapTargets = [];
+    for (var i = 0; i < tg.targets.length; i++) {
+      var t = tg.targets[i];
+      if (!t || t.lat == null || t.lon == null) continue;
+      var p = (t.sog > 0.1 && sec > 1) ? moveLL(t.lat, t.lon, t.cog || 0, t.sog * sec / 3600) : t;
+      snapTargets.push({
+        name: t.name || "", lat: p.lat, lon: p.lon,
+        cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0
+      });
+    }
+    return true;
+  }
+  adoptTargets(loadJson("mrd_targets"));
 
   var live = null, liveAt = 0, liveTargets = null, liveTargetsAt = 0;
   try {
@@ -298,6 +329,28 @@
       if (m.targets && m.targets.length) { liveTargets = m.targets; liveTargetsAt = Date.now(); }
     };
   } catch (e) {}
+
+  // Server-synk: radaren viser samme seilas og AIS-bilde som ECDIS ogsaa naar
+  // ECDIS kjorer paa en annen skjerm/nettleser eller nettopp ble lukket —
+  // /api/ecdis-state polles hvert 5. sekund og nyere snapshots adopteres.
+  // storage-hendelser gir umiddelbar synk fra ECDIS i samme nettleserprofil.
+  // Naar ECDIS er aapen samtidig i samme nettleser overtar BroadcastChannel.
+  function pollServer() {
+    fetch("/api/ecdis-state").then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
+      if (!st) return;
+      if (st.route) adoptRoute(st.route);
+      if (st.ship && !(live && Date.now() - liveAt < 4000)) adoptShip(st.ship);
+      if (st.targets && !(liveTargets && Date.now() - liveTargetsAt < 6000)) adoptTargets(st.targets);
+    }).catch(function () {});
+  }
+  pollServer();
+  setInterval(pollServer, 5000);
+  window.addEventListener("storage", function (e) {
+    if (!e || !e.key) return;
+    if (e.key === "mrd_ship") adoptShip(loadJson("mrd_ship"));
+    else if (e.key === "mrd_targets") adoptTargets(loadJson("mrd_targets"));
+    else if (e.key === "mrd_route") adoptRoute(loadJson("mrd_route"));
+  });
 
   function ownTick(dt) {
     if (live && Date.now() - liveAt < 4000) {
@@ -313,7 +366,7 @@
     var rate = Math.min(3.2, Math.abs(diff)) * Math.sign(diff);
     own.hdg = (own.hdg + rate * dt + 360) % 360;
     own.cog = own.hdg;
-    own.sog += (CRUISE - own.sog) * Math.min(1, dt * 0.25);
+    own.sog += (Math.max(0.2, cruiseSog) - own.sog) * Math.min(1, dt * 0.25);
     var step = moveLL(own.lat, own.lon, own.hdg, own.sog * dt / 3600);
     own.lat = step.lat; own.lon = step.lon;
     if (distNm(own, wp) < 0.16) {
@@ -341,6 +394,18 @@
     }
   })();
   function targetsTick(dt) {
+    // ECDIS-snapshotmaal dodregnes rett frem langs egen COG/SOG — ingen
+    // kunstig styring; neste poll/lagring korrigerer dem uansett.
+    if (snapTargets) {
+      for (var j = 0; j < snapTargets.length; j++) {
+        var st = snapTargets[j];
+        if (st.sog > 0.1) {
+          var sp = moveLL(st.lat, st.lon, st.cog, st.sog * dt / 3600);
+          st.lat = sp.lat; st.lon = sp.lon;
+        }
+      }
+      return;
+    }
     for (var i = 0; i < simTargets.length; i++) {
       var t = simTargets[i];
       t.hdg = t.cog;
@@ -355,7 +420,87 @@
   }
   function targets() {
     if (liveTargets && Date.now() - liveTargetsAt < 6000) return liveTargets;
+    if (snapTargets && snapTargets.length) return snapTargets;
     return simTargets;
+  }
+
+  // ================= Avledede live-data for venstre datakolonne =================
+  // Alt foelger demoens aand: ROT maales av faktisk kursendring, loggen
+  // akkumulerer utseilt distanse (localStorage saa den overlever omstart), og
+  // vind/strom/dybde er glatte pseudotilfeldige felt slik at tallene lever
+  // uten aa hoppe. Rutedataene regnes mot samme rute som ECDIS.
+  var rotDegMin = 0, prevRotHdg = own.hdg;
+  var logNm = 0, logSavedAt = 0;
+  (function () {
+    var v = parseFloat((function () { try { return localStorage.getItem("mrd_log") || ""; } catch (e) { return ""; } })());
+    if (isFinite(v) && v >= 0) logNm = v;
+  })();
+  function derivedTick(dt) {
+    if (dt <= 0) return;
+    var d = ((own.hdg - prevRotHdg + 540) % 360) - 180;
+    prevRotHdg = own.hdg;
+    var inst = Math.max(-40, Math.min(40, d / dt * 60));
+    rotDegMin += (inst - rotDegMin) * Math.min(1, dt * 2.2);
+    logNm += own.sog * dt / 3600;
+    var nowMs = Date.now();
+    if (nowMs - logSavedAt > 10000) {
+      logSavedAt = nowMs;
+      try { localStorage.setItem("mrd_log", logNm.toFixed(3)); } catch (e) {}
+    }
+  }
+  function envNow() {
+    var t = Date.now() / 1000;
+    return {
+      set: ((208 + 26 * Math.sin(t / 640) + 8 * Math.sin(t / 151)) % 360 + 360) % 360,
+      drift: 0.7 + 0.35 * Math.sin(t / 540 + 1.3),
+      windDir: ((243 + 24 * Math.sin(t / 590 + 0.6) + 6 * Math.sin(t / 97)) % 360 + 360) % 360,
+      windKn: Math.max(2, 11 + 4.5 * Math.sin(t / 420 + 2) + 1.5 * Math.sin(t / 71)),
+      depth: Math.max(8, 52 + 34 * Math.sin(t / 260 + own.lat * 40) + 9 * Math.sin(t / 53))
+    };
+  }
+  function distToLegNm(p, a, b) {
+    var legBrg = bearingDeg(a, b), L = distNm(a, b) || 1e-6;
+    var ang = (bearingDeg(a, p) - legBrg) * Math.PI / 180;
+    var along = Math.max(0, Math.min(L, distNm(a, p) * Math.cos(ang)));
+    var proj = moveLL(a.lat, a.lon, legBrg, along);
+    return distNm(p, proj);
+  }
+  function navData() {
+    if (route.length < 2) return null;
+    var leg = own.leg;
+    if (live && Date.now() - liveAt < 4000) {
+      // ECDIS styrer posisjonen men deler ikke aktivt legg — bruk naermeste.
+      var best = 1, bd = Infinity;
+      for (var i = 1; i < route.length; i++) {
+        var d = distToLegNm(own, route[i - 1], route[i]);
+        if (d < bd) { bd = d; best = i; }
+      }
+      leg = best;
+    }
+    leg = Math.max(1, Math.min(leg, route.length - 1));
+    var a = route[leg - 1], b = route[leg];
+    var legBrg = bearingDeg(a, b);
+    var ang = (bearingDeg(a, own) - legBrg) * Math.PI / 180;
+    var dst = distNm(own, b);
+    var ttgH = own.sog > 0.5 ? dst / own.sog : null;
+    return {
+      leg: leg, n: route.length,
+      brg: bearingDeg(own, b), dst: dst,
+      xte: distNm(a, own) * Math.sin(ang),   // + = styrbord for legglinjen
+      ttgH: ttgH
+    };
+  }
+  function fmtDur(h) {
+    if (h == null || !isFinite(h)) return "—";
+    var s = Math.round(h * 3600);
+    var mm = Math.floor((s % 3600) / 60), ss = s % 60;
+    if (s < 3600) return String(mm).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
+    return Math.floor(s / 3600) + ":" + String(mm).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
+  }
+  function fmtUTC(ms, withSec) {
+    var d = new Date(ms);
+    var hm = String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0");
+    return withSec ? hm + ":" + String(d.getUTCSeconds()).padStart(2, "0") : hm;
   }
 
   // ================= Kystlinje for landekko =================
@@ -732,13 +877,13 @@
   }
 
   // ================= Datablokker i hjornene =================
-  function drawBlock(anchor, rows, width) {
+  function drawBlock(anchor, rows, width, yPos) {
     var P = PALC[state.pal];
     var pad = 9, hh = 0, i;
     for (i = 0; i < rows.length; i++) hh += rows[i].big ? 26 : 15;
     var h = hh + pad * 2 - 3;
     var x = anchor.indexOf("l") > -1 ? 10 : W - 10 - width;
-    var y = anchor.indexOf("t") > -1 ? 10 : H - 10 - h;
+    var y = yPos != null ? yPos : anchor.indexOf("t") > -1 ? 10 : H - 10 - h;
     ctx.fillStyle = P.blockBg;
     ctx.strokeStyle = P.blockBd;
     ctx.lineWidth = 1;
@@ -784,6 +929,7 @@
         cy += 15;
       }
     }
+    return h;
   }
 
   function fmtPos(lat, lon) {
@@ -1043,19 +1189,51 @@
 
     // ---------- datablokker ----------
     var orientTxt = state.orient === "N" ? "N-UP" : state.orient === "H" ? "H-UP" : "C-UP";
-    drawBlock("tl", [
+    var leftY = 10 + drawBlock("tl", [
       { big: true, v: (state.range < 1 ? state.range.toFixed(2) : String(state.range)) + " NM", l: "RANGE" },
       { l: "RINGS", v: state.rings ? (state.range / 4).toFixed(state.range < 3 ? 2 : 1) + " NM" : "OFF" },
       { l: "PULSE", v: state.pulse + " · IR " + (state.ir ? "ON" : "OFF") + " · ES " + (state.es ? "ON" : "OFF"), small: true },
       { l: "MODE", v: orientTxt + " · " + state.motion + (state.offcenter ? " · OC" : "") }
-    ], 196);
+    ], 196) + 8;
+
+    // Venstre live-datakolonne: rute/veipunkt, egne sensorer og miljodata.
+    // Tegnes bare naar gutteren utenfor PPI-sirkelen har plass til den
+    // (kioskens 16:9 har det; smale vinduer beholder bare hjorneblokkene).
+    if (CX - R >= 220) {
+      var nowMs = Date.now();
+      var nv = navData();
+      var env = envNow();
+      if (nv) {
+        var xteAbs = Math.abs(nv.xte);
+        leftY += drawBlock("tl", [
+          { big: true, v: nv.dst.toFixed(2) + " NM", l: "WPT " + (nv.leg + 1) + "/" + nv.n },
+          { l: "BRG WPT", v: fmt3(nv.brg) },
+          { l: "XTE", v: xteAbs.toFixed(2) + " NM" + (xteAbs < 0.01 ? "" : nv.xte > 0 ? " STBD" : " PORT"), col: xteAbs > 0.2 ? WARN : null },
+          { l: "ETA WPT", v: nv.ttgH != null ? fmtUTC(nowMs + nv.ttgH * 3600e3) + " UTC" : "—" },
+          { l: "TTG", v: fmtDur(nv.ttgH) }
+        ], 196, leftY) + 8;
+      }
+      var stw = Math.max(0, own.sog - env.drift * Math.cos((env.set - own.cog) * Math.PI / 180));
+      var rotAbs = Math.abs(rotDegMin);
+      leftY += drawBlock("tl", [
+        { l: "STW", v: stw.toFixed(1) + " KN" },
+        { l: "ROT", v: rotAbs < 0.05 ? "0.0°/MIN" : rotAbs.toFixed(1) + "°/MIN " + (rotDegMin > 0 ? "STBD" : "PORT") },
+        { l: "LOG", v: (logNm < 100 ? logNm.toFixed(2) : logNm.toFixed(1)) + " NM" }
+      ], 196, leftY) + 8;
+      leftY += drawBlock("tl", [
+        { l: "WIND T", v: fmt3(env.windDir) + " · " + env.windKn.toFixed(0) + " KN" },
+        { l: "SET·DRIFT", v: fmt3(env.set) + " · " + env.drift.toFixed(1) + " KN" },
+        { l: "DEPTH", v: env.depth.toFixed(0) + " M" },
+        { l: "UTC", v: fmtUTC(nowMs, true) }
+      ], 196, leftY) + 8;
+    }
 
     drawBlock("tr", [
       { big: true, v: fmt3(own.hdg), l: "GYRO" },
       { l: "SOG", v: own.sog.toFixed(1) + " KN" },
       { l: "COG", v: fmt3(own.cog) },
       { l: "POS", v: fmtPos(own.lat, own.lon), small: true },
-      { l: "SRC", v: (live && Date.now() - liveAt < 4000) ? "ECDIS LIVE" : "SIM · GYRO OK" }
+      { l: "SRC", v: (live && Date.now() - liveAt < 4000) ? "ECDIS LIVE" : (Date.now() - snapAt < 15000 ? "ECDIS SYNC" : "SIM · GYRO OK") }
     ], 212);
 
     var cur = state.cursor;
@@ -1116,6 +1294,7 @@
     lastT = ts;
 
     ownTick(dt);
+    derivedTick(dt);
     targetsTick(dt);
     computeOrigin(0);
 
@@ -1388,6 +1567,15 @@
 
   document.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   addAlarm("RADAR READY — X-BAND SIMULATOR", "info");
+
+  // Debug-/supporthandtak (samme moenster som window.__ecdis i kartet).
+  window.__radar = {
+    get own() { return own; },
+    targets: targets,
+    get snapAt() { return snapAt; },
+    get snapTargets() { return snapTargets; },
+    state: state
+  };
 })();
 </script>
 </body>
