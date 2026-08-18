@@ -2059,47 +2059,281 @@ class Component extends DCLogic {
 }
 </script>
 <script>
-// Stedssok via ArcGIS Geocoding: skriv "Bergen" eller et havnenavn og kartet
-// flyr dit. Vises bare naar apiKeys.arcgis er satt i kioskens config.
-// Widgeten er stylet som appens egne piller og legger seg i topplinjen ved
-// merkevare-pillen; paa smale skjermer under den. All input stoppes fra aa
-// naa appens globale pointer-/tastatur-haandtering.
+// HT-dock: kioskknappene, havnesoket og et eget touch-tastatur — alt stylet med
+// appens egne palettvariabler slik at de folger day/dusk/night automatisk.
+// Soket virker offline mot en innebygd norsk havneliste og utvides med ArcGIS
+// naar kioskens API-nokkel finnes. Valgt havn kan settes som reisemaal via
+// appens dybdetrygge autoroute ("Set route to destination").
 (function () {
-  var key = (window.__kioskKeys || {}).arcgis;
-  if (!key) return;
-  var wrap = document.createElement("div");
-  wrap.style.cssText = "position:fixed;z-index:9998;width:min(280px,26vw);font-family:'Inter',system-ui,sans-serif;";
+  var doc = document;
+
+  // ---------- felles stilark (bruker appens CSS-variabler) ----------
+  var style = doc.createElement("style");
+  style.textContent = [
+    ".htd-glass{background:var(--glassbg,rgba(255,255,255,.72));backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:0.5px solid var(--glassbd,rgba(255,255,255,.5));box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));}",
+    ".htd-nav{position:fixed;left:14px;bottom:14px;z-index:9997;display:flex;gap:8px;font-family:'Inter',system-ui,sans-serif;}",
+    ".htd-navbtn{min-height:46px;display:inline-flex;align-items:center;gap:8px;padding:0 16px;border-radius:14px;color:var(--ink,#1c1c1e);font:700 11px/1 'Inter',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;-webkit-tap-highlight-color:transparent;cursor:pointer;}",
+    ".htd-navbtn:active{transform:scale(.97);}",
+    ".htd-navbtn svg{flex:none;display:block;}",
+    ".htd-navbtn.acc{color:var(--accent,#0A84FF);}",
+    ".htd-search{position:fixed;z-index:9998;font-family:'Inter',system-ui,sans-serif;}",
+    ".htd-iwrap{position:relative;}",
+    ".htd-input{width:100%;min-height:44px;padding:0 40px 0 36px;border-radius:14px;color:var(--ink,#1c1c1e);font:600 13px/1.2 'Inter',system-ui,sans-serif;outline:none;caret-color:var(--accent,#0A84FF);}",
+    ".htd-input::placeholder{color:var(--muted,#8e8e93);}",
+    ".htd-sicon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted,#8e8e93);pointer-events:none;display:flex;}",
+    ".htd-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:none;background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);font-size:13px;font-weight:700;display:none;cursor:pointer;line-height:1;}",
+    ".htd-list{margin-top:6px;border-radius:14px;overflow:hidden;display:none;}",
+    ".htd-row{display:block;width:100%;min-height:46px;padding:8px 14px;border:0;background:transparent;text-align:left;cursor:pointer;color:var(--ink,#1c1c1e);font:600 12.5px/1.3 'Inter',system-ui,sans-serif;}",
+    ".htd-row+.htd-row{border-top:0.5px solid var(--hair,rgba(60,60,67,.12));}",
+    ".htd-row:active{background:var(--seg,rgba(118,118,128,.12));}",
+    ".htd-row small{display:block;font-size:10px;font-weight:600;color:var(--muted,#8e8e93);margin-top:2px;}",
+    ".htd-dest{margin-top:6px;border-radius:16px;padding:12px 14px;display:none;color:var(--ink,#1c1c1e);}",
+    ".htd-dest h5{margin:0;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;color:var(--ink,#1c1c1e);}",
+    ".htd-dest h5 svg{flex:none;color:var(--accent,#0A84FF);}",
+    ".htd-meta{font-size:10.5px;color:var(--muted,#8e8e93);margin:4px 0 10px;font-weight:600;line-height:1.5;}",
+    ".htd-x{margin-left:auto;width:28px;height:28px;border-radius:50%;border:none;background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);cursor:pointer;font-size:12px;font-weight:700;flex:none;line-height:1;}",
+    ".htd-go{width:100%;min-height:44px;border:none;border-radius:12px;background:var(--accent,#0A84FF);color:#fff;font:700 12.5px/1 'Inter',system-ui,sans-serif;letter-spacing:.03em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;}",
+    ".htd-go:disabled{opacity:.5;cursor:default;}",
+    ".htd-go:active:not(:disabled){transform:scale(.98);}",
+    ".htd-status{display:none;align-items:center;gap:9px;min-height:38px;font:600 11.5px/1.4 'Inter',system-ui,sans-serif;color:var(--ink,#1c1c1e);}",
+    ".htd-spin{width:15px;height:15px;border-radius:50%;border:2px solid var(--seg,rgba(118,118,128,.2));border-top-color:var(--accent,#0A84FF);animation:htdspin .8s linear infinite;flex:none;}",
+    "@keyframes htdspin{to{transform:rotate(360deg);}}",
+    ".htd-kb{position:fixed;left:50%;bottom:14px;transform:translateX(-50%) translateY(calc(100% + 30px));z-index:9999;width:min(780px,calc(100vw - 24px));border-radius:20px;padding:10px;transition:transform .26s cubic-bezier(.32,.9,.35,1);font-family:'Inter',system-ui,sans-serif;}",
+    ".htd-kb.open{transform:translateX(-50%) translateY(0);}",
+    ".htd-kbrow{display:flex;gap:6px;margin-top:6px;}",
+    ".htd-kbrow:first-child{margin-top:0;}",
+    ".htd-key{flex:1;min-height:48px;border:none;border-radius:10px;background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font:600 15px/1 'Inter',system-ui,sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0;}",
+    ".htd-key:active{background:var(--accent,#0A84FF);color:#fff;}",
+    ".htd-key.fn{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#8e8e93);flex:1.5;}",
+    ".htd-key.fn:active{color:#fff;}",
+    ".htd-key.space{flex:4.2;}",
+    ".htd-key.go{background:var(--accent,#0A84FF);color:#fff;flex:1.7;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}",
+    "@media (max-height:840px){.htd-key{min-height:44px;font-size:14px;}}"
+  ].join("\n");
+  (doc.head || doc.documentElement).appendChild(style);
+
+  function app() { return window.__ecdis || null; }
+
+  // ---------- temasynk: kopier appens palettvariabler til <html> ----------
+  // Appen setter variablene paa sitt eget rot-element; dock-elementene ligger
+  // rett under <body> og maa faa de samme verdiene for aa folge day/dusk/night.
+  var lastPal = null;
+  function syncTheme() {
+    var a = app();
+    if (!a || !a.PAL || !a.state) return;
+    var pal = a.state.palette;
+    if (pal === lastPal) return;
+    lastPal = pal;
+    var u = a.PAL[pal].ui, st = doc.documentElement.style;
+    st.setProperty("--bg", u.bg); st.setProperty("--ink", u.ink); st.setProperty("--muted", u.muted);
+    st.setProperty("--glassbg", u.glassBg); st.setProperty("--glassbd", u.glassBd);
+    st.setProperty("--seg", u.seg); st.setProperty("--hair", u.hair); st.setProperty("--card", u.card);
+    st.setProperty("--shadow", u.shadow); st.setProperty("--accent", a.accent || "#0A84FF");
+    st.setProperty("--logoFilter", a.PAL[pal].logo);
+    st.setProperty("--segon", u.glassBg.indexOf("255,255,255") > -1 ? "#fff" : "rgba(255,255,255,.16)");
+  }
+  setInterval(syncTheme, 400);
+  syncTheme();
+
+  // ---------- kioskknapper nede til venstre ----------
+  var nav = doc.createElement("div");
+  nav.className = "htd-nav";
+  var kioskBtn = doc.createElement("a");
+  kioskBtn.className = "htd-navbtn htd-glass";
+  kioskBtn.href = "/select.html";
+  kioskBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg><span>Main kiosk</span>';
+  kioskBtn.addEventListener("pointerup", function (e) {
+    if (!e.isPrimary) { e.preventDefault(); window.location.href = kioskBtn.href; }
+  });
+  var radarBtn = doc.createElement("a");
+  radarBtn.className = "htd-navbtn htd-glass acc";
+  radarBtn.href = "radar.html";
+  radarBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5" opacity=".45"/><path d="M12 12 L12 3"/><path d="M12 12 L18.4 5.6" opacity=".55"/><circle cx="15.3" cy="14.6" r="1.4" fill="currentColor" stroke="none"/></svg><span>Radar</span>';
+  radarBtn.addEventListener("click", function () { radarBtn.href = "radar.html" + location.search; });
+  radarBtn.addEventListener("pointerup", function (e) {
+    if (!e.isPrimary) { e.preventDefault(); window.location.href = "radar.html" + location.search; }
+  });
+  nav.appendChild(kioskBtn);
+  nav.appendChild(radarBtn);
+  doc.body.appendChild(nav);
+
+  // ---------- innebygd havneliste (fungerer uten nett og uten API-nokkel) ----------
+  var HARBORS = [
+    ["Bergen", 60.397, 5.324], ["Kleppestø (Askøy)", 60.404, 5.225], ["Knarvik", 60.545, 5.285],
+    ["Mongstad", 60.810, 5.032], ["Fedje", 60.775, 4.715], ["Sløvåg", 60.907, 5.093],
+    ["Eivindvik", 60.982, 5.073], ["Hardbakke (Solund)", 61.078, 4.843], ["Askvoll", 61.348, 5.053],
+    ["Florø", 61.600, 5.032], ["Måløy", 61.936, 5.113], ["Selje", 62.045, 5.350],
+    ["Nordfjordeid", 61.909, 5.988], ["Sandane", 61.775, 6.216], ["Olden", 61.834, 6.810],
+    ["Loen", 61.873, 6.853], ["Stryn", 61.905, 6.712], ["Førde", 61.452, 5.853],
+    ["Høyanger", 61.218, 6.075], ["Vik i Sogn", 61.087, 6.582], ["Balestrand", 61.208, 6.532],
+    ["Sogndal", 61.230, 7.100], ["Flåm", 60.863, 7.113], ["Gudvangen", 60.879, 6.843],
+    ["Lærdal", 61.100, 7.480], ["Årdalstangen", 61.235, 7.700],
+    ["Osøyro", 60.185, 5.470], ["Halhjem", 60.145, 5.425], ["Våge (Tysnes)", 60.058, 5.537],
+    ["Rosendal", 59.987, 6.011], ["Husnes", 59.867, 5.762], ["Odda", 60.069, 6.545],
+    ["Norheimsund", 60.372, 6.145], ["Jondal", 60.277, 6.253], ["Utne", 60.424, 6.622],
+    ["Kinsarvik", 60.375, 6.720], ["Lofthus", 60.328, 6.660], ["Eidfjord", 60.467, 7.071],
+    ["Ulvik", 60.567, 6.917],
+    ["Leirvik (Stord)", 59.780, 5.500], ["Sagvåg", 59.783, 5.387], ["Fitjar", 59.917, 5.317],
+    ["Bekkjarvik", 60.006, 5.191], ["Storebø", 60.089, 5.222], ["Mosterhamn", 59.702, 5.388],
+    ["Espevær", 59.587, 5.147], ["Haugesund", 59.412, 5.263], ["Skudeneshavn", 59.145, 5.255],
+    ["Kopervik", 59.283, 5.305], ["Utsira", 59.308, 4.888], ["Sauda", 59.650, 6.353],
+    ["Sand (Suldal)", 59.484, 6.256], ["Jørpeland", 59.022, 6.043], ["Tau", 59.065, 5.913],
+    ["Stavanger", 58.974, 5.730], ["Sandnes", 58.852, 5.735], ["Egersund", 58.451, 5.999],
+    ["Flekkefjord", 58.297, 6.660], ["Farsund", 58.095, 6.800], ["Mandal", 58.025, 7.455],
+    ["Kristiansand", 58.144, 7.985], ["Lillesand", 58.250, 8.377], ["Grimstad", 58.340, 8.590],
+    ["Arendal", 58.460, 8.770], ["Risør", 58.720, 9.230], ["Kragerø", 58.869, 9.412],
+    ["Porsgrunn", 59.140, 9.655], ["Larvik", 59.045, 10.030], ["Sandefjord", 59.125, 10.220],
+    ["Tønsberg", 59.263, 10.408], ["Horten", 59.417, 10.485], ["Moss", 59.435, 10.657],
+    ["Drammen", 59.740, 10.240], ["Oslo", 59.905, 10.740], ["Fredrikstad", 59.205, 10.935],
+    ["Halden", 59.121, 11.387],
+    ["Fosnavåg", 62.342, 5.633], ["Ulsteinvik", 62.343, 5.848], ["Hareid", 62.369, 6.031],
+    ["Volda", 62.147, 6.071], ["Ørsta", 62.199, 6.130], ["Ålesund", 62.470, 6.152],
+    ["Geiranger", 62.101, 7.206], ["Hellesylt", 62.086, 6.871], ["Stranda", 62.310, 6.941],
+    ["Åndalsnes", 62.567, 7.687], ["Molde", 62.737, 7.160], ["Kristiansund", 63.110, 7.732],
+    ["Trondheim", 63.436, 10.398], ["Brekstad", 63.687, 9.664], ["Orkanger", 63.310, 9.848],
+    ["Rørvik", 64.862, 11.238], ["Namsos", 64.466, 11.494], ["Brønnøysund", 65.474, 12.211],
+    ["Sandnessjøen", 66.022, 12.632], ["Mo i Rana", 66.313, 14.130], ["Bodø", 67.283, 14.383],
+    ["Svolvær", 68.234, 14.568], ["Narvik", 68.438, 17.427], ["Harstad", 68.799, 16.541],
+    ["Tromsø", 69.649, 18.956], ["Hammerfest", 70.663, 23.683], ["Honningsvåg", 70.980, 25.970],
+    ["Vardø", 70.371, 31.107], ["Kirkenes", 69.727, 30.045]
+  ];
+
+  function norm(s) {
+    return String(s).toLowerCase()
+      .replace(/æ/g, "ae").replace(/ø/g, "o").replace(/å/g, "a")
+      .replace(/aa/g, "a").replace(/[^a-z0-9 ]/g, "");
+  }
+  function distNm(aLat, aLon, bLat, bLon) {
+    var dLat = (bLat - aLat) * 60;
+    var dLon = (bLon - aLon) * 60 * Math.cos((aLat + bLat) / 2 * Math.PI / 180);
+    return Math.hypot(dLat, dLon);
+  }
+  function brgCompass(aLat, aLon, bLat, bLon) {
+    var dLat = bLat - aLat, dLon = (bLon - aLon) * Math.cos((aLat + bLat) / 2 * Math.PI / 180);
+    var b = (Math.atan2(dLon, dLat) * 180 / Math.PI + 360) % 360;
+    return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(b / 45) % 8];
+  }
+  function shipRef() {
+    var a = app();
+    return a && a.ownShip ? a.ownShip : { lat: 60.1, lon: 5.05 };
+  }
+  function distTxt(lat, lon) {
+    var o = shipRef();
+    var d = distNm(o.lat, o.lon, lat, lon);
+    return (d >= 100 ? Math.round(d) : d.toFixed(1)) + " nm " + brgCompass(o.lat, o.lon, lat, lon) + " of ship";
+  }
+  function fmtLL(lat, lon) {
+    var la = Math.abs(lat), lo = Math.abs(lon);
+    return Math.floor(la) + "°" + ((la % 1) * 60).toFixed(1) + "'" + (lat >= 0 ? "N" : "S") + " " +
+      String(Math.floor(lo)).padStart(3, "0") + "°" + ((lo % 1) * 60).toFixed(1) + "'" + (lon >= 0 ? "E" : "W");
+  }
+
+  // ---------- soke-widget ----------
+  var wrap = doc.createElement("div");
+  wrap.className = "htd-search";
   function place() {
-    if (window.innerWidth >= 1150) { wrap.style.left = "196px"; wrap.style.top = "14px"; wrap.style.width = "min(280px,24vw)"; }
-    else { wrap.style.left = "16px"; wrap.style.top = "70px"; wrap.style.width = "260px"; }
+    if (window.innerWidth >= 1150) { wrap.style.left = "196px"; wrap.style.top = "14px"; wrap.style.width = "min(300px,25vw)"; }
+    else { wrap.style.left = "16px"; wrap.style.top = "70px"; wrap.style.width = "272px"; }
   }
   place();
   window.addEventListener("resize", place);
-  var input = document.createElement("input");
-  input.type = "search";
-  input.placeholder = "Search place or harbor…";
-  input.autocomplete = "off";
-  input.style.cssText = "width:100%;min-height:44px;padding:0 14px;border:0.5px solid rgba(60,60,67,0.18);border-radius:14px;background:rgba(255,255,255,0.85);color:#1c1c1e;font-family:inherit;font-size:13px;font-weight:600;outline:none;box-shadow:0 8px 24px rgba(0,0,0,0.12);backdrop-filter:blur(14px);";
-  var list = document.createElement("div");
-  list.style.cssText = "margin-top:6px;border-radius:14px;overflow:hidden;box-shadow:0 14px 36px rgba(0,0,0,0.22);display:none;backdrop-filter:blur(14px);";
-  wrap.appendChild(input); wrap.appendChild(list);
-  document.body.appendChild(wrap);
 
-  // Appen (og kiosk.js) lytter globalt paa pointer/tastatur - widgetens
+  var iwrap = doc.createElement("div");
+  iwrap.className = "htd-iwrap";
+  var input = doc.createElement("input");
+  input.type = "text";
+  input.className = "htd-input htd-glass";
+  input.placeholder = "Search harbor or place…";
+  input.autocomplete = "off";
+  input.setAttribute("inputmode", "none"); // eget kiosk-tastatur, ikke OS-tastaturet
+  var sicon = doc.createElement("span");
+  sicon.className = "htd-sicon";
+  sicon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.8-3.8"/></svg>';
+  var clearBtn = doc.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "htd-clear";
+  clearBtn.textContent = "✕";
+  iwrap.appendChild(input); iwrap.appendChild(sicon); iwrap.appendChild(clearBtn);
+
+  var list = doc.createElement("div");
+  list.className = "htd-list htd-glass";
+
+  var dest = doc.createElement("div");
+  dest.className = "htd-dest htd-glass";
+
+  wrap.appendChild(iwrap); wrap.appendChild(list); wrap.appendChild(dest);
+  doc.body.appendChild(wrap);
+
+  // ---------- touch-tastatur i appens stil ----------
+  var kb = doc.createElement("div");
+  kb.className = "htd-kb htd-glass";
+  var KB_ROWS = [
+    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "⌫"],
+    ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "Å"],
+    ["A", "S", "D", "F", "G", "H", "J", "K", "L", "Æ", "Ø"],
+    ["Z", "X", "C", "V", "B", "N", "M", "-", "."],
+    ["CLEAR", "SPACE", "DONE"]
+  ];
+  KB_ROWS.forEach(function (row) {
+    var rd = doc.createElement("div");
+    rd.className = "htd-kbrow";
+    row.forEach(function (k) {
+      var b = doc.createElement("button");
+      b.type = "button";
+      b.className = "htd-key" + (k === "SPACE" ? " space fn" : k === "DONE" ? " go" : k === "CLEAR" || k === "⌫" ? " fn" : "");
+      b.textContent = k === "SPACE" ? "Space" : k === "CLEAR" ? "Clear" : k === "DONE" ? "Done" : k;
+      b.dataset.k = k;
+      rd.appendChild(b);
+    });
+    kb.appendChild(rd);
+  });
+  doc.body.appendChild(kb);
+
+  function kbShow() { kb.classList.add("open"); }
+  function kbHide() { kb.classList.remove("open"); }
+
+  // Tastene bruker pointerdown + preventDefault slik at input beholder fokus.
+  var repT = null, repI = null;
+  function pressKey(k) {
+    if (k === "DONE") { kbHide(); return; }
+    if (k === "CLEAR") input.value = "";
+    else if (k === "⌫") input.value = input.value.slice(0, -1);
+    else if (k === "SPACE") input.value += " ";
+    else input.value += k;
+    onQuery();
+  }
+  kb.addEventListener("pointerdown", function (e) {
+    var b = e.target.closest ? e.target.closest("button.htd-key") : null;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!b) return;
+    var k = b.dataset.k;
+    pressKey(k);
+    if (k === "⌫") {
+      clearTimeout(repT); clearInterval(repI);
+      repT = setTimeout(function () { repI = setInterval(function () { pressKey("⌫"); }, 70); }, 450);
+    }
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) {
+    kb.addEventListener(ev, function () { clearTimeout(repT); clearInterval(repI); });
+  });
+
+  // Appen (og kiosk.js) lytter globalt paa pointer/tastatur — widgetens
   // hendelser skal ikke naa dem, ellers "krasjer" soket med kartet.
   ["pointerdown", "pointermove", "pointerup", "keydown", "keyup", "wheel", "touchstart"].forEach(function (ev) {
     wrap.addEventListener(ev, function (e) { e.stopPropagation(); });
+    kb.addEventListener(ev, function (e) { e.stopPropagation(); });
   });
 
-  var timer = null, seq = 0, current = [];
-  function app() { return window.__ecdis || null; }
+  // ---------- sok ----------
+  var timer = null, seq = 0, current = [], selected = null, routePoll = null, hideT = null;
 
   function flyTo(lat, lon) {
     var a = app(); if (!a) return;
     a.setState({ followShip: false });
     var v = a.view;
     var from = { lat: v.lat, lon: v.lon, zoom: v.zoom };
-    var to = { lat: lat, lon: lon, zoom: Math.max(v.zoom, 11.5) };
+    var to = { lat: lat, lon: lon, zoom: Math.max(Math.min(v.zoom, 12.5), 10.5) };
     var t0 = performance.now(), dur = 1200;
     function step(now) {
       var f = Math.min(1, (now - t0) / dur);
@@ -2112,22 +2346,36 @@ class Component extends DCLogic {
     requestAnimationFrame(step);
   }
 
+  function localSearch(text) {
+    var q = norm(text);
+    if (!q) return [];
+    var o = shipRef(), hits = [];
+    for (var i = 0; i < HARBORS.length; i++) {
+      var h = HARBORS[i], n = norm(h[0]);
+      var idx = n.indexOf(q);
+      if (idx < 0) continue;
+      hits.push({ name: h[0], lat: h[1], lon: h[2], local: true, rank: idx === 0 ? 0 : 1, d: distNm(o.lat, o.lon, h[1], h[2]) });
+    }
+    hits.sort(function (a, b) { return a.rank - b.rank || a.d - b.d; });
+    return hits.slice(0, 5);
+  }
+
   function render(items) {
     current = items;
     list.innerHTML = "";
     list.style.display = items.length ? "block" : "none";
-    items.forEach(function (item, index) {
-      var row = document.createElement("button");
+    items.forEach(function (item) {
+      var row = doc.createElement("button");
       row.type = "button";
-      row.textContent = item.address;
-      row.style.cssText = "display:block;width:100%;min-height:44px;padding:10px 14px;border:0;border-top:" + (index ? "0.5px solid rgba(60,60,67,0.12)" : "0") + ";background:rgba(255,255,255,0.92);color:#1c1c1e;font:600 12px/1.35 'Inter',system-ui,sans-serif;text-align:left;cursor:pointer;";
+      row.className = "htd-row";
+      var sub = doc.createElement("small");
+      sub.textContent = (item.local ? "Harbor · Norway · " : "") + distTxt(item.lat, item.lon);
+      row.textContent = item.name;
+      row.appendChild(sub);
       row.addEventListener("pointerup", function (event) {
         event.preventDefault();
         event.stopPropagation();
-        input.value = item.address;
-        render([]);
-        input.blur();
-        flyTo(item.lat, item.lon);
+        pick(item);
       });
       list.appendChild(row);
     });
@@ -2135,45 +2383,173 @@ class Component extends DCLogic {
 
   function search(text) {
     var mine = ++seq;
+    var loc = localSearch(text);
+    render(loc);
+    var key = (window.__kioskKeys || {}).arcgis;
+    if (!key) return;
     var a = app();
     var bias = a && a.ownShip ? "&location=" + a.ownShip.lon.toFixed(4) + "," + a.ownShip.lat.toFixed(4) : "";
     var url = "https://geocode-api.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates" +
-      "?f=json&outFields=none&maxLocations=5&singleLine=" + encodeURIComponent(text) + bias + "&token=" + encodeURIComponent(key);
+      "?f=json&outFields=none&maxLocations=4&singleLine=" + encodeURIComponent(text) + bias + "&token=" + encodeURIComponent(key);
     fetch(url).then(function (r) { return r.json(); }).then(function (data) {
       if (mine !== seq) return;
+      var have = {};
+      loc.forEach(function (l) { have[norm(l.name)] = true; });
       var items = ((data && data.candidates) || []).map(function (c) {
-        return { address: c.address, lat: c.location.y, lon: c.location.x };
+        return { name: c.address, lat: c.location.y, lon: c.location.x, local: false };
+      }).filter(function (c) {
+        var n = norm(String(c.name).split(",")[0]);
+        for (var k2 in have) if (n && k2.indexOf(n) === 0) return false;
+        return true;
       });
-      render(items);
-    }).catch(function () { if (mine === seq) render([]); });
+      render(loc.concat(items).slice(0, 7));
+    }).catch(function () {});
   }
 
-  input.addEventListener("input", function () {
+  function onQuery() {
     clearTimeout(timer);
+    hideDest();
+    clearBtn.style.display = input.value ? "block" : "none";
     var text = input.value.trim();
     if (text.length < 2) { seq++; render([]); return; }
-    timer = setTimeout(function () { search(text); }, 350);
+    timer = setTimeout(function () { search(text); }, 250);
+  }
+
+  // ---------- destinasjonskort med "Set route to destination" ----------
+  function insideDemoArea(lat, lon) {
+    var a = app();
+    var b = (a && a.bbox) || { latMin: 56.0, latMax: 64.0, lonMin: 0.5, lonMax: 10.5 };
+    return lat > b.latMin && lat < b.latMax && lon > b.lonMin && lon < b.lonMax;
+  }
+  function hideDest() {
+    dest.style.display = "none";
+    selected = null;
+    clearInterval(routePoll);
+    clearTimeout(hideT);
+  }
+  function showDest(item) {
+    selected = item;
+    clearInterval(routePoll);
+    clearTimeout(hideT);
+    var routable = insideDemoArea(item.lat, item.lon);
+    dest.innerHTML = "";
+    var h5 = doc.createElement("h5");
+    h5.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5.5" r="2.5"/><path d="M12 8v12M5 12H3c0 5 4 8 9 8s9-3 9-8h-2M7 12h10"/></svg>';
+    var nameSpan = doc.createElement("span");
+    nameSpan.textContent = item.name;
+    nameSpan.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+    h5.appendChild(nameSpan);
+    var x = doc.createElement("button");
+    x.type = "button"; x.className = "htd-x"; x.textContent = "✕";
+    x.addEventListener("pointerup", function (e) { e.preventDefault(); e.stopPropagation(); hideDest(); });
+    h5.appendChild(x);
+    var meta = doc.createElement("div");
+    meta.className = "htd-meta";
+    meta.textContent = fmtLL(item.lat, item.lon) + " · " + distTxt(item.lat, item.lon);
+    var go = doc.createElement("button");
+    go.type = "button";
+    go.className = "htd-go";
+    go.innerHTML = routable
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19c2 1.5 4 1.5 6 0s4-1.5 6 0 3.2 1.2 4 .7"/><path d="M6 15l6-11 6 11z"/></svg><span>Set route to destination</span>'
+      : "<span>Outside demo chart area — view only</span>";
+    go.disabled = !routable;
+    var status = doc.createElement("div");
+    status.className = "htd-status";
+    dest.appendChild(h5); dest.appendChild(meta); dest.appendChild(go); dest.appendChild(status);
+    dest.style.display = "block";
+    if (routable) {
+      go.addEventListener("pointerup", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        routeTo(item, go, status);
+      });
+    }
+  }
+  function setStatus(status, html, spin) {
+    status.innerHTML = (spin ? '<span class="htd-spin"></span>' : "") + "<span>" + html + "</span>";
+    status.style.display = "flex";
+  }
+  function routeTo(item, go, status) {
+    var a = app();
+    if (!a) return;
+    kbHide();
+    go.style.display = "none";
+    setStatus(status, "Planning a depth-safe route…", true);
+    var before = {};
+    (a.state.alarms || []).forEach(function (al) { before[al.id] = true; });
+    a.autoRouteTo({ lat: item.lat, lon: item.lon });
+    a.setState({ autoOpen: true });
+    var ticks = 0;
+    clearInterval(routePoll);
+    routePoll = setInterval(function () {
+      var ap = app();
+      if (!ap) { clearInterval(routePoll); return; }
+      ticks += 1;
+      if (ap.routePending) {
+        clearInterval(routePoll);
+        ap.startAutoNav();
+        ap.setState({ followShip: true });
+        var st = ap.routeStats ? ap.routeStats() : null;
+        setStatus(status, "Under way to <b>" + escHtml(nameOnly(item.name)) + "</b>" + (st ? " — " + st.total.toFixed(1) + " nm · ETA ~" + Math.round(st.eta) + " min" : "") + ".", false);
+        hideT = setTimeout(hideDest, 7000);
+        return;
+      }
+      if (ap.autoNav) { // ruta ble startet et annet sted (f.eks. appens eget panel)
+        clearInterval(routePoll);
+        setStatus(status, "Under way to <b>" + escHtml(nameOnly(item.name)) + "</b>.", false);
+        hideT = setTimeout(hideDest, 7000);
+        return;
+      }
+      var failed = (ap.state.alarms || []).some(function (al) {
+        return !before[al.id] && al.level === "warning" && /Fant ikke en trygg rute/.test(al.text || "");
+      });
+      if (failed || ticks > 55) {
+        clearInterval(routePoll);
+        setStatus(status, failed ? "No safe route found — the harbor is blocked by land or shoals." : "Route planning timed out — try again.", false);
+        go.style.display = "flex";
+      }
+    }, 600);
+  }
+  function nameOnly(s) { return String(s).split(",")[0]; }
+  function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  // ---------- input-hendelser ----------
+  input.addEventListener("input", onQuery);
+  input.addEventListener("focus", kbShow);
+  input.addEventListener("pointerdown", function () { kbShow(); });
+  clearBtn.addEventListener("pointerup", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    input.value = "";
+    onQuery();
+    input.focus();
+    kbShow();
   });
   input.addEventListener("keydown", function (event) {
     event.stopPropagation();
     if (event.key === "Enter" && current.length) {
       event.preventDefault();
-      input.value = current[0].address;
-      var first = current[0];
-      render([]);
-      input.blur();
-      flyTo(first.lat, first.lon);
+      pick(current[0]);
     }
-    if (event.key === "Escape") { seq++; render([]); input.blur(); }
+    if (event.key === "Escape") { seq++; render([]); kbHide(); input.blur(); }
   });
-  document.addEventListener("pointerdown", function (event) {
-    if (!wrap.contains(event.target)) render([]);
+
+  function pick(item) {
+    input.value = nameOnly(item.name);
+    clearBtn.style.display = "block";
+    seq++;
+    render([]);
+    kbHide();
+    input.blur();
+    flyTo(item.lat, item.lon);
+    showDest(item);
+  }
+
+  doc.addEventListener("pointerdown", function (event) {
+    if (wrap.contains(event.target) || kb.contains(event.target)) return;
+    seq++;
+    render([]);
+    kbHide();
   });
 })();
 </script>
-<div style="position:fixed;left:14px;bottom:14px;z-index:99999;display:flex;gap:8px;font-family:'Inter',system-ui,sans-serif;">
-  <a href="/select.html" onpointerup="if(!event.isPrimary){event.preventDefault();window.location.href=this.href;}" style="min-height:46px;display:inline-grid;place-items:center;padding:0 20px;border-radius:14px;background:rgba(255,255,255,0.85);color:#1c1c1e;border:0.5px solid rgba(60,60,67,0.18);font:700 11px/1 'Inter',system-ui,sans-serif;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,0.12);backdrop-filter:blur(14px);-webkit-tap-highlight-color:transparent;">Main kiosk</a>
-  <a href="radar.html" onclick="this.href='radar.html'+location.search;" onpointerup="if(!event.isPrimary){event.preventDefault();window.location.href='radar.html'+location.search;}" style="min-height:46px;display:inline-grid;place-items:center;padding:0 20px;border-radius:14px;background:rgba(255,255,255,0.85);color:#0A84FF;border:0.5px solid rgba(60,60,67,0.18);font:700 11px/1 'Inter',system-ui,sans-serif;letter-spacing:0.12em;text-transform:uppercase;text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,0.12);backdrop-filter:blur(14px);-webkit-tap-highlight-color:transparent;">Radar</a>
-</div>
 </body>
 </html>

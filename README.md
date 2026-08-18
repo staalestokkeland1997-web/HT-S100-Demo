@@ -21,7 +21,7 @@ Sju touchspill med maritimt preg, alle med egen highscoreliste:
 | HT Air Hockey | 1 mot 1 | `/air-hockey-standalone.html` |
 | Sonar Sequence | Hukommelse, 1 spiller | `/sonar-sequence-standalone.html` |
 | HT ECDIS | Sjokart-demo (ikke spill) | `/ecdis/index.html?kiosk=1` |
-| HT Radar | PPI-radar-demo (ikke spill) | `/ecdis/radar.html?kiosk=1` |
+| HT Radar | Radarkonsoll-demo (ikke spill) | `/ecdis/radar.html?kiosk=1` |
 
 I tillegg:
 
@@ -42,8 +42,27 @@ I tillegg:
 
 HT ECDIS er en innebygd sjokart-demonstrator: ekte norske sjokart, vaer og
 ruteplanlegging. `/proxy`-endepunktet (streng allowlist) fungerer ogsaa paa
-Vercel, saa MET/yr-vaer og Kartverket tidevann virker som for. Radaren folger
-samme seilas som ECDIS (delt lagret tilstand + BroadcastChannel).
+Vercel, saa MET/yr-vaer og Kartverket tidevann virker som for.
+
+ECDIS-dokken (Main kiosk- og Radar-knappene nede til venstre og havnesoket
+oppe ved merkevare-pillen) er stylet med appens egne palettvariabler og
+folger day/dusk/night automatisk. Havnesoket har innebygd norsk havneliste
+(virker uten API-nokkel; ArcGIS-sok legges oppaa naar nokkel finnes) og et
+eget touch-tastatur med AE/O/AA i samme glass-stil. Velg et treff for aa faa
+et destinasjonskort med "Set route to destination": appens dybdetrygge
+autoroute planlegger ruten og seilasen startes automatisk. Havner utenfor
+demo-kartomraadet vises som "view only".
+
+HT Radar er et fullverdig radarkonsoll (demo) med roterende sveip og
+etterglod, datablokker i hjornene, peilering med kurs- og nordmerke,
+TX/STBY, pulslengde SP/MP/LP, range 0,25-48 nm, ringer av/paa,
+N-UP/H-UP/C-UP, RM/TM (med TM-reset), off-center, trails 30 s-6 min,
+relative/sanne vektorer 3/6/12 min, cursoravlesning, EBL/VRM, ARPA-
+maalfolging (ACQ TT) med CPA/TCPA, faremaal-alarm med grenser, guard zone,
+maalliste, alarmliste med ACK, gain/sea/rain + AUTO, interferens-
+undertrykking (IR), echo stretch, gronn/amber fosfor og landekko fra
+kystlinjen. Radaren folger samme seilas som ECDIS (delt lagret tilstand +
+BroadcastChannel), og knapper kobler ECDIS <-> Radar <-> kiosk.
 **DEMO — ikke for navigasjon.**
 
 ## Deploy paa Vercel
@@ -109,7 +128,8 @@ Viktige seksjoner:
   `ADMIN_PASSWORD` i Vercel).
 - `apiKeys`: API-nokler for innebygde demoer. `apiKeys.aisstream` brukes av
   HT ECDIS som standardnokkel for live AIS — appen kobler til automatisk.
-  `apiKeys.arcgis` laaser opp Flyfoto/Ocean-basemaps og stedssoket.
+  `apiKeys.arcgis` laaser opp Flyfoto/Ocean-basemaps og legger ArcGIS-treff
+  oppaa havnesoket (den innebygde norske havnelisten virker uten nokkel).
 - HT ECDIS husker seg selv mellom okter: skipets posisjon, kurs, rute,
   kartlag og palett lagres hvert 5. sekund (localStorage + `/api/ecdis-state`
   i databasen). Ved neste besok dodregnes skipet frem langs ruten etter
