@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>HT Game Kiosk | Hatteland Technology</title>
+    <meta name="theme-color" content="#02070d" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #02070d;
+      }
+
+      iframe {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+        background: #02070d;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      Fullskjerm-skall: dette dokumentet navigerer ALDRI — all navigasjon
+      (spillvelger, spill, ECDIS, admin) skjer inne i iframen. Fullskjerm
+      settes paa skallet, saa den kan ikke falle ut naar appen bytter side.
+    -->
+    <iframe
+      id="app"
+      src="/select.html"
+      title="HT Game Kiosk"
+      allow="fullscreen; screen-wake-lock; geolocation"
+      allowfullscreen
+    ></iframe>
+    <script>
+      (function () {
+        var doc = document;
+        var root = doc.documentElement;
+
+        function isFullscreen() {
+          return Boolean(doc.fullscreenElement || doc.webkitFullscreenElement);
+        }
+
+        var pending = false;
+
+        function clearPending() {
+          pending = false;
+        }
+
+        function enterFullscreen() {
+          if (pending || isFullscreen()) return;
+          var request = root.requestFullscreen || root.webkitRequestFullscreen;
+          if (!request) return;
+          pending = true;
+          try {
+            var result = request.call(root, { navigationUI: "hide" });
+            if (result && typeof result.then === "function") {
+              result.then(clearPending, clearPending);
+            } else {
+              setTimeout(clearPending, 500);
+            }
+          } catch (error) {
+            pending = false;
+          }
+        }
+
+        // Trykk inne i appen (iframen) meldes hit via postMessage fra
+        // fullscreen.js. Brukeraktiveringen fra trykket gjelder ogsaa dette
+        // dokumentet (aktivering propagerer til forelder-frames), saa
+        // requestFullscreen er tillatt herfra.
+        window.addEventListener("message", function (event) {
+          if (event.origin !== location.origin) return;
+          if (event.data && event.data.type === "ht-fullscreen") enterFullscreen();
+        });
+
+        window.addEventListener("pointerdown", enterFullscreen, { capture: true, passive: true });
+        window.addEventListener("keydown", enterFullscreen, { capture: true });
+        doc.addEventListener("fullscreenchange", clearPending);
+        doc.addEventListener("webkitfullscreenchange", clearPending);
+      })();
+    </script>
+  </body>
+</html>

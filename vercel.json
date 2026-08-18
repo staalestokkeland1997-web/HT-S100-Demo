@@ -3,7 +3,7 @@
   "outputDirectory": "public",
   "cleanUrls": false,
   "rewrites": [
-    { "source": "/", "destination": "/select.html" },
+    { "source": "/", "destination": "/app.html" },
     { "source": "/proxy", "destination": "/api/proxy" },
     { "source": "/favicon.ico", "destination": "/assets/logo.svg" }
   ],
