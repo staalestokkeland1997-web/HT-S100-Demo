@@ -141,6 +141,18 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  // Offentlig helsesjekk uten sensitive data: sier om API-et lever og om
+  // varig lagring (redis/supabase) er koblet til — praktisk for kiosk-
+  // overvaaking og for aa sjekke databasen uten adminpassord.
+  if (request.method === "GET" && pathname === "/api/health") {
+    sendJson(response, 200, {
+      ok: true,
+      time: new Date().toISOString(),
+      storage: { mode: store.mode, persistent: store.persistent }
+    });
+    return;
+  }
+
   // HT ECDIS: skipets posisjon/kurs/innstillinger lagres server-side slik at
   // demoen fortsetter der den slapp selv om nettleserprofilen nullstilles.
   if (pathname === "/api/ecdis-state") {
