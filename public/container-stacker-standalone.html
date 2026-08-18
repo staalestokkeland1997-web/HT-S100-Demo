@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Container Stacker | Hatteland Technology</title>
+    <link rel="stylesheet" href="game-ui.css" />
+    <style>
+      :root {
+        --game-accent: var(--gold); --game-accent-strong: #ffb547; --game-on-accent: #14202b;
+      }
+
+      .drop-hint {
+        position: absolute;
+        left: 50%;
+        bottom: clamp(18px, 3vmin, 40px);
+        transform: translateX(-50%);
+        z-index: 3;
+        padding: 10px 22px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(3, 13, 22, 0.62);
+        font-size: clamp(10px, 1.15vmin, 13px);
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+        opacity: 0;
+        transition: opacity 300ms ease;
+        pointer-events: none;
+      }
+
+      body.game-running .drop-hint.show {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"><img src="/assets/image.png" alt="" /></span>
+          <div class="brand-text">
+            <p class="eyebrow" id="companyName">Hatteland Technology</p>
+            <h1>Container Stacker</h1>
+          </div>
+        </div>
+
+        <div class="hud">
+          <div class="stat stat--score">
+            <span>Score</span>
+            <strong id="scoreValue">0</strong>
+          </div>
+          <div class="stat stat--height">
+            <span>Height</span>
+            <strong id="heightValue">0</strong>
+          </div>
+          <div class="combo">
+            <div class="combo-head">
+              <span>Perfect</span>
+              <strong id="comboValue">x0</strong>
+            </div>
+            <div class="combo-track"><div class="combo-fill" id="comboFill"></div></div>
+          </div>
+          <div class="stat stat--time is-hidden" id="timeStat">
+            <span>Time</span>
+            <strong id="timeValue">0</strong>
+          </div>
+          <nav class="kiosk-nav" aria-label="Kiosk navigation">
+            <a class="nav-button" href="/select.html">Main kiosk</a>
+            <button id="exitGameButton" class="nav-button nav-button--exit" type="button">Exit game</button>
+          </nav>
+        </div>
+      </header>
+
+      <section class="stage">
+        <canvas id="gameCanvas"></canvas>
+        <p class="drop-hint" id="dropHint">Tap anywhere to drop</p>
+
+        <button id="holdExitButton" class="hold-exit" type="button">
+          <span>Hold to exit</span>
+          <span id="holdExitFill" class="hold-exit-fill"></span>
+        </button>
+        <button id="pauseButton" class="pause-button" type="button">Pause</button>
+
+        <div id="pauseOverlay" class="overlay hidden">
+          <div class="panel">
+            <p class="eyebrow">Paused</p>
+            <h2>Container Stacker</h2>
+            <button id="resumeButton" class="primary" type="button">Resume</button>
+          </div>
+        </div>
+
+        <div id="startOverlay" class="overlay">
+          <div class="panel">
+            <p class="eyebrow">Precision challenge</p>
+            <h2>Stack the highest tower.</h2>
+            <p>
+              The crane swings a container over the ship. Tap to release it. Whatever hangs over the
+              edge breaks off and drops into the sea &mdash; and the next container is only as wide
+              as what you landed.
+            </p>
+            <div class="steps">
+              <article class="step">
+                <b>Tap to drop</b>
+                <small>Anywhere on the screen. Timing is everything.</small>
+              </article>
+              <article class="step">
+                <b>Land it clean</b>
+                <small>A perfect hit keeps the full width and pays a rising bonus.</small>
+              </article>
+              <article class="step">
+                <b>Three in a row</b>
+                <small>Earns a reinforced wide load that grows the tower back.</small>
+              </article>
+              <article class="step">
+                <b>Climb the weather</b>
+                <small>Fog, dusk, night and northern lights. The wind picks up.</small>
+              </article>
+            </div>
+            <button id="startButton" class="primary" type="button">Start stacking</button>
+            <div class="board">
+              <span>Container Stacker top scores</span>
+              <ol id="startBoard">
+                <li><span>No scores yet</span><b>0</b></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+
+        <div id="endOverlay" class="overlay hidden">
+          <div class="panel">
+            <p class="eyebrow" id="endKicker">Tower collapsed</p>
+            <h2 id="endTitle">Nice stack.</h2>
+            <div class="result-figures">
+              <article class="figure figure--hero">
+                <span>Score</span>
+                <strong id="finalScore">0</strong>
+              </article>
+              <article class="figure">
+                <span>Containers</span>
+                <strong id="finalHeight">0</strong>
+              </article>
+              <article class="figure">
+                <span>Best combo</span>
+                <strong id="finalCombo">0</strong>
+              </article>
+              <article class="figure">
+                <span>Altitude</span>
+                <strong id="finalZone">Harbor</strong>
+              </article>
+              <article class="figure">
+                <span>Record</span>
+                <strong id="finalRecord">0</strong>
+              </article>
+            </div>
+            <p class="rank-teaser" id="rankTeaser" aria-live="polite"></p>
+
+            <form id="registrationForm" class="form" novalidate>
+              <input id="nameInput" type="text" maxlength="40" placeholder="Name *" autocomplete="name" />
+              <input id="emailInput" type="email" maxlength="80" placeholder="Email" autocomplete="email" />
+              <input id="phoneInput" type="tel" maxlength="30" placeholder="Phone" autocomplete="tel" />
+              <label class="consent">
+                <input id="consentInput" type="checkbox" />
+                <span id="consentLabel">
+                  I consent to Hatteland Technology storing my contact details only for this game and prize contact.
+                </span>
+              </label>
+              <button id="saveScoreButton" class="primary" type="submit">Save score</button>
+            </form>
+            <p id="formMessage" class="message" aria-live="polite"></p>
+
+            <div class="board">
+              <span>Container Stacker top scores</span>
+              <ol id="endBoard">
+                <li><span>No scores yet</span><b>0</b></li>
+              </ol>
+            </div>
+
+            <div class="row">
+              <button id="playAgainButton" class="primary" type="button">Play again</button>
+              <a class="secondary" href="/select.html">Main kiosk</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        var GAME_ID = "stacker";
+        var canvas = document.getElementById("gameCanvas");
+        var ctx = canvas.getContext("2d");
+        var isFileMode = window.location.protocol === "file:";
+
+        var ui = {
+          score: document.getElementById("scoreValue"),
+          height: document.getElementById("heightValue"),
+          combo: document.getElementById("comboValue"),
+          comboFill: document.getElementById("comboFill"),
+          timeStat: document.getElementById("timeStat"),
+          time: document.getElementById("timeValue"),
+          dropHint: document.getElementById("dropHint"),
+          startOverlay: document.getElementById("startOverlay"),
+          endOverlay: document.getElementById("endOverlay"),
+          pauseOverlay: document.getElementById("pauseOverlay"),
+          startButton: document.getElementById("startButton"),
+          playAgainButton: document.getElementById("playAgainButton"),
+          pauseButton: document.getElementById("pauseButton"),
+          resumeButton: document.getElementById("resumeButton"),
+          exitGameButton: document.getElementById("exitGameButton"),
+          holdExitButton: document.getElementById("holdExitButton"),
+          holdExitFill: document.getElementById("holdExitFill"),
+          endKicker: document.getElementById("endKicker"),
+          endTitle: document.getElementById("endTitle"),
+          finalScore: document.getElementById("finalScore"),
+          finalHeight: document.getElementById("finalHeight"),
+          finalCombo: document.getElementById("finalCombo"),
+          finalZone: document.getElementById("finalZone"),
+          finalRecord: document.getElementById("finalRecord"),
+          rankTeaser: document.getElementById("rankTeaser"),
+          startBoard: document.getElementById("startBoard"),
+          endBoard: document.getElementById("endBoard"),
+          form: document.getElementById("registrationForm"),
+          name: document.getElementById("nameInput"),
+          email: document.getElementById("emailInput"),
+          phone: document.getElementById("phoneInput"),
+          consent: document.getElementById("consentInput"),
+          consentLabel: document.getElementById("consentLabel"),
+          saveButton: document.getElementById("saveScoreButton"),
+          message: document.getElementById("formMessage"),
+          companyName: document.getElementById("companyName")
+        };
+
+        var DEFAULTS = {
+          difficultyName: "Normal",
+          startSpeedPercent: 100,
+          speedRampPercent: 100,
+          startWidthPercent: 100,
+          perfectTolerancePercent: 5,
+          perfectRegainPercent: 35,
+          swayStartLevel: 8,
+          swayStrengthPercent: 100,
+          basePoints: 10,
+          perfectBonusPoints: 25,
+          maxComboBonus: 120,
+          timeLimitSeconds: 90,
+          enableSway: true,
+          enableTimeLimit: false
+        };
+
+        var settings = Object.assign({}, DEFAULTS);
+        var pendingSettings = null;
+
+        // Faste verdenskoordinater (1000 bredt) skaleres til lerretet, saa
+        // vanskelighetsgraden blir lik paa alle skjermstorrelser.
+        var WORLD_W = 1000;
+        var BLOCK_H = 46;
+        var VISIBLE_ROWS = 9;
+        var HANG_ROWS = 3.4;
+        var BASE_SPEED = 190;
+        var DROP_MS = 210;
+        var PERFECTS_FOR_WIDE = 3;
+
+        var HUES = [188, 44, 152, 20, 262, 348];
+
+        // Miljoet endrer seg med hoyden - den viktigste grunnen til
+        // aa fortsette aa bygge.
+        var ZONES = [
+          { at: 0, name: "Harbor", top: [8, 42, 68], bottom: [24, 104, 140], stars: 0, fog: 0, aurora: 0 },
+          { at: 10, name: "Sea fog", top: [16, 52, 74], bottom: [126, 152, 168], stars: 0, fog: 0.85, aurora: 0 },
+          { at: 21, name: "Dusk", top: [34, 44, 84], bottom: [198, 104, 66], stars: 0.15, fog: 0.2, aurora: 0 },
+          { at: 33, name: "Night shift", top: [5, 12, 26], bottom: [16, 38, 62], stars: 1, fog: 0.05, aurora: 0.25 },
+          { at: 46, name: "Northern lights", top: [3, 8, 18], bottom: [8, 34, 44], stars: 1, fog: 0, aurora: 1 },
+          { at: 62, name: "Stratosphere", top: [1, 3, 10], bottom: [6, 14, 30], stars: 1, fog: 0, aurora: 0.5 }
+        ];
+
+        var state = null;
+        var view = { scale: 1, offsetX: 0, w: 0, h: 0 };
+        var stars = [];
+        var animationId = 0;
+        var lastTime = 0;
+        var holdExitTimer = null;
+        var holdExitProgressTimer = null;
+        var HOLD_EXIT_MS = 1200;
+        var idleTimer = null;
+        var IDLE_RESET_MS = 90000;
+        var boardEntries = [];
+
+        function percent(value) {
+          return Number(value || 0) / 100;
+        }
+
+        function clamp(value, min, max) {
+          return Math.max(min, Math.min(max, value));
+        }
+
+        function lerp(a, b, t) {
+          return a + (b - a) * t;
+        }
+
+        function rgb(channels, alpha) {
+          return (
+            "rgba(" +
+            Math.round(channels[0]) +
+            "," +
+            Math.round(channels[1]) +
+            "," +
+            Math.round(channels[2]) +
+            "," +
+            (alpha === undefined ? 1 : alpha) +
+            ")"
+          );
+        }
+
+        function mixChannels(a, b, t) {
+          return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+        }
+
+        // Glidende overgang mellom sonene i stedet for harde bytter.
+        function zoneAt(height) {
+          var lower = ZONES[0];
+          var upper = ZONES[ZONES.length - 1];
+
+          for (var i = 0; i < ZONES.length - 1; i += 1) {
+            if (height >= ZONES[i].at && height < ZONES[i + 1].at) {
+              lower = ZONES[i];
+              upper = ZONES[i + 1];
+              break;
+            }
+            if (height >= ZONES[ZONES.length - 1].at) {
+              lower = ZONES[ZONES.length - 1];
+              upper = ZONES[ZONES.length - 1];
+            }
+          }
+
+          var span = Math.max(1, upper.at - lower.at);
+          var t = clamp((height - lower.at) / span, 0, 1);
+
+          return {
+            name: t > 0.5 ? upper.name : lower.name,
+            top: mixChannels(lower.top, upper.top, t),
+            bottom: mixChannels(lower.bottom, upper.bottom, t),
+            stars: lerp(lower.stars, upper.stars, t),
+            fog: lerp(lower.fog, upper.fog, t),
+            aurora: lerp(lower.aurora, upper.aurora, t)
+          };
+        }
+
+        function zoneNameFor(height) {
+          var name = ZONES[0].name;
+          for (var i = 0; i < ZONES.length; i += 1) {
+            if (height >= ZONES[i].at) name = ZONES[i].name;
+          }
+          return name;
+        }
+
+
+
+
+        function createState() {
+          var startWidth = Math.max(120, Math.round(360 * percent(settings.startWidthPercent)));
+          return {
+            running: false,
+            paused: false,
+            over: false,
+            score: 0,
+            placed: 0,
+            combo: 0,
+            bestCombo: 0,
+            perfectStreak: 0,
+            wideLoadPending: false,
+            timeLeft: Number(settings.timeLimitSeconds || 90),
+            baseWidth: startWidth,
+            stack: [{ x: (WORLD_W - startWidth) / 2, width: startWidth, hue: HUES[0], row: 0 }],
+            current: null,
+            drop: null,
+            debris: [],
+            particles: [],
+            pops: [],
+            banner: null,
+            zoneName: ZONES[0].name,
+            cameraY: 0,
+            cameraTarget: 0,
+            shake: 0,
+            flash: 0,
+            timeScale: 1,
+            wavePhase: 0,
+            windPhase: 0,
+            wind: 0,
+            recordHeight: getRecordHeight()
+          };
+        }
+
+        function currentSpeed() {
+          var base = BASE_SPEED * percent(settings.startSpeedPercent);
+          var ramp = 1 + state.placed * 0.035 * percent(settings.speedRampPercent);
+          return Math.min(base * ramp, BASE_SPEED * 3.4);
+        }
+
+        function swayAmplitude() {
+          if (!settings.enableSway) return 0;
+          var startLevel = Number(settings.swayStartLevel || 0);
+          if (state.placed < startLevel) return 0;
+          return Math.min(52, (state.placed - startLevel) * 2.4) * percent(settings.swayStrengthPercent);
+        }
+
+        function windStrength() {
+          if (!settings.enableSway) return 0;
+          var startLevel = Number(settings.swayStartLevel || 0) + 6;
+          if (state.placed < startLevel) return 0;
+          return Math.min(34, (state.placed - startLevel) * 1.5) * percent(settings.swayStrengthPercent);
+        }
+
+        function spawnContainer() {
+          var top = state.stack[state.stack.length - 1];
+          var wide = state.wideLoadPending;
+          var width = top.width;
+
+          if (wide) {
+            // Belonning for tre perfekte paa rad: taarnet vokser tilbake.
+            width = Math.min(state.baseWidth, Math.round(top.width * 1.32) + 18);
+            state.wideLoadPending = false;
+          }
+
+          var fromLeft = state.stack.length % 2 === 0;
+          var travel = fromLeft ? 0 : Math.max(0, WORLD_W - width);
+
+          state.current = {
+            x: travel,
+            width: width,
+            hue: HUES[state.stack.length % HUES.length],
+            golden: !wide && state.stack.length > 0 && state.stack.length % 7 === 0,
+            wide: wide,
+            direction: fromLeft ? 1 : -1,
+            travel: travel,
+            swayPhase: Math.random() * Math.PI * 2,
+            row: state.stack.length
+          };
+
+          if (wide) {
+            showBanner("REINFORCED WIDE LOAD", "#68f2a6");
+          }
+        }
+
+        function resizeCanvas() {
+          var rect = canvas.getBoundingClientRect();
+          var ratio = Math.min(window.devicePixelRatio || 1, 2);
+          view.w = Math.max(1, Math.round(rect.width));
+          view.h = Math.max(1, Math.round(rect.height));
+          canvas.width = Math.round(view.w * ratio);
+          canvas.height = Math.round(view.h * ratio);
+          ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+          // Spillfeltet dekker bare midten av skjermen, slik at hele skipet
+          // med baug og bro faar plass og det er synlig sjo paa begge sider.
+          // Nedre grense: ved et bittelite/skjult vindu kunne skalaen bli
+          // 0 eller negativ - da fryser tegne-lokkene og kameraet deler
+          // paa null.
+          var scaleX = (view.w * 0.76) / WORLD_W;
+          var scaleY = (baseline() - 76) / (BLOCK_H * VISIBLE_ROWS);
+          view.scale = Math.max(0.05, Math.min(scaleX, scaleY));
+          view.offsetX = (view.w - WORLD_W * view.scale) / 2;
+
+          buildStars();
+          if (state) {
+            // Reframe taarnet etter rotasjon/resize, ellers star det feil
+            // til neste slipp.
+            updateCameraTarget();
+          }
+          render();
+        }
+
+        function buildStars() {
+          stars = [];
+          for (var i = 0; i < 90; i += 1) {
+            stars.push({
+              x: Math.random() * view.w,
+              y: Math.random() * view.h * 0.72,
+              r: Math.random() * 1.5 + 0.4,
+              twinkle: Math.random() * Math.PI * 2
+            });
+          }
+        }
+
+        // Dekket paa skipet. Alt under er skrog og sjo, saa det maa vaere
+        // god plass igjen under linjen.
+        function baseline() {
+          return view.h * 0.8;
+        }
+
+        // Der sjoen moter himmelen. Havnesilhuetten staar paa denne linjen.
+        function seaHorizon() {
+          return view.h * 0.48;
+        }
+
+        function seaParallax() {
+          return state.cameraY * view.scale * 0.12;
+        }
+
+        function toScreenX(worldX) {
+          return view.offsetX + worldX * view.scale;
+        }
+
+        function rowScreenY(row) {
+          return baseline() - (row + 1) * BLOCK_H * view.scale + state.cameraY * view.scale;
+        }
+
+        function updateCameraTarget() {
+          var stackTop = state.stack.length - 1;
+          // Hold toppen av taarnet rundt 62 % ned paa skjermen, med plass til kranen.
+          var desired = (view.h * 0.62 - baseline()) / view.scale + (stackTop + 1) * BLOCK_H;
+          state.cameraTarget = Math.max(0, desired);
+        }
+
+        function bump(element) {
+          element.classList.add("bump");
+          setTimeout(function () {
+            element.classList.remove("bump");
+          }, 130);
+        }
+
+        function updateHud(animate) {
+          ui.score.textContent = String(state.score);
+          ui.height.textContent = String(state.placed);
+          ui.combo.textContent = "x" + state.perfectStreak;
+          ui.comboFill.style.width =
+            Math.round((Math.min(PERFECTS_FOR_WIDE, state.perfectStreak) / PERFECTS_FOR_WIDE) * 100) + "%";
+
+          if (animate) {
+            bump(ui.score);
+          }
+
+          if (settings.enableTimeLimit) {
+            ui.timeStat.classList.remove("is-hidden");
+            ui.time.textContent = String(Math.max(0, Math.ceil(state.timeLeft)));
+          } else {
+            ui.timeStat.classList.add("is-hidden");
+          }
+        }
+
+        function showBanner(text, color) {
+          state.banner = { text: text, color: color || "#f4fbff", life: 1.6 };
+        }
+
+        function addPop(text, worldX, row, color) {
+          state.pops.push({ text: text, x: worldX, row: row, life: 1, color: color || "#68f2a6" });
+        }
+
+        function addParticles(worldX, row, count, hue, kind) {
+          for (var i = 0; i < count; i += 1) {
+            if (state.particles.length > 240) break;
+            state.particles.push({
+              x: worldX + (Math.random() - 0.5) * 40,
+              row: row + Math.random() * 0.4,
+              vx: (Math.random() - 0.5) * 260,
+              vy: kind === "splash" ? -(120 + Math.random() * 200) : -(40 + Math.random() * 220),
+              life: 0.5 + Math.random() * 0.5,
+              maxLife: 1,
+              size: 2 + Math.random() * 3.5,
+              hue: hue,
+              kind: kind || "dust"
+            });
+          }
+        }
+
+        function dropContainer() {
+          if (!state.running || state.paused || !state.current || state.drop) return;
+
+          var moving = state.current;
+          var top = state.stack[state.stack.length - 1];
+          var left = Math.max(moving.x, top.x);
+          var right = Math.min(moving.x + moving.width, top.x + top.width);
+          var overlap = right - left;
+          // Sammenlign sentrum, ikke venstrekant: en bred last som slippes
+          // midt paa skal telle som perfekt selv om kantene stikker utenfor.
+          var offset = Math.abs(moving.x + moving.width / 2 - (top.x + top.width / 2));
+          var tolerance = Math.max(4, top.width * percent(settings.perfectTolerancePercent));
+
+          // Utfallet avgjores i det containeren slippes; animasjonen viser det bare.
+          state.drop = {
+            from: moving.row + HANG_ROWS,
+            to: moving.row,
+            elapsed: 0,
+            container: moving,
+            missed: overlap <= 0,
+            perfect: overlap > 0 && offset <= tolerance,
+            left: left,
+            right: right,
+            overlap: overlap
+          };
+
+          state.current = null;
+          ui.dropHint.classList.remove("show");
+        }
+
+        function resolveDrop() {
+          var drop = state.drop;
+          var moving = drop.container;
+          var top = state.stack[state.stack.length - 1];
+          state.drop = null;
+
+          if (drop.missed) {
+            state.debris.push({
+              x: moving.x,
+              width: moving.width,
+              row: moving.row,
+              hue: moving.hue,
+              vy: 0,
+              vx: moving.direction * 40,
+              spin: moving.direction * 1.8,
+              angle: 0
+            });
+            state.shake = 1;
+            endGame(false);
+            return;
+          }
+
+          var placedX = drop.left;
+          var placedWidth = drop.overlap;
+          var overhangLeftWidth = Math.max(0, drop.left - moving.x);
+          var overhangRightWidth = Math.max(0, moving.x + moving.width - drop.right);
+
+          if (drop.perfect) {
+            var regain = Math.round((moving.width - drop.overlap) * percent(settings.perfectRegainPercent));
+            placedWidth = Math.min(state.baseWidth, top.width + Math.max(0, regain));
+            placedX = clamp(top.x - regain / 2, 0, WORLD_W - placedWidth);
+
+            state.combo += 1;
+            state.perfectStreak += 1;
+            state.bestCombo = Math.max(state.bestCombo, state.perfectStreak);
+            state.flash = 0.9;
+            state.timeScale = 0.35;
+
+            // Stigende tonehoyde per perfekt - den klassiske "en til"-kroken.
+            if (state.perfectStreak > 0 && state.perfectStreak % PERFECTS_FOR_WIDE === 0) {
+              state.wideLoadPending = true;
+            }
+          } else {
+            state.combo = 0;
+            state.perfectStreak = 0;
+
+            // En bred last kan henge over paa BEGGE sider - slipp en bit
+            // per side som faktisk stikker utenfor.
+            if (overhangLeftWidth > 1) {
+              state.debris.push({
+                x: moving.x,
+                width: overhangLeftWidth,
+                row: moving.row,
+                hue: moving.hue,
+                vy: 0,
+                vx: -80,
+                spin: -2.4,
+                angle: 0
+              });
+            }
+            if (overhangRightWidth > 1) {
+              state.debris.push({
+                x: drop.right,
+                width: overhangRightWidth,
+                row: moving.row,
+                hue: moving.hue,
+                vy: 0,
+                vx: 80,
+                spin: 2.4,
+                angle: 0
+              });
+            }
+          }
+
+          var gained = Number(settings.basePoints || 10);
+
+          if (drop.perfect) {
+            gained += Math.min(
+              Number(settings.maxComboBonus || 120),
+              Number(settings.perfectBonusPoints || 25) * state.perfectStreak
+            );
+          }
+
+          if (moving.golden) {
+            gained *= 2;
+          }
+
+          state.score += gained;
+          state.placed += 1;
+
+          state.stack.push({
+            x: placedX,
+            width: placedWidth,
+            hue: moving.hue,
+            row: moving.row,
+            perfect: drop.perfect,
+            golden: moving.golden
+          });
+
+          var centerX = placedX + placedWidth / 2;
+          addParticles(centerX, moving.row, drop.perfect ? 18 : 10, moving.hue, "dust");
+          addPop(
+            (drop.perfect ? "PERFECT +" : "+") + gained,
+            centerX,
+            moving.row,
+            drop.perfect ? "#68f2a6" : moving.golden ? "#f5c84b" : "#dbeaf4"
+          );
+
+          if (drop.perfect && state.perfectStreak > 1) {
+            showBanner("PERFECT x" + state.perfectStreak, "#68f2a6");
+          }
+
+          if (moving.golden) {
+            showBanner("PRIORITY CARGO - DOUBLE POINTS", "#f5c84b");
+          }
+
+          // Ny hoyderekord midt i runden er en sterk grunn til aa fortsette.
+          if (state.recordHeight > 0 && state.placed === state.recordHeight + 1) {
+            showBanner("NEW RECORD HEIGHT", "#f5c84b");
+            state.flash = Math.max(state.flash, 0.7);
+          }
+
+          var nextZone = zoneNameFor(state.placed);
+          if (nextZone !== state.zoneName) {
+            state.zoneName = nextZone;
+            showBanner(nextZone.toUpperCase(), "#4fe3ff");
+          }
+
+          state.shake = Math.min(1, state.shake + (drop.perfect ? 0.2 : 0.36));
+
+          updateCameraTarget();
+          updateHud(true);
+          spawnContainer();
+          ui.dropHint.classList.add("show");
+        }
+
+        function update(dt) {
+          state.wavePhase += dt;
+          state.windPhase += dt * 0.6;
+          state.shake = Math.max(0, state.shake - dt * 3.2);
+          state.flash = Math.max(0, state.flash - dt * 2.6);
+          state.timeScale = Math.min(1, state.timeScale + dt * 2.6);
+          state.cameraY += (state.cameraTarget - state.cameraY) * Math.min(1, dt * 6);
+          state.wind = Math.sin(state.windPhase) * windStrength();
+
+          if (state.banner) {
+            state.banner.life -= dt;
+            if (state.banner.life <= 0) state.banner = null;
+          }
+
+          if (settings.enableTimeLimit && state.running) {
+            state.timeLeft -= dt;
+            if (state.timeLeft <= 0) {
+              state.timeLeft = 0;
+              endGame(true);
+              return;
+            }
+          }
+
+          if (state.drop) {
+            state.drop.elapsed += dt * 1000;
+            if (state.drop.elapsed >= DROP_MS) {
+              resolveDrop();
+            }
+          } else if (state.current) {
+            var moving = state.current;
+            var speed = currentSpeed();
+            moving.travel += moving.direction * speed * dt;
+
+            if (moving.travel <= 0) {
+              moving.travel = 0;
+              moving.direction = 1;
+            }
+            if (moving.travel >= WORLD_W - moving.width) {
+              moving.travel = WORLD_W - moving.width;
+              moving.direction = -1;
+            }
+
+            // Kranen vaier, og hoyt oppe drar vinden i lasten.
+            moving.swayPhase += dt * 2.2;
+            var sway = Math.sin(moving.swayPhase) * swayAmplitude() + state.wind;
+            moving.x = clamp(moving.travel + sway, 0, WORLD_W - moving.width);
+          }
+
+          var waterRow = -(state.cameraY / BLOCK_H) - 1.4;
+
+          state.debris = state.debris.filter(function (piece) {
+            piece.vy += 960 * dt;
+            piece.row -= (piece.vy * dt) / BLOCK_H;
+            piece.x += piece.vx * dt;
+            piece.angle += piece.spin * dt;
+
+            if (!piece.splashed && piece.row <= waterRow) {
+              piece.splashed = true;
+              addParticles(piece.x + piece.width / 2, waterRow, 14, 190, "splash");
+            }
+
+            return piece.row > waterRow - 3;
+          });
+
+          state.particles = state.particles.filter(function (particle) {
+            particle.vy += (particle.kind === "splash" ? 620 : 780) * dt;
+            particle.row -= (particle.vy * dt) / BLOCK_H;
+            particle.x += particle.vx * dt;
+            particle.vx *= 0.96;
+            particle.life -= dt;
+            return particle.life > 0;
+          });
+
+          state.pops = state.pops.filter(function (pop) {
+            pop.life -= dt * 1.15;
+            pop.row += dt * 1.1;
+            return pop.life > 0;
+          });
+
+          if (settings.enableTimeLimit) updateHud(false);
+        }
+
+        function roundRect(x, y, w, h, r) {
+          var radius = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+          ctx.beginPath();
+          ctx.moveTo(x + radius, y);
+          ctx.lineTo(x + w - radius, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+          ctx.lineTo(x + w, y + h - radius);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+          ctx.lineTo(x + radius, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+          ctx.lineTo(x, y + radius);
+          ctx.quadraticCurveTo(x, y, x + radius, y);
+          ctx.closePath();
+        }
+
+        function drawSky(zone) {
+          var gradient = ctx.createLinearGradient(0, 0, 0, view.h);
+          gradient.addColorStop(0, rgb(zone.top));
+          gradient.addColorStop(1, rgb(zone.bottom));
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, view.w, view.h);
+
+          if (zone.stars > 0.02) {
+            ctx.save();
+            for (var i = 0; i < stars.length; i += 1) {
+              var star = stars[i];
+              var alpha = zone.stars * (0.35 + 0.65 * Math.abs(Math.sin(state.wavePhase * 0.8 + star.twinkle)));
+              ctx.globalAlpha = alpha;
+              ctx.fillStyle = "#ffffff";
+              ctx.beginPath();
+              ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.restore();
+          }
+
+          if (zone.aurora > 0.02) {
+            ctx.save();
+            ctx.globalCompositeOperation = "lighter";
+            for (var band = 0; band < 3; band += 1) {
+              ctx.globalAlpha = zone.aurora * (0.16 - band * 0.04);
+              var auroraGradient = ctx.createLinearGradient(0, view.h * 0.1, 0, view.h * 0.55);
+              auroraGradient.addColorStop(0, band % 2 ? "rgba(104,242,166,0)" : "rgba(79,227,255,0)");
+              auroraGradient.addColorStop(0.5, band % 2 ? "rgba(104,242,166,1)" : "rgba(120,170,255,1)");
+              auroraGradient.addColorStop(1, "rgba(104,242,166,0)");
+              ctx.fillStyle = auroraGradient;
+              ctx.beginPath();
+              ctx.moveTo(0, view.h * 0.5);
+              for (var x = 0; x <= view.w; x += 26) {
+                var y =
+                  view.h * 0.26 +
+                  Math.sin(x * 0.004 + state.wavePhase * 0.5 + band * 1.3) * view.h * 0.07 +
+                  band * 22;
+                ctx.lineTo(x, y);
+              }
+              ctx.lineTo(view.w, 0);
+              ctx.lineTo(0, 0);
+              ctx.closePath();
+              ctx.fill();
+            }
+            ctx.restore();
+          }
+        }
+
+        function drawSkyline() {
+          // Parallakse: havnesilhuetten synker langsommere enn taarnet stiger.
+          var horizon = seaHorizon() + seaParallax();
+          if (horizon < -80 || horizon > view.h + 80) return;
+
+          ctx.save();
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = "rgba(4, 20, 34, 0.95)";
+
+          var unit = view.w / 22;
+          for (var i = 0; i < 22; i += 1) {
+            var seed = Math.sin(i * 12.9898) * 43758.5453;
+            var h = (Math.abs(seed - Math.floor(seed)) * 0.6 + 0.2) * 80 * view.scale;
+            ctx.fillRect(i * unit, horizon - h, unit * 0.86, h + 60);
+          }
+
+          // Et par bakgrunnskraner for aa selge havnemiljoet.
+          ctx.strokeStyle = "rgba(6, 28, 44, 0.95)";
+          ctx.lineWidth = 3 * view.scale;
+          [0.16, 0.72].forEach(function (fraction) {
+            var x = view.w * fraction;
+            var topY = horizon - 120 * view.scale;
+            ctx.beginPath();
+            ctx.moveTo(x, horizon);
+            ctx.lineTo(x, topY);
+            ctx.lineTo(x + 74 * view.scale, topY + 16 * view.scale);
+            ctx.moveTo(x, topY + 26 * view.scale);
+            ctx.lineTo(x + 60 * view.scale, topY + 34 * view.scale);
+            ctx.stroke();
+          });
+          ctx.restore();
+        }
+
+        function drawFog(zone) {
+          if (zone.fog < 0.03) return;
+          ctx.save();
+          for (var band = 0; band < 3; band += 1) {
+            ctx.globalAlpha = zone.fog * 0.2;
+            var y = view.h * (0.32 + band * 0.16) + Math.sin(state.wavePhase * 0.4 + band) * 12;
+            var fogGradient = ctx.createLinearGradient(0, y - 60, 0, y + 60);
+            fogGradient.addColorStop(0, "rgba(210, 232, 244, 0)");
+            fogGradient.addColorStop(0.5, "rgba(210, 232, 244, 1)");
+            fogGradient.addColorStop(1, "rgba(210, 232, 244, 0)");
+            ctx.fillStyle = fogGradient;
+            ctx.fillRect(0, y - 60, view.w, 120);
+          }
+          ctx.restore();
+        }
+
+        function drawSea() {
+          var waterTop = seaHorizon() + seaParallax();
+          if (waterTop > view.h) return;
+
+          ctx.save();
+          var gradient = ctx.createLinearGradient(0, waterTop, 0, view.h);
+          gradient.addColorStop(0, "rgba(24, 92, 126, 0.96)");
+          gradient.addColorStop(0.45, "rgba(11, 56, 82, 1)");
+          gradient.addColorStop(1, "rgba(3, 18, 30, 1)");
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, waterTop, view.w, view.h - waterTop);
+
+          // Boelgelinjer som blir tettere mot horisonten.
+          var span = view.h - waterTop;
+          for (var line = 0; line < 7; line += 1) {
+            var t = Math.pow((line + 1) / 8, 1.7);
+            var y = waterTop + span * t;
+            ctx.strokeStyle = "rgba(150, 220, 245, " + (0.06 + t * 0.13) + ")";
+            ctx.lineWidth = Math.max(1, t * 2.6);
+            ctx.beginPath();
+            for (var x = 0; x <= view.w; x += 8) {
+              var wave = Math.sin(x * (0.006 + t * 0.012) + state.wavePhase * (1.1 + line * 0.3)) * (1 + t * 6);
+              if (x === 0) ctx.moveTo(x, y + wave);
+              else ctx.lineTo(x, y + wave);
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+
+        function drawShip() {
+          var deckY = baseline() + state.cameraY * view.scale;
+          if (deckY > view.h + 120 || deckY < -220) return;
+
+          var left = toScreenX(-80);
+          var right = toScreenX(1080);
+          var width = right - left;
+          var hullH = Math.max(38, Math.min(96, 74 * view.scale));
+          var bow = width * 0.09;
+
+          ctx.save();
+
+          // Broa i akterenden, godt utenfor der containerne stables.
+          var bridgeW = width * 0.1;
+          var bridgeH = hullH * 1.25;
+          var bridgeX = left + width * 0.035;
+          ctx.fillStyle = "#e6f1f7";
+          roundRect(bridgeX, deckY - bridgeH, bridgeW, bridgeH, 4 * view.scale);
+          ctx.fill();
+          ctx.fillStyle = "#123a52";
+          for (var row = 0; row < 3; row += 1) {
+            ctx.fillRect(
+              bridgeX + bridgeW * 0.12,
+              deckY - bridgeH + bridgeH * (0.16 + row * 0.24),
+              bridgeW * 0.76,
+              bridgeH * 0.12
+            );
+          }
+          ctx.strokeStyle = "#dbeaf4";
+          ctx.lineWidth = Math.max(1.5, 2 * view.scale);
+          ctx.beginPath();
+          ctx.moveTo(bridgeX + bridgeW / 2, deckY - bridgeH);
+          ctx.lineTo(bridgeX + bridgeW / 2, deckY - bridgeH * 1.3);
+          ctx.stroke();
+
+          // Skrog med baug i forkant.
+          var hull = ctx.createLinearGradient(0, deckY, 0, deckY + hullH);
+          hull.addColorStop(0, "#1d5c7d");
+          hull.addColorStop(0.5, "#123c55");
+          hull.addColorStop(1, "#08202f");
+          ctx.fillStyle = hull;
+          ctx.beginPath();
+          ctx.moveTo(left, deckY);
+          ctx.lineTo(right - bow * 0.35, deckY);
+          ctx.lineTo(right, deckY + hullH * 0.42);
+          ctx.lineTo(right - bow * 0.55, deckY + hullH);
+          ctx.lineTo(left + width * 0.02, deckY + hullH);
+          ctx.lineTo(left, deckY + hullH * 0.55);
+          ctx.closePath();
+          ctx.fill();
+
+          // Dekkslinje i merkevarefarge.
+          ctx.fillStyle = "#f5c84b";
+          ctx.fillRect(left, deckY - Math.max(2, 3 * view.scale), width - bow * 0.35, Math.max(3, 4 * view.scale));
+
+          // Lasteluker.
+          ctx.strokeStyle = "rgba(2, 12, 22, 0.42)";
+          ctx.lineWidth = Math.max(1, 1.6 * view.scale);
+          var hatchStart = left + width * 0.16;
+          var hatchEnd = right - bow * 0.7;
+          var hatchStep = (hatchEnd - hatchStart) / 10;
+          for (var i = 1; i < 10; i += 1) {
+            var hx = hatchStart + i * hatchStep;
+            ctx.beginPath();
+            ctx.moveTo(hx, deckY + hullH * 0.14);
+            ctx.lineTo(hx, deckY + hullH * 0.62);
+            ctx.stroke();
+          }
+
+          // Rodt bunnstoff langs vannlinjen.
+          ctx.fillStyle = "rgba(150, 54, 58, 0.75)";
+          ctx.fillRect(left + width * 0.02, deckY + hullH * 0.74, width * 0.93, hullH * 0.1);
+
+          ctx.fillStyle = "rgba(244, 251, 255, 0.6)";
+          ctx.font = "800 " + Math.round(Math.max(11, 15 * view.scale)) + "px Segoe UI, Arial";
+          ctx.textAlign = "left";
+          ctx.fillText("HATTELAND TECHNOLOGY", left + width * 0.19, deckY + hullH * 0.46);
+
+          // Skum der skroget moter sjoen.
+          ctx.globalAlpha = 0.5;
+          ctx.strokeStyle = "#cdeeff";
+          ctx.lineWidth = Math.max(1.5, 2.4 * view.scale);
+          ctx.beginPath();
+          for (var fx = left; fx <= right; fx += 9) {
+            var fy = deckY + hullH + Math.sin(fx * 0.05 + state.wavePhase * 3.4) * 3;
+            if (fx === left) ctx.moveTo(fx, fy);
+            else ctx.lineTo(fx, fy);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function drawContainerBody(x, y, w, h, hue, options) {
+          var opts = options || {};
+          var light = "hsl(" + hue + ", 62%, 58%)";
+          var dark = "hsl(" + hue + ", 58%, 38%)";
+
+          if (opts.golden) {
+            light = "#ffd76a";
+            dark = "#d99a1f";
+          }
+          if (opts.wide) {
+            light = "#7ef2b4";
+            dark = "#28a468";
+          }
+
+          ctx.save();
+          if (!opts.flat) {
+            ctx.shadowColor = "rgba(0,0,0,0.45)";
+            ctx.shadowBlur = 18 * view.scale;
+            ctx.shadowOffsetY = 6 * view.scale;
+          }
+
+          var gradient = ctx.createLinearGradient(x, y, x, y + h);
+          gradient.addColorStop(0, light);
+          gradient.addColorStop(1, dark);
+          ctx.fillStyle = gradient;
+          roundRect(x, y, w, h, 5 * view.scale);
+          ctx.fill();
+          ctx.restore();
+
+          // Korrugering.
+          if (w > 30) {
+            ctx.save();
+            ctx.globalAlpha = 0.15;
+            ctx.strokeStyle = "#02070d";
+            ctx.lineWidth = Math.max(1, 1.5 * view.scale);
+            var step = Math.max(9, w / 10);
+            for (var gx = x + step; gx < x + w - 3; gx += step) {
+              ctx.beginPath();
+              ctx.moveTo(gx, y + 6 * view.scale);
+              ctx.lineTo(gx, y + h - 7 * view.scale);
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
+
+          // Hjornebeslag og topplys.
+          ctx.save();
+          ctx.globalAlpha = 0.34;
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(x + 2, y + 2, w - 4, Math.max(1, 2 * view.scale));
+          ctx.restore();
+
+          ctx.save();
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = "#02070d";
+          var corner = Math.min(7 * view.scale, w / 4);
+          ctx.fillRect(x + 1, y + h - corner - 1, corner, corner);
+          ctx.fillRect(x + w - corner - 1, y + h - corner - 1, corner, corner);
+          ctx.restore();
+
+          if (opts.perfect) {
+            ctx.save();
+            ctx.strokeStyle = "rgba(104, 242, 166, 0.75)";
+            ctx.lineWidth = Math.max(1, 1.6 * view.scale);
+            roundRect(x, y, w, h, 5 * view.scale);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        function drawContainer(worldX, worldWidth, screenY, hue, options) {
+          drawContainerBody(
+            toScreenX(worldX),
+            screenY,
+            worldWidth * view.scale,
+            BLOCK_H * view.scale - 3 * view.scale,
+            hue,
+            options
+          );
+        }
+
+        function drawCrane() {
+          var moving = state.current || (state.drop && state.drop.container);
+          if (!moving) return;
+
+          var hangRow = state.drop
+            ? lerp(state.drop.from, state.drop.to, easeIn(state.drop.elapsed / DROP_MS))
+            : moving.row + HANG_ROWS;
+
+          var blockY = rowScreenY(hangRow);
+          var railY = Math.max(10, rowScreenY(moving.row + HANG_ROWS + 1.5));
+          var centerX = toScreenX(moving.x + moving.width / 2);
+          var trolleyX = toScreenX(moving.travel + moving.width / 2);
+          var w = moving.width * view.scale;
+
+          ctx.save();
+          // Bom.
+          ctx.fillStyle = "rgba(10, 38, 56, 0.96)";
+          ctx.fillRect(0, railY - 7 * view.scale, view.w, 13 * view.scale);
+          ctx.strokeStyle = "rgba(160, 214, 236, 0.3)";
+          ctx.lineWidth = Math.max(1, 1.4 * view.scale);
+          ctx.beginPath();
+          for (var x = 0; x < view.w; x += 34 * view.scale) {
+            ctx.moveTo(x, railY + 6 * view.scale);
+            ctx.lineTo(x + 17 * view.scale, railY - 6 * view.scale);
+          }
+          ctx.stroke();
+
+          // Tralle.
+          ctx.fillStyle = "#f5c84b";
+          roundRect(trolleyX - 24 * view.scale, railY - 13 * view.scale, 48 * view.scale, 18 * view.scale, 4);
+          ctx.fill();
+
+          // Kabler ned til sprederen.
+          ctx.strokeStyle = "rgba(226, 240, 248, 0.62)";
+          ctx.lineWidth = Math.max(1, 1.7 * view.scale);
+          ctx.beginPath();
+          ctx.moveTo(trolleyX - 7 * view.scale, railY + 4 * view.scale);
+          ctx.lineTo(centerX - w / 2 + 8 * view.scale, blockY - 13 * view.scale);
+          ctx.moveTo(trolleyX + 7 * view.scale, railY + 4 * view.scale);
+          ctx.lineTo(centerX + w / 2 - 8 * view.scale, blockY - 13 * view.scale);
+          ctx.stroke();
+
+          // Spreder - rammen som holder containeren.
+          ctx.fillStyle = "#ffce4d";
+          roundRect(centerX - w / 2 - 4 * view.scale, blockY - 15 * view.scale, w + 8 * view.scale, 10 * view.scale, 3);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        function easeIn(t) {
+          var clamped = clamp(t, 0, 1);
+          return clamped * clamped;
+        }
+
+        function drawRecordLine() {
+          if (!state.recordHeight || state.recordHeight < 3) return;
+          var y = rowScreenY(state.recordHeight - 1);
+          if (y < -20 || y > view.h + 20) return;
+
+          ctx.save();
+          ctx.strokeStyle = "rgba(245, 200, 75, 0.55)";
+          ctx.lineWidth = Math.max(1, 1.6 * view.scale);
+          ctx.setLineDash([10 * view.scale, 8 * view.scale]);
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(view.w, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          ctx.fillStyle = "rgba(245, 200, 75, 0.92)";
+          ctx.font = "800 " + Math.round(11 * view.scale) + "px Segoe UI, Arial";
+          ctx.textAlign = "right";
+          ctx.textBaseline = "bottom";
+          ctx.fillText("YOUR RECORD " + state.recordHeight, view.w - 14, y - 5);
+          ctx.restore();
+        }
+
+        function drawWindIndicator() {
+          var strength = windStrength();
+          if (strength < 2) return;
+
+          var direction = state.wind >= 0 ? 1 : -1;
+          var intensity = clamp(Math.abs(state.wind) / Math.max(1, strength), 0, 1);
+          var cx = view.w / 2;
+          var cy = 26;
+
+          ctx.save();
+          ctx.globalAlpha = 0.3 + intensity * 0.55;
+          ctx.strokeStyle = "#9fd8ee";
+          ctx.lineWidth = 2;
+          for (var i = 0; i < 3; i += 1) {
+            var length = 22 + i * 12 + intensity * 26;
+            var y = cy + i * 8;
+            ctx.beginPath();
+            ctx.moveTo(cx - (length / 2) * direction, y);
+            ctx.lineTo(cx + (length / 2) * direction, y);
+            ctx.lineTo(cx + (length / 2 - 7) * direction, y - 5);
+            ctx.stroke();
+          }
+          ctx.globalAlpha = 0.75;
+          ctx.fillStyle = "#9fd8ee";
+          ctx.font = "800 11px Segoe UI, Arial";
+          ctx.textAlign = "center";
+          ctx.fillText("WIND", cx, cy - 12);
+          ctx.restore();
+        }
+
+        function render() {
+          if (!state) return;
+
+          var zone = zoneAt(state.placed);
+          ctx.clearRect(0, 0, view.w, view.h);
+          drawSky(zone);
+          drawSkyline();
+
+          ctx.save();
+          if (state.shake > 0.01) {
+            var amount = state.shake * 8;
+            ctx.translate((Math.random() - 0.5) * amount, (Math.random() - 0.5) * amount);
+          }
+
+          drawSea();
+          drawShip();
+          drawRecordLine();
+
+          for (var i = 0; i < state.stack.length; i += 1) {
+            var block = state.stack[i];
+            var y = rowScreenY(block.row);
+            if (y > view.h + 60 || y < -80) continue;
+            drawContainer(block.x, block.width, y, block.hue, {
+              perfect: block.perfect,
+              golden: block.golden
+            });
+          }
+
+          state.debris.forEach(function (piece) {
+            var y = rowScreenY(piece.row);
+            if (y > view.h + 80) return;
+            ctx.save();
+            ctx.translate(toScreenX(piece.x + piece.width / 2), y + (BLOCK_H * view.scale) / 2);
+            ctx.rotate(piece.angle);
+            ctx.globalAlpha = 0.94;
+            drawContainerBody(
+              (-piece.width * view.scale) / 2,
+              (-BLOCK_H * view.scale) / 2,
+              piece.width * view.scale,
+              BLOCK_H * view.scale - 3 * view.scale,
+              piece.hue,
+              { flat: true }
+            );
+            ctx.restore();
+          });
+
+          state.particles.forEach(function (particle) {
+            var y = rowScreenY(particle.row);
+            ctx.save();
+            ctx.globalAlpha = clamp(particle.life, 0, 1) * 0.9;
+            ctx.fillStyle =
+              particle.kind === "splash"
+                ? "rgba(180, 232, 250, 1)"
+                : "hsl(" + particle.hue + ", 60%, 62%)";
+            ctx.beginPath();
+            ctx.arc(toScreenX(particle.x), y, particle.size * view.scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          });
+
+          // Container under fall.
+          if (state.drop) {
+            var drop = state.drop;
+            var row = lerp(drop.from, drop.to, easeIn(drop.elapsed / DROP_MS));
+            drawContainer(drop.container.x, drop.container.width, rowScreenY(row), drop.container.hue, {
+              golden: drop.container.golden,
+              wide: drop.container.wide
+            });
+          } else if (state.current) {
+            drawContainer(
+              state.current.x,
+              state.current.width,
+              rowScreenY(state.current.row + HANG_ROWS),
+              state.current.hue,
+              { golden: state.current.golden, wide: state.current.wide }
+            );
+          }
+
+          drawCrane();
+          drawFog(zone);
+
+          ctx.save();
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          state.pops.forEach(function (pop) {
+            var life = clamp(pop.life, 0, 1);
+            ctx.globalAlpha = life;
+            ctx.fillStyle = pop.color;
+            ctx.font = "900 " + Math.round((20 + (1 - life) * 8) * view.scale) + "px Segoe UI, Arial";
+            ctx.fillText(pop.text, toScreenX(pop.x), rowScreenY(pop.row) - 18 * view.scale);
+          });
+          ctx.restore();
+
+          ctx.restore();
+
+          drawWindIndicator();
+
+          if (state.banner) {
+            var bannerLife = clamp(state.banner.life / 1.6, 0, 1);
+            var appear = clamp((1.6 - state.banner.life) * 6, 0, 1);
+            ctx.save();
+            ctx.globalAlpha = Math.min(bannerLife * 1.6, 1) * appear;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillStyle = state.banner.color;
+            ctx.font = "900 " + Math.round(30 * view.scale) + "px Segoe UI, Arial";
+            ctx.shadowColor = "rgba(0,0,0,0.6)";
+            ctx.shadowBlur = 18;
+            ctx.fillText(state.banner.text, view.w / 2, view.h * 0.24);
+            ctx.restore();
+          }
+
+          if (state.flash > 0.01) {
+            ctx.save();
+            ctx.globalAlpha = state.flash * 0.2;
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, view.w, view.h);
+            ctx.restore();
+          }
+
+          // Vignett for dybde.
+          ctx.save();
+          var vignette = ctx.createRadialGradient(
+            view.w / 2,
+            view.h / 2,
+            Math.min(view.w, view.h) * 0.35,
+            view.w / 2,
+            view.h / 2,
+            Math.max(view.w, view.h) * 0.75
+          );
+          vignette.addColorStop(0, "rgba(0,0,0,0)");
+          vignette.addColorStop(1, "rgba(0,0,0,0.42)");
+          ctx.fillStyle = vignette;
+          ctx.fillRect(0, 0, view.w, view.h);
+          ctx.restore();
+        }
+
+        function loop(now) {
+          var rawDt = Math.min(0.05, (now - lastTime) / 1000 || 0);
+          lastTime = now;
+
+          if (!state.paused) {
+            update(rawDt * state.timeScale);
+            render();
+          }
+
+          if (state.running && !state.paused) {
+            animationId = requestAnimationFrame(loop);
+          }
+        }
+
+        function startGame() {
+          cancelAnimationFrame(animationId);
+          clearHoldExit();
+          if (pendingSettings) {
+            settings = pendingSettings;
+            pendingSettings = null;
+          }
+          state = createState();
+          state.running = true;
+          document.body.classList.add("game-running");
+          ui.startOverlay.classList.add("hidden");
+          ui.endOverlay.classList.add("hidden");
+          ui.pauseOverlay.classList.add("hidden");
+          ui.message.textContent = "";
+          ui.rankTeaser.textContent = "";
+          ui.form.classList.add("hidden");
+          ui.dropHint.classList.add("show");
+          resizeCanvas();
+          updateCameraTarget();
+          state.cameraY = state.cameraTarget;
+          spawnContainer();
+          updateHud(false);
+          showBanner("STACK IT HIGH", "#4fe3ff");
+          lastTime = performance.now();
+          animationId = requestAnimationFrame(loop);
+        }
+
+        function endGame(timeUp) {
+          if (state.over) return;
+          state.over = true;
+          state.running = false;
+          state.paused = false;
+          document.body.classList.remove("game-running");
+          clearHoldExit();
+          ui.pauseOverlay.classList.add("hidden");
+          ui.dropHint.classList.remove("show");
+
+          var record = getRecord();
+          var isRecord = state.score > record;
+          rememberRecord(state.score);
+          rememberRecordHeight(state.placed);
+
+          ui.endKicker.textContent = timeUp ? "Time is up" : "Tower collapsed";
+          ui.endTitle.textContent = isRecord
+            ? "New kiosk record."
+            : state.placed >= 20
+              ? "That is a serious tower."
+              : state.placed >= 10
+                ? "Strong stack."
+                : "Nice stack.";
+          ui.finalScore.textContent = String(state.score);
+          ui.finalHeight.textContent = String(state.placed);
+          ui.finalCombo.textContent = String(state.bestCombo);
+          ui.finalZone.textContent = zoneNameFor(state.placed);
+          ui.finalRecord.textContent = String(Math.max(record, state.score));
+          state.lastFinalScore = Math.min(99999, state.score);
+          updateRankTeaser(state.lastFinalScore);
+
+          ui.form.classList.remove("hidden");
+          ui.saveButton.disabled = false;
+          ui.saveButton.textContent = "Save score";
+          ui.name.value = "";
+          ui.email.value = "";
+          ui.phone.value = "";
+          ui.consent.checked = false;
+
+          // La taarnet falle ferdig for resultatet legger seg over.
+          // Bind animasjonen til akkurat denne runden: starter spilleren
+          // paa nytt (eller gaar ut) mens den kjorer, skal den doe stille
+          // i stedet for aa poppe sluttskjermen over den nye runden.
+          var collapseState = state;
+          var collapseUntil = performance.now() + 900;
+          (function collapse(now) {
+            if (state !== collapseState) return;
+            update(Math.min(0.05, (now - lastTime) / 1000 || 0));
+            render();
+            lastTime = now;
+            if (now < collapseUntil) {
+              requestAnimationFrame(collapse);
+            } else {
+              ui.endOverlay.classList.remove("hidden");
+            }
+          })(performance.now());
+
+          refreshBoard();
+        }
+
+        function exitToStart() {
+          cancelAnimationFrame(animationId);
+          clearHoldExit();
+          document.body.classList.remove("game-running");
+          state = createState();
+          ui.pauseOverlay.classList.add("hidden");
+          ui.endOverlay.classList.add("hidden");
+          ui.startOverlay.classList.remove("hidden");
+          ui.dropHint.classList.remove("show");
+          updateCameraTarget();
+          updateHud(false);
+          render();
+          // Hent ferske innstillinger naar vi er tilbake paa startskjermen.
+          loadSettings();
+        }
+
+        function pauseGame() {
+          if (!state.running || state.paused) return;
+          state.paused = true;
+          clearHoldExit();
+          ui.pauseOverlay.classList.remove("hidden");
+          document.body.classList.remove("game-running");
+        }
+
+        function resumeGame() {
+          if (!state.paused) return;
+          state.paused = false;
+          ui.pauseOverlay.classList.add("hidden");
+          document.body.classList.add("game-running");
+          lastTime = performance.now();
+          // Avbryt et eventuelt ventende frame forst, ellers kan raske
+          // pause/fortsett-trykk gi to samtidige lokker og dobbel fart.
+          cancelAnimationFrame(animationId);
+          animationId = requestAnimationFrame(loop);
+        }
+
+        function clearHoldExit() {
+          clearTimeout(holdExitTimer);
+          clearInterval(holdExitProgressTimer);
+          holdExitTimer = null;
+          holdExitProgressTimer = null;
+          ui.holdExitFill.style.width = "0%";
+        }
+
+        function getRecord() {
+          return Number(localStorage.getItem("stackerRecordScore") || 0);
+        }
+
+        function rememberRecord(score) {
+          if (score > getRecord()) {
+            localStorage.setItem("stackerRecordScore", String(score));
+          }
+        }
+
+        function getRecordHeight() {
+          return Number(localStorage.getItem("stackerRecordHeight") || 0);
+        }
+
+        function rememberRecordHeight(height) {
+          if (height > getRecordHeight()) {
+            localStorage.setItem("stackerRecordHeight", String(height));
+          }
+        }
+
+
+        // "Du ville tatt X. plass" - konkret grunn til aa lagre scoren.
+        function updateRankTeaser(finalScore) {
+          if (!ui.rankTeaser) return;
+          if (!boardEntries.length) {
+            ui.rankTeaser.textContent = "The board is empty. Save it and take #1.";
+            return;
+          }
+          var rank = boardEntries.filter(function (entry) {
+            return Number(entry.score || 0) >= finalScore;
+          }).length + 1;
+          if (rank <= 10) {
+            ui.rankTeaser.textContent = "That takes #" + rank + " on the board. Save it!";
+          } else {
+            ui.rankTeaser.textContent = "";
+          }
+        }
+
+        function renderBoard(list, entries) {
+          list.innerHTML = "";
+
+          if (!entries || !entries.length) {
+            var empty = document.createElement("li");
+            empty.innerHTML = "<span>Be the first on the board</span><b>0</b>";
+            list.appendChild(empty);
+            return;
+          }
+
+          entries.slice(0, 5).forEach(function (entry, index) {
+            var item = document.createElement("li");
+            var name = document.createElement("span");
+            var score = document.createElement("b");
+            name.textContent = index + 1 + ". " + entry.name;
+            score.textContent = String(entry.score);
+            item.append(name, score);
+            list.appendChild(item);
+          });
+        }
+
+        function refreshBoard() {
+          if (isFileMode || !window.fetch) return;
+          fetch("/api/leaderboard?game=" + GAME_ID, { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload) return;
+              boardEntries = payload.entries || [];
+              renderBoard(ui.startBoard, boardEntries);
+              renderBoard(ui.endBoard, boardEntries);
+              if (state && state.over && state.lastFinalScore !== undefined) {
+                updateRankTeaser(state.lastFinalScore);
+              }
+            })
+            .catch(function () {
+              /* offline - lokale rekorder vises fortsatt */
+            });
+        }
+
+        function validateRegistration() {
+          var name = ui.name.value.trim();
+          var email = ui.email.value.trim();
+          var phone = ui.phone.value.trim();
+
+          if (name.length < 2) return "Name is required.";
+          if (!email && !phone) return "Email or phone is required.";
+          if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Email address is invalid.";
+          if (phone && (phone.length < 5 || phone.length > 30)) {
+            return "Phone must be between 5 and 30 characters.";
+          }
+          if (!ui.consent.checked) return "Consent is required to save your score.";
+          return "";
+        }
+
+        function saveScore() {
+          if (ui.saveButton.disabled) return;
+
+          var error = validateRegistration();
+          if (error) {
+            ui.message.textContent = error;
+            return;
+          }
+
+          ui.message.textContent = "";
+          ui.saveButton.disabled = true;
+          ui.saveButton.textContent = "Saving...";
+
+          fetch("/api/standalone-entry", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              game: GAME_ID,
+              name: ui.name.value.trim().slice(0, 40),
+              email: ui.email.value.trim(),
+              phone: ui.phone.value.trim(),
+              consent: true,
+              // Serveren avviser score over maxAcceptedScore.
+              score: Math.min(99999, state.score),
+              playedAt: new Date().toISOString()
+            })
+          })
+            .then(function (response) {
+              return response.json().then(function (payload) {
+                return { ok: response.ok, payload: payload };
+              });
+            })
+            .then(function (result) {
+              if (!result.ok) {
+                ui.message.textContent = result.payload.error || "Could not save score.";
+                ui.saveButton.disabled = false;
+                ui.saveButton.textContent = "Save score";
+                return;
+              }
+              boardEntries = result.payload.leaderboard || [];
+              renderBoard(ui.endBoard, boardEntries);
+              renderBoard(ui.startBoard, boardEntries);
+              ui.message.textContent = "Saved to the Container Stacker board.";
+              ui.rankTeaser.textContent = "You are on the board!";
+              ui.saveButton.textContent = "Saved";
+            })
+            .catch(function () {
+              // Ikke lås knappen ved nettverksglipp - la spilleren prove igjen.
+              ui.message.textContent = "No server connection. Tap to try again.";
+              ui.saveButton.disabled = false;
+              ui.saveButton.textContent = "Try again";
+            });
+        }
+
+        function loadSettings() {
+          if (isFileMode || !window.fetch) return;
+          fetch("/api/config", { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload) return;
+              if (payload.brand && payload.brand.companyName) {
+                ui.companyName.textContent = payload.brand.companyName;
+              }
+              if (payload.privacy && payload.privacy.consentLabel) {
+                ui.consentLabel.textContent = payload.privacy.consentLabel;
+              }
+
+              var next = Object.assign({}, DEFAULTS, payload.stackerGame || {});
+              if (state && (state.running || state.over)) {
+                // Ikke bytt regler midt i en runde, og ikke nullstill
+                // staten mens sluttskjermen (med lagre-knappen) vises.
+                pendingSettings = next;
+                return;
+              }
+              settings = next;
+              state = createState();
+              updateCameraTarget();
+              state.cameraY = state.cameraTarget;
+              updateHud(false);
+              render();
+            })
+            .catch(function () {
+              /* standardverdier brukes */
+            });
+        }
+
+        function bindTap(element, handler) {
+          element.addEventListener("pointerup", function (event) {
+            event.preventDefault();
+            handler(event);
+          });
+        }
+
+        bindTap(ui.startButton, startGame);
+        bindTap(ui.playAgainButton, startGame);
+        bindTap(ui.pauseButton, pauseGame);
+        bindTap(ui.resumeButton, resumeGame);
+        bindTap(ui.exitGameButton, exitToStart);
+
+        ui.form.addEventListener("submit", function (event) {
+          event.preventDefault();
+          saveScore();
+        });
+
+        canvas.addEventListener("pointerdown", function (event) {
+          event.preventDefault();
+          dropContainer();
+        });
+
+        ui.holdExitButton.addEventListener("pointerdown", function (event) {
+          if (!state.running || state.paused || holdExitTimer) return;
+          var pointerId = event.pointerId;
+          var startedAt = performance.now();
+          if (ui.holdExitButton.setPointerCapture) ui.holdExitButton.setPointerCapture(pointerId);
+          holdExitProgressTimer = setInterval(function () {
+            var progress = Math.min(1, (performance.now() - startedAt) / HOLD_EXIT_MS);
+            ui.holdExitFill.style.width = Math.round(progress * 100) + "%";
+          }, 16);
+          holdExitTimer = setTimeout(function () {
+            if (ui.holdExitButton.releasePointerCapture) {
+              ui.holdExitButton.releasePointerCapture(pointerId);
+            }
+            exitToStart();
+          }, HOLD_EXIT_MS);
+        });
+
+        ["pointerup", "pointerleave", "pointercancel", "lostpointercapture"].forEach(function (name) {
+          ui.holdExitButton.addEventListener(name, function (event) {
+            if (ui.holdExitButton.releasePointerCapture) {
+              ui.holdExitButton.releasePointerCapture(event.pointerId);
+            }
+            clearHoldExit();
+          });
+        });
+
+        window.addEventListener("resize", resizeCanvas);
+
+        // Kiosk: ingen kontekstmeny eller lenke-dragging ved lange trykk.
+        document.addEventListener("contextmenu", function (event) {
+          event.preventDefault();
+        });
+        document.addEventListener("dragstart", function (event) {
+          event.preventDefault();
+        });
+
+        function armIdleReset() {
+          clearTimeout(idleTimer);
+          idleTimer = setTimeout(function () {
+            // Ogsaa et pauset og forlatt spill skal tilbake til start.
+            if (state && (state.paused || (!state.running && ui.startOverlay.classList.contains("hidden")))) {
+              exitToStart();
+            }
+            armIdleReset();
+          }, IDLE_RESET_MS);
+        }
+
+        ["pointerdown", "pointermove", "keydown"].forEach(function (name) {
+          window.addEventListener(name, armIdleReset, { passive: true });
+        });
+
+        state = createState();
+        resizeCanvas();
+        updateCameraTarget();
+        state.cameraY = state.cameraTarget;
+        updateHud(false);
+        render();
+        loadSettings();
+        refreshBoard();
+        armIdleReset();
+      })();
+      // Touch: lenker skal ogsaa virke for finger nr. 2 - "click" kommer bare
+    // fra primaerpekeren, saa en hvilende finger gjor ellers lenker doede.
+    (function () {
+      var links = document.querySelectorAll("a[href]");
+      for (var i = 0; i < links.length; i += 1) {
+        (function (link) {
+          link.addEventListener("pointerup", function (event) {
+            if (event.isPrimary) return;
+            event.preventDefault();
+            window.location.href = link.href;
+          });
+        })(links[i]);
+      }
+    })();
+  </script>
+  </body>
+</html>

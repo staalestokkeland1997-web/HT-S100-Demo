@@ -1,0 +1,2451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Bridge Duel Harbor Control</title>
+  <link rel="stylesheet" href="game-ui.css" />
+  <style>
+    :root {
+      --game-accent: var(--red);
+      --game-accent-strong: #d63a52;
+      --game-on-accent: #2b060d;
+      --bg: #030b12;
+      --panel: rgba(4, 15, 25, 0.88);
+      --line: rgba(144, 224, 239, 0.22);
+      --text: #f4fbff;
+      --muted: #9fc0cf;
+      --blue: #4fe3ff;
+      --gold: #f5c84b;
+      --red: #ff5d6c;
+      --green: #68f2a6;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 16%, rgba(79, 227, 255, 0.11), transparent 28rem),
+        radial-gradient(circle at 82% 84%, rgba(245, 200, 75, 0.1), transparent 28rem),
+        linear-gradient(135deg, #03101a, #02070d 65%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .game {
+      display: grid;
+      grid-template-columns: clamp(126px, 7.4vw, 150px) 1fr clamp(126px, 7.4vw, 150px);
+      grid-template-rows: 1fr;
+      width: 100%;
+      height: 100%;
+      padding: 10px;
+      gap: 10px;
+    }
+
+    .side-station {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid rgba(144, 224, 239, 0.22);
+      border-radius: 14px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.055), transparent 32%),
+        rgba(3, 13, 22, 0.72);
+      box-shadow:
+        inset 0 0 42px rgba(79, 227, 255, 0.06),
+        0 18px 42px rgba(0, 0, 0, 0.28);
+    }
+
+    .side-station-left {
+      border-color: rgba(79, 227, 255, 0.35);
+      box-shadow:
+        inset 7px 0 0 rgba(79, 227, 255, 0.74),
+        inset 0 0 42px rgba(79, 227, 255, 0.08),
+        0 18px 42px rgba(0, 0, 0, 0.28);
+    }
+
+    .side-station-right {
+      border-color: rgba(245, 200, 75, 0.35);
+      box-shadow:
+        inset -7px 0 0 rgba(245, 200, 75, 0.74),
+        inset 0 0 42px rgba(245, 200, 75, 0.08),
+        0 18px 42px rgba(0, 0, 0, 0.28);
+    }
+
+    .station-content {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(calc(100vh - 34px), 760px);
+      height: 116px;
+      display: grid;
+      grid-template-columns: minmax(128px, 0.78fr) minmax(118px, 0.66fr) minmax(260px, 1.75fr);
+      gap: 8px;
+      align-items: stretch;
+      transform-origin: center center;
+    }
+
+    .side-station-left .station-content {
+      transform: translate(-50%, -50%) rotate(90deg);
+    }
+
+    .side-station-right .station-content {
+      transform: translate(-50%, -50%) rotate(-90deg);
+    }
+
+    .player-panel,
+    .timer-panel,
+    .attack-panel {
+      min-height: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018)),
+        var(--panel);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 12px 32px rgba(0, 0, 0, 0.26);
+    }
+
+    .p1-card {
+      border-color: rgba(79, 227, 255, 0.35);
+      box-shadow: inset 4px 0 0 rgba(79, 227, 255, 0.7), 0 12px 32px rgba(0, 0, 0, 0.24);
+    }
+
+    .p2-card {
+      border-color: rgba(245, 200, 75, 0.35);
+      box-shadow: inset -4px 0 0 rgba(245, 200, 75, 0.7), 0 12px 32px rgba(0, 0, 0, 0.24);
+      text-align: right;
+    }
+
+    .player-panel:first-child,
+    .attack-panel:first-child {
+      border-color: rgba(79, 227, 255, 0.35);
+      box-shadow: inset 4px 0 0 rgba(79, 227, 255, 0.7), 0 12px 32px rgba(0, 0, 0, 0.24);
+    }
+
+    .player-panel:last-child,
+    .attack-panel:last-child {
+      border-color: rgba(245, 200, 75, 0.35);
+      box-shadow: inset -4px 0 0 rgba(245, 200, 75, 0.7), 0 12px 32px rgba(0, 0, 0, 0.24);
+    }
+
+    .player-panel:last-child {
+      text-align: right;
+    }
+
+    .side-station-left .player-panel {
+      border-color: rgba(79, 227, 255, 0.35);
+      box-shadow: inset 4px 0 0 rgba(79, 227, 255, 0.7), 0 12px 32px rgba(0, 0, 0, 0.24);
+      text-align: left;
+    }
+
+    .side-station-right .player-panel {
+      border-color: rgba(245, 200, 75, 0.35);
+      box-shadow: inset -4px 0 0 rgba(245, 200, 75, 0.7), 0 12px 32px rgba(0, 0, 0, 0.24);
+      text-align: right;
+    }
+
+    .label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .score,
+    .timer {
+      display: block;
+      margin-top: 4px;
+      color: white;
+      font-size: clamp(34px, 4.6vw, 62px);
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .station-content .score {
+      font-size: clamp(30px, 3.4vw, 48px);
+    }
+
+    .station-content .timer {
+      font-size: clamp(28px, 3vw, 42px);
+    }
+
+    .timer-panel {
+      min-width: 0;
+      text-align: center;
+      border-color: rgba(245, 200, 75, 0.26);
+    }
+
+    .sub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      align-self: stretch;
+      height: calc(100vh - 20px);
+      min-height: 0;
+      border: 1px solid rgba(144, 224, 239, 0.3);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #061a2a;
+      box-shadow:
+        inset 0 0 90px rgba(79, 227, 255, 0.09),
+        inset 0 0 0 1px rgba(255,255,255,0.04),
+        0 20px 60px rgba(0, 0, 0, 0.38);
+    }
+
+    .canvas-wrap::before,
+    .canvas-wrap::after {
+      display: none;
+      position: absolute;
+      top: 12px;
+      z-index: 2;
+      padding: 9px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      background: rgba(3, 13, 22, 0.74);
+      color: white;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      pointer-events: none;
+    }
+
+    .canvas-wrap::before {
+      content: "PLAYER 1 - LEFT HARBOR";
+      left: 14px;
+      color: var(--blue);
+    }
+
+    .canvas-wrap::after {
+      content: "PLAYER 2 - RIGHT HARBOR";
+      right: 14px;
+      color: var(--gold);
+    }
+
+    .arena-watermark {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background: url("assets/image.png") center / min(720px, 58%) auto no-repeat;
+      opacity: 0.045;
+      pointer-events: none;
+    }
+
+    canvas {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .attack-panel {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .side-station-right .attack-panel {
+      grid-template-columns: auto 1fr;
+    }
+
+    .side-station-right .attack-panel .attack-info {
+      order: 2;
+    }
+
+    .side-station-left .attack-panel {
+      border-color: rgba(79, 227, 255, 0.35);
+      box-shadow: inset 4px 0 0 rgba(79, 227, 255, 0.7), 0 12px 32px rgba(0, 0, 0, 0.24);
+    }
+
+    .side-station-right .attack-panel {
+      border-color: rgba(245, 200, 75, 0.35);
+      box-shadow: inset -4px 0 0 rgba(245, 200, 75, 0.7), 0 12px 32px rgba(0, 0, 0, 0.24);
+    }
+
+    .attack-button {
+      min-width: 162px;
+      min-height: 52px;
+      border: 0;
+      border-radius: 10px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.28), transparent 32%),
+        linear-gradient(135deg, var(--gold), #d99d1f);
+      color: #06131f;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 0 0 rgba(245, 200, 75, 0);
+      transition: transform 120ms ease, box-shadow 160ms ease, opacity 120ms ease;
+    }
+
+    .attack-button:not(:disabled) {
+      animation: readyPulse 900ms ease-in-out infinite;
+    }
+
+    .attack-button:active {
+      transform: scale(0.96);
+    }
+
+    .attack-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+      filter: grayscale(0.7);
+    }
+
+    .bar {
+      height: 18px;
+      margin-top: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--blue), var(--gold));
+      transition: width 160ms linear;
+    }
+
+    .attack-detail {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.22;
+    }
+
+    .player-panel {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .player-panel::after,
+    .attack-panel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(90deg, rgba(255,255,255,0.06), transparent 34%);
+      opacity: 0.35;
+    }
+
+    .attack-panel {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .attack-panel:first-child .bar-fill {
+      background: linear-gradient(90deg, var(--blue), #e8fbff);
+    }
+
+    .attack-panel:last-child .bar-fill {
+      background: linear-gradient(90deg, var(--gold), #fff1a8);
+    }
+
+    .side-station-left .bar-fill {
+      background: linear-gradient(90deg, var(--blue), #e8fbff);
+    }
+
+    .side-station-right .bar-fill {
+      background: linear-gradient(90deg, var(--gold), #fff1a8);
+    }
+
+    .legend {
+      position: absolute;
+      left: 50%;
+      bottom: 12px;
+      z-index: 3;
+      display: flex;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      background: rgba(3,13,22,0.68);
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #dff8ff;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .legend i {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    .hold-exit {
+      position: absolute;
+      left: 14px;
+      bottom: 12px;
+      z-index: 4;
+      min-width: 156px;
+      min-height: 48px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0 18px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 93, 108, 0.34);
+      border-radius: 12px;
+      background: rgba(3, 13, 22, 0.74);
+      color: white;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+    }
+
+    .kiosk-back {
+      position: absolute;
+      right: 14px;
+      top: 12px;
+      z-index: 8;
+      min-height: 44px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0 16px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 10px;
+      background: rgba(3, 13, 22, 0.72);
+      color: white;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.09em;
+      text-decoration: none;
+      text-transform: uppercase;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+    }
+
+    .kiosk-back {
+      display: none;
+    }
+
+    .hold-exit span {
+      position: relative;
+      z-index: 2;
+    }
+
+    .hold-exit-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      right: auto;
+      z-index: 0;
+      width: 0;
+      transform: none;
+      background: linear-gradient(90deg, rgba(255, 93, 108, 0.92), rgba(245, 200, 75, 0.86));
+      transition: width 45ms linear;
+    }
+
+    .hold-exit--arming {
+      box-shadow: 0 0 28px rgba(255, 93, 108, 0.3);
+    }
+
+    .pause-button {
+      position: absolute;
+      right: 14px;
+      bottom: 12px;
+      z-index: 4;
+      min-width: 120px;
+      min-height: 48px;
+      padding: 0 18px;
+      border: 1px solid rgba(79, 227, 255, 0.34);
+      border-radius: 12px;
+      background: rgba(3, 13, 22, 0.74);
+      color: white;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+    }
+
+    body.game-running .kiosk-nav {
+      display: none;
+    }
+
+
+    @keyframes readyPulse {
+      0%,
+      100% {
+        box-shadow: 0 0 0 rgba(245, 200, 75, 0);
+      }
+      50% {
+        box-shadow: 0 0 28px rgba(245, 200, 75, 0.36);
+      }
+    }
+
+    .brand-mark--panel {
+      justify-self: center;
+    }
+
+    .start-overlay {
+      background:
+        linear-gradient(90deg, rgba(79, 227, 255, 0.08), transparent 28%, transparent 72%, rgba(245, 200, 75, 0.08)),
+        rgba(2, 8, 14, 0.82);
+    }
+
+    .edge-start {
+      position: absolute;
+      top: 50%;
+      z-index: 7;
+      width: 280px;
+      height: 68px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 14px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.24), transparent 30%),
+        linear-gradient(135deg, var(--blue), #00a9d4);
+      color: #03131c;
+      font-size: 16px;
+      font-weight: 950;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+    }
+
+    .edge-start-left {
+      left: 44px;
+      transform: translateY(-50%) rotate(90deg);
+      transform-origin: left center;
+    }
+
+    .edge-start-right {
+      right: 44px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.24), transparent 30%),
+        linear-gradient(135deg, var(--gold), #d99d1f);
+      transform: translateY(-50%) rotate(-90deg);
+      transform-origin: right center;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+
+
+    /* Visual polish pass */
+    .canvas-wrap {
+      background:
+        radial-gradient(circle at 50% 50%, rgba(245, 200, 75, 0.13), transparent 18%),
+        radial-gradient(circle at 23% 50%, rgba(79, 227, 255, 0.18), transparent 28%),
+        radial-gradient(circle at 77% 50%, rgba(245, 200, 75, 0.16), transparent 28%),
+        linear-gradient(180deg, #082437, #04101c);
+      box-shadow:
+        inset 0 0 110px rgba(79, 227, 255, 0.11),
+        inset 0 0 0 1px rgba(255,255,255,0.06),
+        0 24px 72px rgba(0, 0, 0, 0.44);
+    }
+
+    .canvas-wrap::before,
+    .canvas-wrap::after {
+      display: block;
+    }
+
+    .player-panel,
+    .attack-panel,
+    .timer-panel,
+    .legend,
+    .hold-exit,
+    .pause-button {
+      backdrop-filter: blur(10px);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.12),
+        0 14px 34px rgba(0, 0, 0, 0.28),
+        0 0 24px rgba(79, 227, 255, 0.08);
+    }
+
+    .side-station-right .player-panel,
+    .side-station-right .attack-panel {
+      box-shadow:
+        inset -4px 0 0 rgba(245, 200, 75, 0.82),
+        inset 0 1px 0 rgba(255,255,255,0.12),
+        0 14px 34px rgba(0, 0, 0, 0.28),
+        0 0 24px rgba(245, 200, 75, 0.08);
+    }
+
+    .score,
+    .timer {
+      text-shadow: 0 0 18px rgba(79, 227, 255, 0.16), 0 4px 12px rgba(0,0,0,0.44);
+    }
+
+    .side-station-right .score,
+    .side-station-right .timer {
+      text-shadow: 0 0 18px rgba(245, 200, 75, 0.16), 0 4px 12px rgba(0,0,0,0.44);
+    }
+
+    .bar {
+      box-shadow: inset 0 0 14px rgba(0,0,0,0.24);
+    }
+
+    .bar-fill {
+      box-shadow: 0 0 18px rgba(245, 200, 75, 0.28);
+    }
+
+    /* Screen resolution support */
+    @media (min-width: 1800px) and (min-height: 1000px) {
+      .game {
+        grid-template-columns: clamp(150px, 8vw, 190px) 1fr clamp(150px, 8vw, 190px);
+        padding: 18px;
+      }
+
+      .station-content {
+        width: min(calc(100vh - 40px), 900px);
+      }
+    }
+
+    @media (max-width: 1180px), (max-height: 720px) {
+      .game {
+        grid-template-columns: clamp(108px, 7vw, 126px) 1fr clamp(108px, 7vw, 126px);
+        padding: 8px;
+        gap: 8px;
+      }
+
+      .station-content {
+        width: min(calc(100vh - 22px), 680px);
+        height: 98px;
+        grid-template-columns: minmax(116px, 0.72fr) minmax(104px, 0.58fr) minmax(220px, 1.5fr);
+      }
+
+      .player-panel,
+      .attack-panel,
+      .timer-panel {
+        padding: 10px;
+      }
+
+      .score,
+      .timer {
+        font-size: clamp(26px, 3.4vw, 42px);
+      }
+
+      .attack-button {
+        min-width: 128px;
+        min-height: 46px;
+        font-size: 11px;
+      }
+
+      .legend {
+        max-width: calc(100% - 280px);
+        overflow: hidden;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .canvas-wrap::before,
+      .canvas-wrap::after {
+        display: none;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .game {
+        padding: 8px;
+        gap: 8px;
+      }
+
+      .topbar,
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .game {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .side-station {
+        min-height: 126px;
+      }
+
+      .station-content,
+      .side-station-left .station-content,
+      .side-station-right .station-content {
+        position: static;
+        width: auto;
+        height: auto;
+        transform: none;
+        grid-template-columns: 1fr;
+      }
+
+      .timer-panel {
+        min-width: 0;
+      }
+
+      .attack-panel,
+      .attack-panel:last-child {
+        grid-template-columns: 1fr;
+        text-align: left;
+      }
+
+      .attack-panel:last-child .attack-info,
+      .side-station-right .attack-panel .attack-info {
+        order: 0;
+      }
+
+      .edge-start {
+        display: none;
+      }
+
+    }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <nav class="kiosk-nav kiosk-nav--floating" aria-label="Kiosk navigation">
+      <a class="kiosk-nav-button" href="/select.html">Main kiosk</a>
+      <button id="exitGameButton" class="kiosk-nav-button kiosk-nav-button--exit" type="button">Exit game</button>
+    </nav>
+    <aside class="side-station side-station-left" aria-label="Player 1 station">
+      <div class="station-content">
+        <article class="player-panel p1-card">
+          <span class="label">Player 1 / Left harbor</span>
+          <strong id="scoreP1" class="score">0</strong>
+          <div id="effectP1" class="sub">Clear harbor</div>
+        </article>
+
+        <article class="timer-panel">
+          <span class="label">Time left</span>
+          <strong id="timerP1" class="timer">01:30</strong>
+          <div class="sub">Side-facing controls</div>
+        </article>
+
+        <article class="attack-panel p1-card">
+          <div class="attack-info">
+            <span class="label">Attack energy</span>
+            <div class="bar"><div id="attackFillP1" class="bar-fill"></div></div>
+            <div id="attackDetailP1" class="attack-detail">Next: Storm</div>
+          </div>
+          <button id="attackP1" class="attack-button" disabled>Send Attack</button>
+        </article>
+      </div>
+    </aside>
+
+    <section class="canvas-wrap">
+      <div class="arena-watermark" aria-hidden="true"></div>
+      <canvas id="gameCanvas"></canvas>
+      <div class="legend">
+        <span><i style="background:#f5c84b"></i>RADAR</span>
+        <span><i style="background:#4fe3ff"></i>DISPLAY</span>
+        <span><i style="background:#ff5d6c"></i>CARGO</span>
+      </div>
+      <button id="holdExitButton" class="hold-exit" type="button">
+        <span>Hold to exit</span>
+        <span id="holdExitFill" class="hold-exit-fill"></span>
+      </button>
+      <button id="pauseButton" class="pause-button" type="button">Pause</button>
+      <div id="pauseOverlay" class="overlay hidden">
+        <div class="panel">
+          <p class="eyebrow">Paused</p>
+          <h2>Bridge Duel</h2>
+          <button id="resumeButton" class="primary" type="button">Resume</button>
+        </div>
+      </div>
+      <div id="startOverlay" class="overlay start-overlay">
+        <button class="edge-start edge-start-left" data-start-game type="button">Player 1 Start</button>
+        <button class="edge-start edge-start-right" data-start-game type="button">Player 2 Start</button>
+        <div class="panel">
+          <span class="brand-mark brand-mark--panel"><img src="assets/image.png" alt="" /></span>
+          <p class="eyebrow">Hatteland Technology &middot; 1 vs 1 challenge</p>
+          <h2>Left harbor vs right harbor.</h2>
+          <p>
+            Two operators, one harbor. Draw routes from ships to the matching docks,
+            build combo energy and send storms at the other side.
+            <span class="duel-duration-label">90</span> seconds on the clock.
+          </p>
+          <div class="steps">
+            <article class="step">
+              <b>Draw routes</b>
+              <small>Drag from a ship and release near the correct dock.</small>
+            </article>
+            <article class="step">
+              <b>Build streak</b>
+              <small>Clean dockings charge attacks and multiply pressure.</small>
+            </article>
+            <article class="step">
+              <b>Disrupt rival</b>
+              <small>Storm, fog, traffic and glitches hit the other side.</small>
+            </article>
+          </div>
+          <button id="startButton" class="primary" type="button">Start duel</button>
+          <p id="startError" class="message" aria-live="polite"></p>
+        </div>
+      </div>
+      <div id="endOverlay" class="overlay hidden">
+        <button class="edge-start edge-start-left" data-start-game type="button">Play Again</button>
+        <button class="edge-start edge-start-right" data-start-game type="button">Play Again</button>
+        <div class="panel">
+          <p class="eyebrow">Duel complete</p>
+          <h2 id="winnerText">Winner</h2>
+          <p id="finalText">Final score</p>
+          <button id="restartButton" class="primary" type="button">Play again</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side-station side-station-right" aria-label="Player 2 station">
+      <div class="station-content">
+        <article class="player-panel p2-card">
+          <span class="label">Player 2 / Right harbor</span>
+          <strong id="scoreP2" class="score">0</strong>
+          <div id="effectP2" class="sub">Clear harbor</div>
+        </article>
+
+        <article class="timer-panel">
+          <span class="label">Time left</span>
+          <strong id="timerP2" class="timer">01:30</strong>
+          <div class="sub">Side-facing controls</div>
+        </article>
+
+        <article class="attack-panel p2-card">
+          <div class="attack-info">
+            <span class="label">Attack energy</span>
+            <div class="bar"><div id="attackFillP2" class="bar-fill"></div></div>
+            <div id="attackDetailP2" class="attack-detail">Next: Storm</div>
+          </div>
+          <button id="attackP2" class="attack-button" disabled>Send Attack</button>
+        </article>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    /*
+      Bridge Duel Harbor Control
+      - One-file HTML/CSS/JS game
+      - Canvas rendering
+      - Pointer events support touch, pen and mouse
+      - No external libraries
+    */
+
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const ui = {
+      scoreP1: document.getElementById("scoreP1"),
+      scoreP2: document.getElementById("scoreP2"),
+      timerP1: document.getElementById("timerP1"),
+      timerP2: document.getElementById("timerP2"),
+      effectP1: document.getElementById("effectP1"),
+      effectP2: document.getElementById("effectP2"),
+      attackP1: document.getElementById("attackP1"),
+      attackP2: document.getElementById("attackP2"),
+      attackFillP1: document.getElementById("attackFillP1"),
+      attackFillP2: document.getElementById("attackFillP2"),
+      attackDetailP1: document.getElementById("attackDetailP1"),
+      attackDetailP2: document.getElementById("attackDetailP2"),
+      startOverlay: document.getElementById("startOverlay"),
+      endOverlay: document.getElementById("endOverlay"),
+      winnerText: document.getElementById("winnerText"),
+      finalText: document.getElementById("finalText"),
+      startButton: document.getElementById("startButton"),
+      restartButton: document.getElementById("restartButton"),
+      pauseButton: document.getElementById("pauseButton"),
+      pauseOverlay: document.getElementById("pauseOverlay"),
+      resumeButton: document.getElementById("resumeButton"),
+      holdExitButton: document.getElementById("holdExitButton"),
+      holdExitFill: document.getElementById("holdExitFill"),
+      exitGameButton: document.getElementById("exitGameButton"),
+      startError: document.getElementById("startError")
+    };
+
+    const DEFAULT_DUEL_SETTINGS = {
+      durationSeconds: 90,
+      initialShipsPerPlayer: 3,
+      spawnIntervalSeconds: 1.55,
+      finalSurgeSeconds: 15,
+      finalSurgeSpawnFactorPercent: 82,
+      attackDurationSeconds: 5,
+      attackMaxEnergy: 100,
+      correctDockPoints: 30,
+      comboBonusPerDock: 8,
+      maxComboBonus: 80,
+      streakEvery: 5,
+      streakBonusPoints: 60,
+      priorityBonusPoints: 85,
+      wrongDockPenalty: 20,
+      collisionPenalty: 25,
+      trafficPenalty: 10,
+      attackEnergyBase: 13,
+      attackEnergyComboFactorPercent: 34,
+      attackEnergyStreakFactorPercent: 18,
+      priorityAttackEnergy: 28,
+      beaconAttackEnergy: 32,
+      beaconScorePoints: 120,
+      beaconSpawnMinSeconds: 9,
+      beaconSpawnMaxSeconds: 13,
+      trafficVessels: 2,
+      stormSpeedMultiplierPercent: 175,
+      stormExistingShipBoostPercent: 118,
+      fogOpacityPercent: 24,
+      glitchIntensityPercent: 40,
+      trafficDockHeight: 60,
+      normalDockHeight: 64,
+      enablePriorityShips: true,
+      priorityShipChancePercent: 22,
+      enableBeacons: true,
+      enableFinalSurge: true,
+      enableStormAttack: true,
+      enableFogAttack: true,
+      enableTrafficAttack: true,
+      enableGlitchAttack: true
+    };
+
+    let duelSettings = Object.assign({}, DEFAULT_DUEL_SETTINGS);
+    let pendingDuelSettings = null;
+    let GAME_SECONDS = duelSettings.durationSeconds;
+    let ATTACK_DURATION_MS = duelSettings.attackDurationSeconds * 1000;
+    let ATTACK_MAX = duelSettings.attackMaxEnergy;
+    const SHIP_RADIUS = 24;
+    const DOCK_TYPES = [
+      { type: "radar", label: "RADAR", color: "#f5c84b" },
+      { type: "display", label: "DISPLAY", color: "#4fe3ff" },
+      { type: "cargo", label: "CARGO", color: "#ff5d6c" }
+    ];
+    let ATTACKS = ["storm", "fog", "traffic", "glitch"];
+
+    let state;
+    let lastTime = 0;
+    let pauseStartedAt = 0;
+    let animationId = 0;
+    const HOLD_EXIT_MS = 1800;
+    let holdExitTimer = null;
+    let holdExitProgressTimer = null;
+
+    function createInitialState() {
+      return {
+        running: false,
+        paused: false,
+        timeLeft: GAME_SECONDS,
+        waveOffset: 0,
+        nextShipId: 1,
+        nextBlockerId: 1,
+        nextSpawn: { 1: 0, 2: 0 },
+        scores: { 1: 0, 2: 0 },
+        attack: { 1: 0, 2: 0 },
+        nextAttack: { 1: ATTACKS[0] || "storm", 2: ATTACKS[0] || "storm" },
+        combo: { 1: 0, 2: 0 },
+        ships: [],
+        blockers: [],
+        drags: new Map(),
+        particles: [],
+        scorePops: [],
+        shockwaves: [],
+        beacons: [],
+        shake: 0,
+        attackFlash: { 1: 0, 2: 0 },
+        attackReadyAnnounced: { 1: false, 2: false },
+        lastMomentumLeader: 0,
+        nextBeacon: { 1: 5, 2: 5 },
+        finalSurgeAnnounced: false,
+        lateDramaAnnounced: false,
+        stats: {
+          1: { docked: 0, collisions: 0, attacks: 0, bestCombo: 0, beacons: 0, priority: 0, blockers: 0 },
+          2: { docked: 0, collisions: 0, attacks: 0, bestCombo: 0, beacons: 0, priority: 0, blockers: 0 }
+        },
+        effects: {
+          1: { type: null, until: 0, name: "Clear harbor" },
+          2: { type: null, until: 0, name: "Clear harbor" }
+        },
+        messages: {
+          1: { text: "", until: 0 },
+          2: { text: "", until: 0 }
+        }
+      };
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.height < 80 && canvas.parentElement) {
+        canvas.parentElement.style.height = `${Math.max(320, window.innerHeight - 20)}px`;
+      }
+      const nextRect = canvas.getBoundingClientRect();
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(nextRect.width * ratio));
+      canvas.height = Math.max(1, Math.floor(nextRect.height * ratio));
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    function sideBounds(player) {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      return player === 1
+        ? { x: 0, y: 0, w: w / 2, h }
+        : { x: w / 2, y: 0, w: w / 2, h };
+    }
+
+    function opponent(player) {
+      return player === 1 ? 2 : 1;
+    }
+
+    function randomBetween(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function percent(value) {
+      return Number(value || 0) / 100;
+    }
+
+    function applyDuelSettings(settings = {}) {
+      duelSettings = Object.assign({}, DEFAULT_DUEL_SETTINGS, settings || {});
+      GAME_SECONDS = Number(duelSettings.durationSeconds || DEFAULT_DUEL_SETTINGS.durationSeconds);
+      ATTACK_DURATION_MS = Number(duelSettings.attackDurationSeconds || DEFAULT_DUEL_SETTINGS.attackDurationSeconds) * 1000;
+      ATTACK_MAX = Number(duelSettings.attackMaxEnergy || DEFAULT_DUEL_SETTINGS.attackMaxEnergy);
+      ATTACKS = [
+        duelSettings.enableStormAttack ? "storm" : null,
+        duelSettings.enableFogAttack ? "fog" : null,
+        duelSettings.enableTrafficAttack ? "traffic" : null,
+        duelSettings.enableGlitchAttack ? "glitch" : null
+      ].filter(Boolean);
+
+      if (ATTACKS.length === 0) {
+        ATTACKS = ["storm"];
+      }
+
+      document.querySelectorAll(".duel-duration-label").forEach((item) => {
+        item.textContent = String(GAME_SECONDS);
+      });
+    }
+
+    function loadDuelSettings() {
+      if (!window.fetch) {
+        applyDuelSettings();
+        return;
+      }
+
+      fetch("/api/config", { cache: "no-store" })
+        .then((response) => {
+          if (!response.ok) {
+            return null;
+          }
+          return response.json();
+        })
+        .then((payload) => {
+          if (!payload) {
+            return;
+          }
+          if (state && (state.running || !ui.endOverlay.classList.contains("hidden"))) {
+            // Ikke bytt regler midt i en runde, og ikke nullstill
+            // side-panelene mens sluttskjermen fortsatt vises.
+            pendingDuelSettings = payload.duelGame || {};
+            return;
+          }
+          applyDuelSettings(payload.duelGame || {});
+          state = createInitialState();
+          updateUI();
+          render();
+        })
+        .catch(() => {
+          applyDuelSettings();
+        });
+    }
+
+    function currentSpeedMultiplier(player) {
+      if (state.effects[player].type === "storm") {
+        return percent(duelSettings.stormSpeedMultiplierPercent || 175);
+      }
+
+      if (state.effects[player].type === "traffic") {
+        return 1;
+      }
+
+      return 1;
+    }
+
+    function hasEffect(player, type) {
+      return state.effects[player].type === type;
+    }
+
+    function attackLabel(type) {
+      return {
+        storm: "STORM",
+        fog: "FOG",
+        traffic: "TRAFFIC BURST",
+        glitch: "CONTROL GLITCH"
+      }[type] || type.toUpperCase();
+    }
+
+    function attackDescription(type) {
+      const seconds = Math.round(ATTACK_DURATION_MS / 1000);
+      const vessels = Math.max(1, Math.round(Number(duelSettings.trafficVessels || 2)));
+      return {
+        storm: `enemy ships surge and drift in heavy wind for ${seconds}s`,
+        fog: `enemy harbor gets thick fog and tighter docking for ${seconds}s`,
+        traffic: `${vessels} traffic vessel${vessels === 1 ? "" : "s"} cross enemy harbor`,
+        glitch: `enemy route drawing drifts hard for ${seconds}s`
+      }[type] || `enemy disruption for ${seconds}s`;
+    }
+
+    function nextAttackAfter(type) {
+      const index = ATTACKS.indexOf(type);
+      return ATTACKS[(index + 1) % ATTACKS.length];
+    }
+
+    function addShake(amount) {
+      state.shake = Math.max(state.shake, amount);
+    }
+
+    function addScorePop(player, x, y, text, positive = true) {
+      state.scorePops.push({
+        player,
+        x,
+        y,
+        text,
+        positive,
+        life: 0.85,
+        maxLife: 0.85
+      });
+    }
+
+    function addParticles(x, y, color, count = 12) {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = randomBetween(38, 130);
+        state.particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          color,
+          radius: randomBetween(2, 5),
+          life: randomBetween(0.35, 0.75),
+          maxLife: 0.75
+        });
+      }
+    }
+
+    function addShockwave(x, y, color, size = 120) {
+      state.shockwaves.push({
+        x,
+        y,
+        color,
+        size,
+        life: 0.55,
+        maxLife: 0.55
+      });
+    }
+
+    function updateFeedback(dt) {
+      state.shake = Math.max(0, state.shake - dt * 22);
+
+      for (const particle of state.particles) {
+        particle.x += particle.vx * dt;
+        particle.y += particle.vy * dt;
+        particle.vx *= 0.94;
+        particle.vy *= 0.94;
+        particle.life -= dt;
+      }
+
+      for (const pop of state.scorePops) {
+        pop.y -= 42 * dt;
+        pop.life -= dt;
+      }
+
+      for (const wave of state.shockwaves) {
+        wave.life -= dt;
+      }
+
+      state.particles = state.particles.filter((particle) => particle.life > 0);
+      state.scorePops = state.scorePops.filter((pop) => pop.life > 0);
+      state.shockwaves = state.shockwaves.filter((wave) => wave.life > 0);
+    }
+
+    function dockRects(player) {
+      const b = sideBounds(player);
+      const dockW = Math.min(170, b.w * 0.22);
+      const dockH = hasEffect(player, "traffic")
+        ? Number(duelSettings.trafficDockHeight || 60)
+        : Number(duelSettings.normalDockHeight || 64);
+      const gap = Math.min(30, b.h * 0.04);
+      const total = dockH * 3 + gap * 2;
+      const startY = b.y + (b.h - total) / 2;
+      const x = player === 1 ? b.x + 24 : b.x + b.w - dockW - 24;
+
+      return DOCK_TYPES.map((dock, index) => ({
+        type: dock.type,
+        label: dock.label,
+        color: dock.color,
+        x,
+        y: startY + index * (dockH + gap),
+        w: dockW,
+        h: dockH
+      }));
+    }
+
+    function spawnShip(player, forcedType) {
+      const b = sideBounds(player);
+      const dock = forcedType
+        ? DOCK_TYPES.find((item) => item.type === forcedType)
+        : DOCK_TYPES[Math.floor(Math.random() * DOCK_TYPES.length)];
+      const priority =
+        Boolean(duelSettings.enablePriorityShips) &&
+        !forcedType &&
+        Math.random() < percent(duelSettings.priorityShipChancePercent || 0);
+
+      state.ships.push({
+        id: state.nextShipId++,
+        player,
+        type: dock.type,
+        label: dock.label,
+        color: dock.color,
+        x: player === 1 ? b.x + b.w - 58 : b.x + 58,
+        y: randomBetween(b.y + 70, b.y + b.h - 70),
+        vx: player === 1 ? -46 : 46,
+        vy: randomBetween(-18, 18),
+        size: randomBetween(1.05, 1.42),
+        path: [],
+        selected: false,
+        priority,
+        touchedBeacon: false,
+        reachedDock: false
+      });
+    }
+
+    function spawnBeacon(player) {
+      const b = sideBounds(player);
+      const types = ["attack", "score", "clear"];
+      const type = types[Math.floor(Math.random() * types.length)];
+
+      state.beacons.push({
+        player,
+        type,
+        x: randomBetween(b.x + b.w * 0.22, b.x + b.w * 0.78),
+        y: randomBetween(b.y + 88, b.y + b.h - 88),
+        radius: 26,
+        life: 8
+      });
+    }
+
+    function spawnTrafficAttack(player) {
+      const b = sideBounds(player);
+      const fromLeft = player === 1;
+      const vesselCount = Math.max(1, Math.min(6, Math.round(Number(duelSettings.trafficVessels || 4))));
+      const lanes = Array.from({ length: vesselCount }, (_, index) =>
+        vesselCount === 1 ? 0.5 : 0.28 + (index / (vesselCount - 1)) * 0.44
+      );
+
+      lanes.forEach((lane, index) => {
+        const kind = index === 0 ? "barge" : "service";
+        const x = fromLeft ? b.x - 74 - index * 42 : b.x + b.w + 74 + index * 42;
+        const y = b.y + b.h * lane + randomBetween(-24, 24);
+        const speed = randomBetween(90, 118);
+
+        state.blockers.push({
+          id: state.nextBlockerId++,
+          player,
+          kind,
+          x,
+          y,
+          w: kind === "barge" ? 68 : 56,
+          h: kind === "barge" ? 28 : 24,
+          vx: fromLeft ? speed : -speed,
+          vy: randomBetween(-8, 8),
+          phase: Math.random() * Math.PI * 2,
+          trafficAttack: true,
+          life: 8
+        });
+      });
+    }
+
+    function sendAttack(fromPlayer) {
+      // Knappene ligger utenfor canvas-omraadet og dekkes ikke av
+      // pause-/sluttoverlayene, saa de maa sjekke spilltilstanden selv.
+      if (!state.running || state.paused) return;
+      if (state.attack[fromPlayer] < ATTACK_MAX) return;
+
+      const target = opponent(fromPlayer);
+      const attack = state.nextAttack[fromPlayer];
+      state.attack[fromPlayer] = 0;
+      state.attackReadyAnnounced[fromPlayer] = false;
+      state.nextAttack[fromPlayer] = nextAttackAfter(attack);
+      state.stats[fromPlayer].attacks += 1;
+      state.effects[target] = {
+        type: attack,
+        until: performance.now() + ATTACK_DURATION_MS,
+        name: attackLabel(attack)
+      };
+      state.messages[target] = {
+        text: `${attack.toUpperCase()} INCOMING`,
+        until: performance.now() + 2200
+      };
+      state.attackFlash[target] = 0.85;
+
+      if (attack === "traffic") {
+        spawnTrafficAttack(target);
+      }
+
+      if (attack === "storm") {
+        const boost = percent(duelSettings.stormExistingShipBoostPercent || 118);
+        state.ships
+          .filter((ship) => ship.player === target)
+          .forEach((ship) => {
+            ship.vx *= boost;
+            ship.vy *= boost;
+          });
+      }
+
+      addShake(9);
+      {
+        const b = sideBounds(target);
+        addShockwave(b.x + b.w / 2, b.y + b.h / 2, "#ff5d6c", Math.min(b.w, b.h) * 0.65);
+      }
+      addScorePop(fromPlayer, sideBounds(fromPlayer).x + sideBounds(fromPlayer).w / 2, 120, `${attackLabel(attack)} SENT`, true);
+      addScorePop(target, sideBounds(target).x + sideBounds(target).w / 2, sideBounds(target).h * 0.34, "UNDER ATTACK", false);
+      updateUI();
+    }
+
+    function scoreDocking(ship, correct) {
+      const player = ship.player;
+
+      if (correct) {
+        state.combo[player] += 1;
+        const comboBonus = Math.min(
+          Number(duelSettings.maxComboBonus || 80),
+          state.combo[player] * Number(duelSettings.comboBonusPerDock || 8)
+        );
+        const streakEvery = Math.max(1, Number(duelSettings.streakEvery || 5));
+        const streakBonus =
+          state.combo[player] % streakEvery === 0 ? Number(duelSettings.streakBonusPoints || 0) : 0;
+        const points = Number(duelSettings.correctDockPoints || 30) + comboBonus + streakBonus;
+        state.scores[player] += points;
+        state.attack[player] = Math.min(
+          ATTACK_MAX,
+          state.attack[player] +
+            Number(duelSettings.attackEnergyBase || 13) +
+            comboBonus * percent(duelSettings.attackEnergyComboFactorPercent || 34) +
+            streakBonus * percent(duelSettings.attackEnergyStreakFactorPercent || 18)
+        );
+        state.stats[player].docked += 1;
+        state.stats[player].bestCombo = Math.max(state.stats[player].bestCombo, state.combo[player]);
+        if (ship.priority) {
+          const priorityBonus = Number(duelSettings.priorityBonusPoints || 85);
+          state.scores[player] += priorityBonus;
+          state.attack[player] = Math.min(ATTACK_MAX, state.attack[player] + Number(duelSettings.priorityAttackEnergy || 28));
+          state.stats[player].priority += 1;
+          addScorePop(player, ship.x, ship.y - 34, `PRIORITY +${priorityBonus}`, true);
+        }
+        addScorePop(player, ship.x, ship.y, `+${points}`, true);
+        addParticles(ship.x, ship.y, ship.color, 16);
+        addShockwave(ship.x, ship.y, ship.color, 92 + state.combo[player] * 8);
+        state.messages[player] = {
+          text: streakBonus ? `HOT STREAK +${points}` : `+${points} DOCKED`,
+          until: performance.now() + 900
+        };
+      } else {
+        state.combo[player] = 0;
+        const penalty = Number(duelSettings.wrongDockPenalty || 20);
+        state.scores[player] = Math.max(0, state.scores[player] - penalty);
+        addShake(6);
+        addScorePop(player, ship.x, ship.y, `-${penalty}`, false);
+        addParticles(ship.x, ship.y, "#ff5d6c", 12);
+        addShockwave(ship.x, ship.y, "#ff5d6c", 100);
+        state.messages[player] = {
+          text: `-${penalty} WRONG DOCK`,
+          until: performance.now() + 1100
+        };
+      }
+
+      updateUI();
+    }
+
+    function penalizeCollision(player) {
+      state.combo[player] = 0;
+      const penalty = Number(duelSettings.collisionPenalty || 25);
+      state.scores[player] = Math.max(0, state.scores[player] - penalty);
+      state.stats[player].collisions += 1;
+      addShake(10);
+      state.messages[player] = {
+        text: `-${penalty} COLLISION`,
+        until: performance.now() + 800
+      };
+      updateUI();
+    }
+
+    function penalizeBlocker(player, x, y) {
+      state.combo[player] = 0;
+      const penalty = Number(duelSettings.trafficPenalty || 10);
+      state.scores[player] = Math.max(0, state.scores[player] - penalty);
+      state.stats[player].blockers += 1;
+      addShake(4);
+      addScorePop(player, x, y, `TRAFFIC -${penalty}`, false);
+      addParticles(x, y, "#a8b4bd", 10);
+      state.messages[player] = {
+        text: `-${penalty} HARBOR TRAFFIC`,
+        until: performance.now() + 850
+      };
+      updateUI();
+    }
+
+    function shipHitsBlocker(ship, blocker) {
+      const closestX = Math.max(blocker.x - blocker.w / 2, Math.min(ship.x, blocker.x + blocker.w / 2));
+      const closestY = Math.max(blocker.y - blocker.h / 2, Math.min(ship.y, blocker.y + blocker.h / 2));
+      return Math.hypot(ship.x - closestX, ship.y - closestY) < SHIP_RADIUS * ship.size * 0.92;
+    }
+
+    function updateBlockers(dt, nowSeconds) {
+      for (const blocker of state.blockers) {
+        const b = sideBounds(blocker.player);
+        blocker.life -= dt;
+        blocker.x += blocker.vx * dt;
+        blocker.y += blocker.vy * dt + Math.sin(nowSeconds * 2.2 + blocker.phase) * 0.12;
+
+        if (blocker.y < b.y + 70 || blocker.y > b.y + b.h - 70) {
+          blocker.vy *= -1;
+          blocker.y = Math.max(b.y + 70, Math.min(b.y + b.h - 70, blocker.y));
+        }
+      }
+
+      state.blockers = state.blockers.filter((blocker) => {
+        const b = sideBounds(blocker.player);
+        const hasCrossed = blocker.player === 1
+          ? blocker.x > b.x + b.w + blocker.w
+          : blocker.x < b.x - blocker.w;
+        return blocker.life > 0 && !hasCrossed && !blocker.remove;
+      });
+    }
+
+    function updateShips(dt) {
+      for (const ship of state.ships) {
+        const b = sideBounds(ship.player);
+        const speed = currentSpeedMultiplier(ship.player);
+        const windDrift = hasEffect(ship.player, "storm") ? Math.sin(performance.now() * 0.012 + ship.id) * 44 * dt : 0;
+
+        if (ship.path.length > 0) {
+          const target = ship.path[0];
+          const dx = target.x - ship.x;
+          const dy = target.y - ship.y;
+          const distance = Math.hypot(dx, dy);
+          const step = (155 + state.combo[ship.player] * 5) * speed * dt;
+
+          if (distance <= step) {
+            ship.x = target.x;
+            ship.y = target.y;
+            ship.path.shift();
+          } else {
+            ship.x += (dx / distance) * step + windDrift;
+            ship.y += (dy / distance) * step;
+          }
+        } else {
+          ship.x += ship.vx * dt + windDrift;
+          ship.y += ship.vy * speed * dt;
+        }
+
+        ship.x = Math.max(b.x + SHIP_RADIUS, Math.min(b.x + b.w - SHIP_RADIUS, ship.x));
+        ship.y = Math.max(b.y + SHIP_RADIUS, Math.min(b.y + b.h - SHIP_RADIUS, ship.y));
+
+        for (const dock of dockRects(ship.player)) {
+          const insideDock =
+            ship.x >= dock.x &&
+            ship.x <= dock.x + dock.w &&
+            ship.y >= dock.y &&
+            ship.y <= dock.y + dock.h;
+
+          if (insideDock && !ship.reachedDock) {
+            ship.reachedDock = true;
+            scoreDocking(ship, ship.type === dock.type);
+            ship.remove = true;
+          }
+        }
+
+        for (const beacon of state.beacons) {
+          if (beacon.player !== ship.player || beacon.used) continue;
+
+          if (Math.hypot(ship.x - beacon.x, ship.y - beacon.y) < beacon.radius + SHIP_RADIUS * ship.size) {
+            beacon.used = true;
+            ship.touchedBeacon = true;
+            applyBeacon(ship.player, beacon, ship.x, ship.y);
+          }
+        }
+
+        for (const blocker of state.blockers) {
+          if (blocker.player !== ship.player) continue;
+
+          if (shipHitsBlocker(ship, blocker)) {
+            ship.remove = true;
+            blocker.remove = true;
+            penalizeBlocker(ship.player, ship.x, ship.y);
+            break;
+          }
+        }
+      }
+
+      // Collision check per player side.
+      for (let i = 0; i < state.ships.length; i++) {
+        for (let j = i + 1; j < state.ships.length; j++) {
+          const a = state.ships[i];
+          const b = state.ships[j];
+          if (a.player !== b.player || a.remove || b.remove) continue;
+
+          if (Math.hypot(a.x - b.x, a.y - b.y) < SHIP_RADIUS * 1.8) {
+            a.remove = true;
+            b.remove = true;
+            penalizeCollision(a.player);
+          }
+        }
+      }
+
+      state.ships = state.ships.filter((ship) => !ship.remove);
+    }
+
+    function applyBeacon(player, beacon, x, y) {
+      state.stats[player].beacons += 1;
+
+      if (beacon.type === "attack") {
+        const energy = Number(duelSettings.beaconAttackEnergy || 32);
+        state.attack[player] = Math.min(ATTACK_MAX, state.attack[player] + energy);
+        addScorePop(player, x, y, `ATTACK +${energy}`, true);
+      } else if (beacon.type === "score") {
+        const points = Number(duelSettings.beaconScorePoints || 120);
+        state.scores[player] += points;
+        addScorePop(player, x, y, `BONUS +${points}`, true);
+      } else {
+        state.effects[player] = { type: null, until: 0, name: "Clear harbor" };
+        state.combo[player] += 1;
+        addScorePop(player, x, y, "CLEAR +COMBO", true);
+      }
+
+      addParticles(x, y, beacon.type === "attack" ? "#f5c84b" : beacon.type === "score" ? "#68f2a6" : "#4fe3ff", 20);
+      updateUI();
+    }
+
+    function updateBeacons(dt, nowSeconds) {
+      if (!duelSettings.enableBeacons) {
+        state.beacons = [];
+        return;
+      }
+
+      for (const player of [1, 2]) {
+        if (nowSeconds >= state.nextBeacon[player]) {
+          spawnBeacon(player);
+          state.nextBeacon[player] =
+            nowSeconds +
+            randomBetween(
+              Number(duelSettings.beaconSpawnMinSeconds || 9),
+              Number(duelSettings.beaconSpawnMaxSeconds || 13)
+            );
+        }
+      }
+
+      for (const beacon of state.beacons) {
+        beacon.life -= dt;
+      }
+
+      state.beacons = state.beacons.filter((beacon) => beacon.life > 0 && !beacon.used);
+    }
+
+    function updateEffects() {
+      const now = performance.now();
+      for (const player of [1, 2]) {
+        if (state.effects[player].type && now > state.effects[player].until) {
+        state.effects[player] = { type: null, until: 0, name: "Clear harbor" };
+        }
+      }
+    }
+
+    function updateSpawning(nowSeconds) {
+      const pressure = 1 - Math.min(0.55, (GAME_SECONDS - state.timeLeft) / GAME_SECONDS * 0.55);
+      const finalFactor =
+        duelSettings.enableFinalSurge && state.timeLeft <= Number(duelSettings.finalSurgeSeconds || 15)
+          ? percent(duelSettings.finalSurgeSpawnFactorPercent || 82)
+          : 1;
+      const baseDelay = Number(duelSettings.spawnIntervalSeconds || 1.55) * pressure * finalFactor;
+
+      for (const player of [1, 2]) {
+        if (nowSeconds >= state.nextSpawn[player]) {
+          spawnShip(player);
+          const trafficFactor = 1;
+          state.nextSpawn[player] = nowSeconds + randomBetween(baseDelay * 0.8, baseDelay * 1.25) * trafficFactor;
+        }
+      }
+    }
+
+    function update(dt, nowSeconds) {
+      if (!state.running) return;
+
+      state.timeLeft = Math.max(0, state.timeLeft - dt);
+      state.waveOffset += dt * 28;
+      updateEffects();
+      updateSpawning(nowSeconds);
+      updateBeacons(dt, nowSeconds);
+      updateBlockers(dt, nowSeconds);
+      updateShips(dt);
+      updateFeedback(dt);
+      state.attackFlash[1] = Math.max(0, state.attackFlash[1] - dt * 1.4);
+      state.attackFlash[2] = Math.max(0, state.attackFlash[2] - dt * 1.4);
+      updateUI();
+
+      for (const player of [1, 2]) {
+        if (state.attack[player] >= ATTACK_MAX && !state.attackReadyAnnounced[player]) {
+          const bounds = sideBounds(player);
+          state.attackReadyAnnounced[player] = true;
+          state.messages[player] = { text: "ATTACK READY", until: performance.now() + 1200 };
+          addScorePop(player, bounds.x + bounds.w / 2, bounds.h * 0.22, "ATTACK READY", true);
+          addShake(5);
+        }
+
+        if (state.attack[player] < ATTACK_MAX * 0.5) {
+          state.attackReadyAnnounced[player] = false;
+        }
+      }
+
+      if (!state.lateDramaAnnounced && state.timeLeft <= 10) {
+        state.lateDramaAnnounced = true;
+        state.messages[1] = { text: "LAST CHANCE", until: performance.now() + 1600 };
+        state.messages[2] = { text: "LAST CHANCE", until: performance.now() + 1600 };
+        addShake(14);
+      }
+
+      const scoreDelta = Math.abs(state.scores[1] - state.scores[2]);
+      const leader = state.scores[1] === state.scores[2] ? 0 : state.scores[1] > state.scores[2] ? 1 : 2;
+      if (leader && leader !== state.lastMomentumLeader && scoreDelta >= 180 && state.timeLeft < GAME_SECONDS - 12) {
+        state.lastMomentumLeader = leader;
+        state.messages[leader] = { text: "HARBOR CONTROL", until: performance.now() + 1400 };
+        state.messages[opponent(leader)] = { text: "COMEBACK WINDOW", until: performance.now() + 1400 };
+      }
+
+      if (
+        duelSettings.enableFinalSurge &&
+        !state.finalSurgeAnnounced &&
+        state.timeLeft <= Number(duelSettings.finalSurgeSeconds || 15)
+      ) {
+        state.finalSurgeAnnounced = true;
+        state.messages[1] = { text: "FINAL SURGE", until: performance.now() + 1800 };
+        state.messages[2] = { text: "FINAL SURGE", until: performance.now() + 1800 };
+        addShake(12);
+      }
+
+      if (state.timeLeft <= 0) {
+        finishGame();
+      }
+    }
+
+    function sideRotation(player) {
+      return player === 1 ? Math.PI / 2 : -Math.PI / 2;
+    }
+
+    function drawSideText(player, text, x, y, font, fillStyle, options = {}) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(sideRotation(player));
+      ctx.globalAlpha = options.alpha == null ? 1 : options.alpha;
+      ctx.font = font;
+      ctx.textAlign = options.align || "center";
+      ctx.textBaseline = "middle";
+
+      if (options.strokeStyle) {
+        ctx.strokeStyle = options.strokeStyle;
+        ctx.lineWidth = options.lineWidth || 5;
+        ctx.strokeText(text, 0, 0);
+      }
+
+      ctx.fillStyle = fillStyle;
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    }
+
+    function drawSideBadge(player, x, y, w, h, radius, fillStyle, strokeStyle) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(sideRotation(player));
+      ctx.fillStyle = fillStyle;
+      if (strokeStyle) {
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = 2;
+      }
+      roundedRect(-w / 2, -h / 2, w, h, radius, true, Boolean(strokeStyle));
+      ctx.restore();
+    }
+
+    function drawWater() {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+
+      const gradient = ctx.createLinearGradient(0, 0, w, h);
+      gradient.addColorStop(0, "#082235");
+      gradient.addColorStop(0.5, "#0b3148");
+      gradient.addColorStop(1, "#082235");
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.fillStyle = "rgba(3, 13, 22, 0.18)";
+      ctx.fillRect(0, 0, w / 2, h);
+      ctx.fillStyle = "rgba(245, 200, 75, 0.035)";
+      ctx.fillRect(w / 2, 0, w / 2, h);
+
+      ctx.strokeStyle = "rgba(144, 224, 239, 0.15)";
+      ctx.lineWidth = 1.8;
+      for (let y = 26; y < h; y += 28) {
+        ctx.beginPath();
+        for (let x = 0; x <= w; x += 18) {
+          const wave = Math.sin((x + state.waveOffset) * 0.025 + y * 0.04) * 5;
+          if (x === 0) ctx.moveTo(x, y + wave);
+          else ctx.lineTo(x, y + wave);
+        }
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+      ctx.fillRect(w / 2 - 2, 0, 4, h);
+      drawSideBadge(1, w / 2 - 34, h * 0.24, 132, 32, 999, "rgba(3, 13, 22, 0.55)", "rgba(79, 227, 255, 0.22)");
+      drawSideText(1, "NO CROSSING", w / 2 - 34, h * 0.24, "900 12px Arial", "#dff8ff");
+      drawSideBadge(2, w / 2 + 34, h * 0.76, 132, 32, 999, "rgba(3, 13, 22, 0.55)", "rgba(245, 200, 75, 0.22)");
+      drawSideText(2, "NO CROSSING", w / 2 + 34, h * 0.76, "900 12px Arial", "#dff8ff");
+
+      ctx.fillStyle = "rgba(245, 200, 75, 0.08)";
+      ctx.fillRect(w - 8, 0, 8, h);
+      ctx.fillStyle = "rgba(79, 227, 255, 0.08)";
+      ctx.fillRect(0, 0, 8, h);
+    }
+
+    function drawPlayerLabel(player) {
+      const b = sideBounds(player);
+      const color = player === 1 ? "#4fe3ff" : "#f5c84b";
+      const x = b.x + b.w * 0.5;
+      drawSideText(player, player === 1 ? "PLAYER 1" : "PLAYER 2", x, b.y + b.h * 0.15, "900 34px Arial", color, { alpha: 0.46 });
+
+      if (state.combo[player] >= 3) {
+        drawSideBadge(player, x, b.y + b.h * 0.84, 188, 42, 999, "rgba(3, 13, 22, 0.65)", `${color}55`);
+        drawSideText(player, `STREAK x${state.combo[player]}`, x, b.y + b.h * 0.84, "900 20px Arial", "#ffffff", { alpha: 0.9 });
+      }
+    }
+
+    function drawDocks(player) {
+      const selectedShip = state.ships.find((ship) => ship.player === player && ship.selected);
+
+      for (const dock of dockRects(player)) {
+        ctx.fillStyle = "rgba(4, 13, 22, 0.84)";
+        ctx.strokeStyle = dock.color;
+        const selectedDockMatches = selectedShip && selectedShip.type === dock.type;
+        ctx.lineWidth = selectedDockMatches ? 7 : 4;
+        ctx.shadowColor = selectedDockMatches ? dock.color : "transparent";
+        ctx.shadowBlur = selectedDockMatches ? 24 : 0;
+        roundedRect(dock.x, dock.y, dock.w, dock.h, 10, true, true);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = `${dock.color}22`;
+        roundedRect(dock.x + 8, dock.y + 8, dock.w - 16, dock.h - 16, 8, true, false);
+
+        drawSideText(player, dock.label, dock.x + dock.w / 2, dock.y + dock.h / 2, "900 15px Arial", dock.color);
+      }
+    }
+
+    function drawShips() {
+      for (const ship of state.ships) {
+        // Path line
+        if (ship.path.length > 0) {
+          ctx.strokeStyle = ship.player === 1 ? "rgba(79, 227, 255, 0.65)" : "rgba(245, 200, 75, 0.65)";
+          ctx.lineWidth = ship.selected ? 7 : 5;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          ctx.shadowColor = ship.player === 1 ? "rgba(79, 227, 255, 0.55)" : "rgba(245, 200, 75, 0.45)";
+          ctx.shadowBlur = ship.selected ? 18 : 8;
+          ctx.beginPath();
+          ctx.moveTo(ship.x, ship.y);
+          for (const point of ship.path) ctx.lineTo(point.x, point.y);
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+
+        if (ship.priority) {
+          ctx.save();
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 3;
+          ctx.globalAlpha = 0.85 + Math.sin(performance.now() * 0.012) * 0.15;
+          ctx.beginPath();
+          ctx.arc(ship.x, ship.y, SHIP_RADIUS * ship.size + 10, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "900 11px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText("!", ship.x, ship.y - SHIP_RADIUS * ship.size - 14);
+          ctx.restore();
+        }
+
+        // Ship body
+        ctx.save();
+        ctx.translate(ship.x, ship.y);
+        const nextPoint = ship.path[0];
+        const heading = nextPoint
+          ? Math.atan2(nextPoint.y - ship.y, nextPoint.x - ship.x)
+          : ship.player === 1 ? Math.PI : 0;
+        ctx.rotate(heading);
+        ctx.scale(ship.size, ship.size);
+        ctx.shadowColor = ship.selected ? "rgba(255, 255, 255, 0.55)" : `${ship.color}66`;
+        ctx.shadowBlur = ship.selected ? 18 : 9;
+        ctx.fillStyle = ship.color;
+        ctx.strokeStyle = ship.selected ? "#ffffff" : "rgba(0, 0, 0, 0.35)";
+        ctx.lineWidth = ship.selected ? 4 : 2;
+        ctx.beginPath();
+        ctx.moveTo(SHIP_RADIUS * 1.48, 0);
+        ctx.quadraticCurveTo(SHIP_RADIUS * 0.74, -SHIP_RADIUS * 0.86, -SHIP_RADIUS * 1.05, -SHIP_RADIUS * 0.72);
+        ctx.quadraticCurveTo(-SHIP_RADIUS * 1.42, 0, -SHIP_RADIUS * 1.05, SHIP_RADIUS * 0.72);
+        ctx.quadraticCurveTo(SHIP_RADIUS * 0.74, SHIP_RADIUS * 0.86, SHIP_RADIUS * 1.48, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        roundedRect(-13, -9, 20, 18, 4, true, false);
+        ctx.fillStyle = "rgba(3, 13, 22, 0.42)";
+        roundedRect(-25, -12, 8, 24, 3, true, false);
+        ctx.fillStyle = "rgba(255,255,255,0.72)";
+        ctx.beginPath();
+        ctx.arc(14, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        drawSideText(ship.player, ship.label[0], ship.x, ship.y, "900 11px Arial", "#06131f");
+
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.ellipse(
+          ship.x + (ship.player === 1 ? 26 : -26),
+          ship.y + 6,
+          22 * ship.size,
+          5 * ship.size,
+          0,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function drawBlockers() {
+      for (const blocker of state.blockers) {
+        ctx.save();
+        ctx.translate(blocker.x, blocker.y);
+        ctx.rotate(Math.atan2(blocker.vy || 0, blocker.vx || 1));
+        ctx.fillStyle = blocker.kind === "barge" ? "rgba(168, 180, 189, 0.92)" : "rgba(124, 190, 184, 0.9)";
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
+        ctx.lineWidth = 2;
+        ctx.shadowColor = "rgba(255, 255, 255, 0.18)";
+        ctx.shadowBlur = 12;
+        roundedRect(-blocker.w / 2, -blocker.h / 2, blocker.w, blocker.h, 10, true, true);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = "rgba(3, 13, 22, 0.5)";
+        roundedRect(-blocker.w * 0.38, -blocker.h * 0.25, blocker.w * 0.22, blocker.h * 0.5, 4, true, false);
+        ctx.fillStyle = blocker.kind === "barge" ? "#f5c84b" : "#4fe3ff";
+        roundedRect(-blocker.w * 0.08, -blocker.h * 0.28, blocker.w * 0.18, blocker.h * 0.56, 4, true, false);
+        roundedRect(blocker.w * 0.18, -blocker.h * 0.28, blocker.w * 0.18, blocker.h * 0.56, 4, true, false);
+        ctx.restore();
+
+        drawSideBadge(blocker.player, blocker.x, blocker.y - 38, 96, 24, 999, "rgba(3, 13, 22, 0.62)", "rgba(255, 255, 255, 0.14)");
+        drawSideText(blocker.player, "TRAFFIC", blocker.x, blocker.y - 38, "900 10px Arial", "#ffffff", { alpha: 0.78 });
+      }
+    }
+
+    function drawBeacons() {
+      const now = performance.now();
+
+      for (const beacon of state.beacons) {
+        const pulse = 1 + Math.sin(now * 0.008) * 0.12;
+        const color = beacon.type === "attack" ? "#f5c84b" : beacon.type === "score" ? "#68f2a6" : "#4fe3ff";
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, beacon.life / 1.4);
+        ctx.fillStyle = "rgba(3, 13, 22, 0.82)";
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(beacon.x, beacon.y, beacon.radius * pulse, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        drawSideText(
+          beacon.player,
+          beacon.type === "attack" ? "ATK" : beacon.type === "score" ? `+${duelSettings.beaconScorePoints || 120}` : "CLR",
+          beacon.x,
+          beacon.y,
+          "900 12px Arial",
+          color
+        );
+      }
+    }
+
+    function drawParticles() {
+      for (const particle of state.particles) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, particle.life / particle.maxLife);
+        ctx.fillStyle = particle.color;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function drawShockwaves() {
+      for (const wave of state.shockwaves) {
+        const t = 1 - Math.max(0, wave.life / wave.maxLife);
+        ctx.save();
+        ctx.globalAlpha = (1 - t) * 0.72;
+        ctx.strokeStyle = wave.color;
+        ctx.lineWidth = 5 * (1 - t) + 1;
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, 14 + wave.size * t, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function drawScorePops() {
+      for (const pop of state.scorePops) {
+        drawSideText(
+          pop.player,
+          pop.text,
+          pop.x,
+          pop.y,
+          "900 25px Arial",
+          pop.positive ? "#dff8ff" : "#ff9aa5",
+          {
+            alpha: Math.max(0, pop.life / pop.maxLife),
+            strokeStyle: "rgba(3, 13, 22, 0.8)",
+            lineWidth: 5
+          }
+        );
+      }
+    }
+
+    function drawWarnings() {
+      const ships = state.ships;
+
+      for (let i = 0; i < ships.length; i++) {
+        for (let j = i + 1; j < ships.length; j++) {
+          const a = ships[i];
+          const b = ships[j];
+          if (a.player !== b.player) continue;
+
+          const distance = Math.hypot(a.x - b.x, a.y - b.y);
+          if (distance > 36 && distance < 82) {
+            ctx.save();
+            ctx.globalAlpha = 1 - (distance - 36) / 46;
+            ctx.strokeStyle = "#ff5d6c";
+            ctx.lineWidth = 3;
+            ctx.setLineDash([8, 8]);
+            ctx.beginPath();
+            ctx.arc((a.x + b.x) / 2, (a.y + b.y) / 2, 34, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
+    }
+
+    function drawEffects() {
+      const now = performance.now();
+
+      for (const player of [1, 2]) {
+        const effect = state.effects[player].type;
+        const b = sideBounds(player);
+        const remaining = Math.max(0, Math.ceil((state.effects[player].until - now) / 1000));
+
+        if (effect === "fog") {
+          const fogAlpha = Math.min(0.88, percent(duelSettings.fogOpacityPercent || 24));
+          ctx.fillStyle = `rgba(218, 239, 245, ${fogAlpha})`;
+          ctx.fillRect(b.x, b.y, b.w, b.h);
+          ctx.fillStyle = `rgba(218, 239, 245, ${Math.min(0.66, fogAlpha + 0.08)})`;
+          for (let x = b.x - 90; x < b.x + b.w + 90; x += 34) {
+            ctx.beginPath();
+            ctx.arc(x + Math.sin(now * 0.002 + x) * 42, b.y + b.h * (0.28 + (x % 5) * 0.09), 118, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        if (effect === "storm") {
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.58)";
+          ctx.lineWidth = 5;
+          for (let i = 0; i < 26; i++) {
+            const x = b.x + ((i * 43 + state.waveOffset * 4) % b.w);
+            ctx.beginPath();
+            ctx.moveTo(x, b.y - 40);
+            ctx.lineTo(x - 150, b.y + b.h + 40);
+            ctx.stroke();
+          }
+        }
+
+        if (effect === "glitch") {
+          ctx.fillStyle = "rgba(255, 93, 108, 0.12)";
+          for (let y = 0; y < b.h; y += 34) {
+            ctx.fillRect(b.x + Math.sin(y + now * 0.012) * 12, b.y + y, b.w, 4);
+          }
+        }
+
+        if (effect === "traffic") {
+          ctx.fillStyle = "rgba(245, 200, 75, 0.16)";
+          ctx.fillRect(b.x, b.y, b.w, b.h);
+          ctx.strokeStyle = "rgba(245, 200, 75, 0.28)";
+          ctx.lineWidth = 3;
+          for (let y = b.y + 60; y < b.y + b.h; y += 92) {
+            ctx.beginPath();
+            ctx.moveTo(b.x, y);
+            ctx.lineTo(b.x + b.w, y + Math.sin(now * 0.006 + y) * 18);
+            ctx.stroke();
+          }
+        }
+
+        if (state.attackFlash[player] > 0) {
+          ctx.fillStyle = `rgba(255, 93, 108, ${state.attackFlash[player] * 0.26})`;
+          ctx.fillRect(b.x, b.y, b.w, b.h);
+        }
+
+        if (effect) {
+          drawSideBadge(player, b.x + b.w / 2, b.y + b.h * 0.22, 300, 52, 14, "rgba(3, 13, 22, 0.86)", "rgba(255, 255, 255, 0.16)");
+          drawSideText(player, `${attackLabel(effect)} ${remaining}s`, b.x + b.w / 2, b.y + b.h * 0.22, "900 17px Arial", "#ffffff");
+        }
+
+        const message = state.messages[player];
+        if (message.text && now < message.until) {
+          drawSideBadge(player, b.x + b.w / 2, b.y + b.h / 2, 312, 64, 12, "rgba(3, 13, 22, 0.82)", "rgba(255, 255, 255, 0.16)");
+          drawSideText(player, message.text, b.x + b.w / 2, b.y + b.h / 2, "900 21px Arial", "#ffffff");
+        }
+      }
+    }
+
+    function roundedRect(x, y, w, h, r, fill, stroke) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      if (fill) ctx.fill();
+      if (stroke) ctx.stroke();
+    }
+
+    function render() {
+      ctx.save();
+      if (state.shake > 0) {
+        ctx.translate((Math.random() - 0.5) * state.shake, (Math.random() - 0.5) * state.shake);
+      }
+      drawWater();
+      drawPlayerLabel(1);
+      drawPlayerLabel(2);
+      drawDocks(1);
+      drawDocks(2);
+      drawBeacons();
+      drawShockwaves();
+      drawBlockers();
+      drawShips();
+      drawWarnings();
+      drawParticles();
+      drawEffects();
+      drawScorePops();
+      ctx.restore();
+    }
+
+    function gameLoop(timestamp) {
+      const nowSeconds = timestamp / 1000;
+      const dt = Math.min(0.05, (timestamp - lastTime) / 1000 || 0);
+      lastTime = timestamp;
+
+      if (!state.paused) {
+        update(dt, nowSeconds);
+      }
+      render();
+      // Stopp naar duellen er over, ellers rendrer vi hele havna paa
+      // 60 fps bak sluttskjermen til evig tid.
+      if (state.running) {
+        animationId = requestAnimationFrame(gameLoop);
+      }
+    }
+
+    function pointerPosition(event) {
+      const rect = canvas.getBoundingClientRect();
+      let x = event.clientX - rect.left;
+      let y = event.clientY - rect.top;
+      const player = x < rect.width / 2 ? 1 : 2;
+
+      if (hasEffect(player, "fog")) {
+        const fogFactor = percent(duelSettings.fogOpacityPercent || 24);
+        x += Math.sin(y * 0.045 + performance.now() * 0.003) * 26 * fogFactor;
+        y += Math.cos(x * 0.04 + performance.now() * 0.003) * 18 * fogFactor;
+      }
+
+      if (hasEffect(player, "glitch")) {
+        const glitchFactor = percent(duelSettings.glitchIntensityPercent || 40);
+        x += Math.sin(y * 0.08 + performance.now() * 0.012) * 85 * glitchFactor;
+        y += Math.cos(x * 0.07 + performance.now() * 0.009) * 52 * glitchFactor;
+      }
+
+      return { x, y, player };
+    }
+
+    function findShipAt(point) {
+      return state.ships.slice()
+        .reverse()
+        .find((ship) => ship.player === point.player && Math.hypot(ship.x - point.x, ship.y - point.y) < SHIP_RADIUS * 1.8);
+    }
+
+    function onPointerDown(event) {
+      if (!state.running || state.paused) return;
+      event.preventDefault();
+
+      const point = pointerPosition(event);
+      const ship = findShipAt(point);
+      if (!ship) return;
+
+      ship.selected = true;
+      ship.path = [];
+      state.drags.set(event.pointerId, ship.id);
+      canvas.setPointerCapture(event.pointerId);
+    }
+
+    function onPointerMove(event) {
+      if (state.paused) return;
+      const shipId = state.drags.get(event.pointerId);
+      if (!shipId) return;
+      event.preventDefault();
+
+      const ship = state.ships.find((item) => item.id === shipId);
+      if (!ship) return;
+
+      const point = pointerPosition(event);
+      if (point.player !== ship.player) return;
+
+      const last = ship.path[ship.path.length - 1] || ship;
+      if (Math.hypot(last.x - point.x, last.y - point.y) > 24) {
+        ship.path.push({ x: point.x, y: point.y });
+        if (ship.path.length > 14) ship.path.shift();
+      }
+    }
+
+    function onPointerUp(event) {
+      const shipId = state.drags.get(event.pointerId);
+      if (!shipId) return;
+
+      const ship = state.ships.find((item) => item.id === shipId);
+      if (ship) {
+        const point = pointerPosition(event);
+        const nearestDock = dockRects(ship.player)
+          .map((dock) => ({
+            dock,
+            distance: Math.hypot(point.x - (dock.x + dock.w / 2), point.y - (dock.y + dock.h / 2))
+          }))
+          .sort((left, right) => left.distance - right.distance)[0];
+
+        if (nearestDock && nearestDock.distance < 150) {
+          ship.path.push({
+            x: nearestDock.dock.x + nearestDock.dock.w / 2,
+            y: nearestDock.dock.y + nearestDock.dock.h / 2
+          });
+        }
+
+        ship.selected = false;
+      }
+      state.drags.delete(event.pointerId);
+    }
+
+    function updateUI() {
+      ui.scoreP1.textContent = String(state.scores[1]);
+      ui.scoreP2.textContent = String(state.scores[2]);
+      ui.timerP1.textContent = formatTime(state.timeLeft);
+      ui.timerP2.textContent = formatTime(state.timeLeft);
+      ui.attackFillP1.style.width = `${Math.min(100, (state.attack[1] / ATTACK_MAX) * 100)}%`;
+      ui.attackFillP2.style.width = `${Math.min(100, (state.attack[2] / ATTACK_MAX) * 100)}%`;
+      ui.attackP1.disabled = state.attack[1] < ATTACK_MAX;
+      ui.attackP2.disabled = state.attack[2] < ATTACK_MAX;
+      ui.attackP1.textContent =
+        state.attack[1] >= ATTACK_MAX
+          ? `SEND ${attackLabel(state.nextAttack[1])}`
+          : `${Math.round((state.attack[1] / ATTACK_MAX) * 100)}%`;
+      ui.attackP2.textContent =
+        state.attack[2] >= ATTACK_MAX
+          ? `SEND ${attackLabel(state.nextAttack[2])}`
+          : `${Math.round((state.attack[2] / ATTACK_MAX) * 100)}%`;
+      ui.attackDetailP1.textContent = `Next: ${attackLabel(state.nextAttack[1])} - ${attackDescription(state.nextAttack[1])} | ${state.stats[1].beacons} beacons`;
+      ui.attackDetailP2.textContent = `Next: ${attackLabel(state.nextAttack[2])} - ${attackDescription(state.nextAttack[2])} | ${state.stats[2].beacons} beacons`;
+      ui.effectP1.textContent = state.effects[1].type
+        ? `${state.effects[1].name} active (${Math.max(0, Math.ceil((state.effects[1].until - performance.now()) / 1000))}s)`
+        : `Combo x${state.combo[1]}`;
+      ui.effectP2.textContent = state.effects[2].type
+        ? `${state.effects[2].name} active (${Math.max(0, Math.ceil((state.effects[2].until - performance.now()) / 1000))}s)`
+        : `Combo x${state.combo[2]}`;
+    }
+
+    function formatTime(seconds) {
+      const total = Math.ceil(seconds);
+      const min = Math.floor(total / 60);
+      const sec = total % 60;
+      return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+    }
+
+    function clearHoldExit() {
+      clearTimeout(holdExitTimer);
+      clearInterval(holdExitProgressTimer);
+      holdExitTimer = null;
+      holdExitProgressTimer = null;
+      ui.holdExitButton.classList.remove("hold-exit--arming");
+      ui.holdExitFill.style.width = "0%";
+    }
+
+    function exitToStart() {
+      clearHoldExit();
+      state.paused = false;
+      ui.pauseOverlay.classList.add("hidden");
+      state.running = false;
+      document.body.classList.remove("game-running");
+      cancelAnimationFrame(animationId);
+      state = createInitialState();
+      ui.endOverlay.classList.add("hidden");
+      ui.endOverlay.style.display = "none";
+      ui.startOverlay.classList.remove("hidden");
+      ui.startOverlay.style.display = "";
+      ui.startOverlay.style.visibility = "";
+      ui.startOverlay.style.pointerEvents = "";
+      updateUI();
+      render();
+      // Hent ferske innstillinger naar vi er tilbake paa startskjermen.
+      loadDuelSettings();
+    }
+
+    function startGame() {
+      if (ui.startError) ui.startError.textContent = "";
+      clearHoldExit();
+      cancelAnimationFrame(animationId);
+      if (pendingDuelSettings) {
+        applyDuelSettings(pendingDuelSettings);
+        pendingDuelSettings = null;
+      }
+      state = createInitialState();
+      state.running = true;
+      document.body.classList.add("game-running");
+      state.paused = false;
+      ui.pauseOverlay.classList.add("hidden");
+      lastTime = performance.now();
+      const startSeconds = lastTime / 1000;
+      state.nextBeacon = { 1: startSeconds + 5, 2: startSeconds + 5 };
+      ui.startOverlay.classList.add("hidden");
+      ui.startOverlay.style.display = "none";
+      ui.startOverlay.style.visibility = "hidden";
+      ui.startOverlay.style.pointerEvents = "none";
+      ui.endOverlay.classList.add("hidden");
+      ui.endOverlay.style.display = "none";
+      resizeCanvas();
+
+      for (const player of [1, 2]) {
+        const initialShips = Math.max(1, Math.min(8, Math.round(Number(duelSettings.initialShipsPerPlayer || 3))));
+        for (let index = 0; index < initialShips; index++) {
+          const forcedType = DOCK_TYPES[index] ? DOCK_TYPES[index].type : null;
+          spawnShip(player, forcedType);
+        }
+      }
+
+      updateUI();
+      animationId = requestAnimationFrame(gameLoop);
+    }
+
+    function finishGame() {
+      state.paused = false;
+      ui.pauseOverlay.classList.add("hidden");
+      state.running = false;
+      document.body.classList.remove("game-running");
+      const p1 = state.scores[1];
+      const p2 = state.scores[2];
+      const diff = Math.abs(p1 - p2);
+      const p1Stats = state.stats[1];
+      const p2Stats = state.stats[2];
+
+      if (p1 === p2) {
+        ui.winnerText.textContent = "Harbor contested";
+      } else {
+        ui.winnerText.textContent = p1 > p2 ? "Player 1 wins" : "Player 2 wins";
+      }
+
+      const comebackText = diff <= 120 && p1 !== p2
+        ? "Close round. One rematch can flip it."
+        : p1 === p2
+          ? "No clear control. Settle it with a rematch."
+          : "Defend the harbor in a rematch.";
+      ui.finalText.textContent =
+        `Final spread: ${diff}. ${comebackText} ` +
+        `P1: ${p1} (${p1Stats.docked} docked, ${p1Stats.attacks} attacks, best combo ${p1Stats.bestCombo}) | ` +
+        `P2: ${p2} (${p2Stats.docked} docked, ${p2Stats.attacks} attacks, best combo ${p2Stats.bestCombo})`;
+      ui.endOverlay.classList.remove("hidden");
+      ui.endOverlay.style.display = "";
+    }
+
+
+    function pauseGame() {
+      if (!state.running || state.paused || !ui.startOverlay.classList.contains("hidden") || !ui.endOverlay.classList.contains("hidden")) return;
+      state.paused = true;
+      pauseStartedAt = performance.now();
+      state.drags.clear();
+      clearHoldExit();
+      ui.pauseOverlay.classList.remove("hidden");
+      document.body.classList.remove("game-running");
+    }
+
+    function resumeGame() {
+      if (!state.paused) return;
+      const pausedMs = performance.now() - pauseStartedAt;
+      const pausedSeconds = pausedMs / 1000;
+      pauseStartedAt = 0;
+      state.paused = false;
+      for (const player of [1, 2]) {
+        if (state.effects[player].until > 0) state.effects[player].until += pausedMs;
+        if (state.messages[player].until > 0) state.messages[player].until += pausedMs;
+        state.nextSpawn[player] += pausedSeconds;
+        state.nextBeacon[player] += pausedSeconds;
+      }
+      ui.pauseOverlay.classList.add("hidden");
+      document.body.classList.add("game-running");
+    }
+
+    function requestStartGame(event) {
+      if (event && event.preventDefault) event.preventDefault();
+      if (ui.startError) ui.startError.textContent = "STARTING...";
+      try {
+        startGame();
+      } catch (error) {
+        console.error(error);
+        if (ui.startError) {
+          ui.startError.textContent = "Could not start. " + (error && error.message ? error.message : "Please reload and try again.");
+        }
+      }
+    }
+
+    window.startBridgeDuel = requestStartGame;
+    // Bruk pointerup, ikke click: click kommer bare fra primaerpekeren, saa
+    // knappene ville vaert dode naar den andre spilleren allerede tar paa skjermen.
+    function bindTap(element, handler) {
+      element.addEventListener("pointerup", (event) => {
+        event.preventDefault();
+        handler(event);
+      });
+    }
+
+    bindTap(ui.startButton, requestStartGame);
+    bindTap(ui.restartButton, requestStartGame);
+    bindTap(ui.pauseButton, pauseGame);
+    bindTap(ui.resumeButton, resumeGame);
+    bindTap(ui.exitGameButton, exitToStart);
+    document.querySelectorAll("[data-start-game]").forEach((button) => {
+      bindTap(button, requestStartGame);
+    });
+    bindTap(ui.attackP1, () => sendAttack(1));
+    bindTap(ui.attackP2, () => sendAttack(2));
+    canvas.addEventListener("pointerdown", onPointerDown);
+    canvas.addEventListener("pointermove", onPointerMove);
+    canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerUp);
+    ui.holdExitButton.addEventListener("pointerdown", (event) => {
+      if (!state.running || state.paused || holdExitTimer) return;
+      const pointerId = event.pointerId;
+      const startedAt = performance.now();
+      if (ui.holdExitButton.setPointerCapture) ui.holdExitButton.setPointerCapture(pointerId);
+      ui.holdExitButton.classList.add("hold-exit--arming");
+      ui.holdExitFill.style.width = "0%";
+      holdExitProgressTimer = setInterval(() => {
+        const progress = Math.min(1, (performance.now() - startedAt) / HOLD_EXIT_MS);
+        ui.holdExitFill.style.width = `${Math.round(progress * 100)}%`;
+      }, 16);
+      holdExitTimer = setTimeout(() => {
+        if (ui.holdExitButton.releasePointerCapture) ui.holdExitButton.releasePointerCapture(pointerId);
+        exitToStart();
+      }, HOLD_EXIT_MS);
+    });
+    ["pointerup", "pointerleave", "pointercancel", "lostpointercapture"].forEach((eventName) => {
+      ui.holdExitButton.addEventListener(eventName, (event) => {
+        if (ui.holdExitButton.releasePointerCapture) ui.holdExitButton.releasePointerCapture(event.pointerId);
+        clearHoldExit();
+      });
+    });
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+      render();
+    });
+
+    // Kiosk: ingen kontekstmeny eller lenke-dragging ved lange trykk.
+    document.addEventListener("contextmenu", (event) => event.preventDefault());
+    document.addEventListener("dragstart", (event) => event.preventDefault());
+
+    // Attract-modus: en glemt sluttskjerm gaar tilbake til startskjermen av seg selv.
+    const IDLE_RESET_MS = 90000;
+    let idleTimer = null;
+
+    function armIdleReset() {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        // Ogsaa et pauset og forlatt spill skal tilbake til start.
+        if (state.paused || (!state.running && ui.startOverlay.classList.contains("hidden"))) {
+          exitToStart();
+        }
+        armIdleReset();
+      }, IDLE_RESET_MS);
+    }
+
+    ["pointerdown", "pointermove", "keydown"].forEach((eventName) => {
+      window.addEventListener(eventName, armIdleReset, { passive: true });
+    });
+    armIdleReset();
+
+    state = createInitialState();
+    resizeCanvas();
+    render();
+    loadDuelSettings();
+    // Touch: lenker skal ogsaa virke for finger nr. 2 - "click" kommer bare
+    // fra primaerpekeren, saa en hvilende finger gjor ellers lenker doede.
+    (function () {
+      var links = document.querySelectorAll("a[href]");
+      for (var i = 0; i < links.length; i += 1) {
+        (function (link) {
+          link.addEventListener("pointerup", function (event) {
+            if (event.isPrimary) return;
+            event.preventDefault();
+            window.location.href = link.href;
+          });
+        })(links[i]);
+      }
+    })();
+  </script>
+</body>
+</html>

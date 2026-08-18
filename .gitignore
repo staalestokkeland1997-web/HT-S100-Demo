@@ -1,16 +1,13 @@
-# test / tooling artifacts
-.playwright-mcp/
-.serena/
+# Vercel
+.vercel/
 
-# kiosk-mode browser profile (created by run-kiosk.sh / run-kiosk.bat)
-.kiosk-profile/
+# Node
+node_modules/
+*.log
 
-# editor backups
+# Editor backups
 *.bak
 *.bak-*
-
-# nested, unrelated git project (its own history)
-HTS100Demo/
 
 # OS
 Thumbs.db

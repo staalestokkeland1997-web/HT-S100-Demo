@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>HT Game Kiosk | Hatteland Technology</title>
+    <style>
+      :root {
+        --bg: #02070d;
+        --text: #f4fbff;
+        --muted: #8fa8b8;
+        --line: rgba(160, 214, 236, 0.14);
+        --blue: #4fe3ff;
+        --gold: #f5c84b;
+        --red: #ff5d6c;
+        --green: #68f2a6;
+        --violet: #9d8bff;
+      }
+
+      * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+        touch-action: manipulation;
+        user-select: none;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        background:
+          radial-gradient(circle at 16% 12%, rgba(79, 227, 255, 0.13), transparent 34rem),
+          radial-gradient(circle at 84% 88%, rgba(245, 200, 75, 0.1), transparent 34rem),
+          linear-gradient(150deg, #04121d 0%, #02070d 62%);
+      }
+
+      /* Rolig radarsveip i bakgrunnen - gir liv uten aa stjele fokus. */
+      body::after {
+        content: "";
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        width: 190vmax;
+        height: 190vmax;
+        z-index: 0;
+        transform: translate(-50%, -50%);
+        background: conic-gradient(from 0deg, rgba(79, 227, 255, 0.075), transparent 22%, transparent 100%);
+        animation: sweep 18s linear infinite;
+        pointer-events: none;
+      }
+
+      @keyframes sweep {
+        to {
+          transform: translate(-50%, -50%) rotate(360deg);
+        }
+      }
+
+      .shell {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        padding: clamp(18px, 2.6vmin, 40px);
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: clamp(14px, 2vmin, 30px);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        padding: clamp(7px, 0.9vmin, 11px) clamp(10px, 1.2vmin, 15px);
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+      }
+
+      .brand-mark img {
+        height: clamp(24px, 3.2vmin, 40px);
+        width: auto;
+        display: block;
+      }
+
+      .brand-text {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .eyebrow {
+        margin: 0;
+        font-size: clamp(9px, 1.05vmin, 12px);
+        font-weight: 800;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .brand-text h1 {
+        margin: 0;
+        font-size: clamp(17px, 2.2vmin, 28px);
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+      }
+
+      .meta {
+        display: flex;
+        align-items: center;
+        gap: clamp(12px, 1.8vmin, 26px);
+      }
+
+      .meta-item {
+        display: grid;
+        gap: 3px;
+        text-align: right;
+      }
+
+      .meta-item span {
+        font-size: clamp(8px, 0.95vmin, 11px);
+        font-weight: 800;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .meta-item strong {
+        font-size: clamp(14px, 1.8vmin, 21px);
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .live {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .live i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 12px rgba(104, 242, 166, 0.8);
+        animation: pulse 2.4s ease-in-out infinite;
+      }
+
+      .live.is-offline i {
+        background: var(--red);
+        box-shadow: 0 0 12px rgba(255, 93, 108, 0.8);
+        animation: none;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      .headline {
+        display: grid;
+        gap: 6px;
+        max-width: 60ch;
+      }
+
+      .headline h2 {
+        margin: 0;
+        font-size: clamp(24px, 3.6vmin, 46px);
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        line-height: 1.05;
+      }
+
+      .headline p {
+        margin: 0;
+        font-size: clamp(12px, 1.4vmin, 17px);
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .board {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        gap: clamp(12px, 1.8vmin, 26px);
+        min-height: 0;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-auto-rows: 1fr;
+        gap: clamp(10px, 1.4vmin, 20px);
+        min-height: 0;
+      }
+
+      @media (max-width: 1100px), (orientation: portrait) {
+        .grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        /* 9 kort i 2 kolonner: topplisten tar hele siste rad. */
+        .card--board {
+          grid-column: 1 / -1;
+        }
+      }
+
+      .card {
+        position: relative;
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        gap: clamp(10px, 1.4vmin, 18px);
+        padding: clamp(16px, 2vmin, 30px);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+        color: inherit;
+        text-align: left;
+        text-decoration: none;
+        overflow: hidden;
+        transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+      }
+
+      /* Aksentstrek som vokser ved trykk - eneste "pynt" hvert kort faar. */
+      .card::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 3px;
+        width: 34%;
+        background: var(--accent);
+        transition: width 260ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .card:active {
+        transform: translateY(2px) scale(0.992);
+        border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+        background: linear-gradient(165deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.02));
+      }
+
+      .card:active::before {
+        width: 100%;
+      }
+
+      .card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .card-index {
+        font-size: clamp(10px, 1.1vmin, 13px);
+        font-weight: 800;
+        letter-spacing: 0.2em;
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .card-tag {
+        padding: 4px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: clamp(8px, 0.92vmin, 10px);
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .card svg {
+        width: clamp(34px, 4.6vmin, 62px);
+        height: clamp(34px, 4.6vmin, 62px);
+        stroke: var(--accent);
+        stroke-width: 1.6;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        opacity: 0.92;
+      }
+
+      .card h3 {
+        margin: 0;
+        font-size: clamp(18px, 2.5vmin, 34px);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.12;
+      }
+
+      .card p {
+        margin: 0;
+        font-size: clamp(12px, 1.4vmin, 18px);
+        line-height: 1.5;
+        color: var(--muted);
+        max-width: 34ch;
+      }
+
+      .card-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--line);
+      }
+
+      .card-go {
+        font-size: clamp(9px, 1.02vmin, 12px);
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--accent);
+        white-space: nowrap;
+      }
+
+      .card-best {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        min-width: 0;
+        font-size: clamp(9px, 1.02vmin, 12px);
+        color: var(--muted);
+      }
+
+      .card-best b {
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: var(--text);
+      }
+
+      .card-best em {
+        font-style: normal;
+        max-width: 12ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .card--board {
+        cursor: default;
+      }
+
+      .card--board:active {
+        transform: none;
+        border-color: var(--line);
+        background: linear-gradient(165deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+      }
+
+      .board-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: clamp(4px, 0.7vmin, 8px);
+        align-content: start;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .board-list li {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        font-size: clamp(11px, 1.24vmin, 15px);
+        line-height: 1.35;
+      }
+
+      .board-list li i {
+        font-style: normal;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: var(--accent);
+        min-width: 2ch;
+      }
+
+      .board-list li em {
+        font-style: normal;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .board-list li small {
+        font-size: clamp(8px, 0.9vmin, 10px);
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .board-list li b {
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: var(--gold);
+      }
+
+      .footer {
+        display: none;
+      }
+
+      .leaders {
+        display: flex;
+        align-items: center;
+        gap: clamp(10px, 1.6vmin, 24px);
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .leaders > span {
+        font-size: clamp(8px, 0.95vmin, 11px);
+        font-weight: 800;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .leaders ol {
+        display: flex;
+        align-items: center;
+        gap: clamp(10px, 1.6vmin, 24px);
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        min-width: 0;
+      }
+
+      .leaders li {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        font-size: clamp(11px, 1.24vmin, 15px);
+        white-space: nowrap;
+      }
+
+      .leaders li b {
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: var(--gold);
+      }
+
+      .leaders li em {
+        font-style: normal;
+        color: var(--muted);
+        max-width: 16ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .ops {
+        min-height: 44px;
+        padding: 0 16px;
+        display: inline-grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: transparent;
+        color: var(--muted);
+        font-size: clamp(9px, 1vmin, 11px);
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+
+      .ops:active {
+        color: var(--text);
+        border-color: rgba(160, 214, 236, 0.4);
+      }
+
+      @media (max-width: 900px) {
+        .headline h2 {
+          font-size: clamp(20px, 6vw, 30px);
+        }
+
+        .meta-item:not(:last-child) {
+          display: none;
+        }
+
+        .leaders ol li:nth-child(n + 3) {
+          display: none;
+        }
+      }
+
+      @media (max-height: 620px) {
+        .headline {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"><img src="/assets/image.png" alt="" /></span>
+          <div class="brand-text">
+            <p class="eyebrow" id="companyName">Hatteland Technology</p>
+            <h1>Game Kiosk</h1>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="meta-item">
+            <span>Status</span>
+            <strong class="live" id="liveStatus"><i></i>Ready</strong>
+          </div>
+          <div class="meta-item">
+            <span>Players today</span>
+            <strong id="playCount">0</strong>
+          </div>
+          <div class="meta-item">
+            <span>Time</span>
+            <strong id="clock">--:--</strong>
+          </div>
+          <a class="ops" href="/admin.html">Operations</a>
+        </div>
+      </header>
+
+      <section class="board">
+        <div class="headline">
+          <h2>Pick your challenge.</h2>
+          <p id="tagline">Seven branded touch games built for the stand. Every round takes about a minute.</p>
+        </div>
+
+        <div class="grid" id="gameGrid">
+          <button class="card" type="button" data-game="stacker" style="--accent: var(--gold)">
+            <div class="card-top">
+              <span class="card-index">01</span>
+              <span class="card-tag">Precision</span>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 21h18" />
+              <path d="M6 21V4h2v17" />
+              <path d="M7 4h12" />
+              <path d="M16 4v4" />
+              <rect x="12" y="8" width="8" height="4" rx="1" />
+              <rect x="4" y="16" width="10" height="4" rx="1" />
+            </svg>
+            <div>
+              <h3>Container Stacker</h3>
+              <p>Drop containers from the swinging crane. Every overhang breaks off and the stack gets narrower.</p>
+            </div>
+            <div class="card-foot">
+              <span class="card-go">Play</span>
+              <span class="card-best" data-best="stacker"><em>No score yet</em></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-game="runner" style="--accent: var(--blue)">
+            <div class="card-top">
+              <span class="card-index">02</span>
+              <span class="card-tag">Endless</span>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 18h18l-2 3H5z" />
+              <path d="M5 18l1.5-5h11L19 18" />
+              <path d="M12 13V6" />
+              <path d="M12 7h5l-2 2.5L17 12h-5" />
+            </svg>
+            <div>
+              <h3>Fjord Runner</h3>
+              <p>Steer the workboat through the shipping channel. Dodge buoys, grab cargo, never slow down.</p>
+            </div>
+            <div class="card-foot">
+              <span class="card-go">Play</span>
+              <span class="card-best" data-best="runner"><em>No score yet</em></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-game="rush" style="--accent: var(--blue)">
+            <div class="card-top">
+              <span class="card-index">03</span>
+              <span class="card-tag">Reflex</span>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <circle cx="12" cy="12" r="5" />
+              <circle cx="12" cy="12" r="1.4" />
+              <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+            </svg>
+            <div>
+              <h3>Harbor Rush</h3>
+              <p>Lock signals and secure cargo before the clock runs out. One player, one record to beat.</p>
+            </div>
+            <div class="card-foot">
+              <span class="card-go">Play</span>
+              <span class="card-best" data-best="rush"><em>No score yet</em></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-game="duel" style="--accent: var(--red)">
+            <div class="card-top">
+              <span class="card-index">04</span>
+              <span class="card-tag">1 vs 1</span>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v18" />
+              <path d="M3 8h5l2 4-2 4H3" />
+              <path d="M21 8h-5l-2 4 2 4h5" />
+            </svg>
+            <div>
+              <h3>Bridge Duel</h3>
+              <p>Two operators, one harbor. Draw routes, build combos and send storms at the other side.</p>
+            </div>
+            <div class="card-foot">
+              <span class="card-go">Play</span>
+              <span class="card-best" data-best="duel"><em>No score yet</em></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-game="airhockey" style="--accent: var(--green)">
+            <div class="card-top">
+              <span class="card-index">05</span>
+              <span class="card-tag">1 vs 1</span>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M12 4v16" />
+              <circle cx="12" cy="12" r="2.4" />
+              <path d="M3 9v6M21 9v6" />
+            </svg>
+            <div>
+              <h3>HT Air Hockey</h3>
+              <p>Fast branded arcade air hockey. Sharp reactions, power-ups and a very short learning curve.</p>
+            </div>
+            <div class="card-foot">
+              <span class="card-go">Play</span>
+              <span class="card-best" data-best="airhockey"><em>No score yet</em></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-game="dive" style="--accent: #5de5c0">
+            <div class="card-top">
+              <span class="card-index">06</span>
+              <span class="card-tag">One-touch</span>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse cx="11" cy="12" rx="7" ry="4" />
+              <path d="M18 12h3" />
+              <rect x="8" y="6" width="4" height="3" rx="1" />
+              <circle cx="13" cy="12" r="1.2" />
+              <path d="M4 19c2 1 4 1 6 0M14 19c2 1 4 1 6 0" />
+            </svg>
+            <div>
+              <h3>Deep Dive</h3>
+              <p>Hold to rise, release to sink. Thread the sub through the ravine and grab the pearls.</p>
+            </div>
+            <div class="card-foot">
+              <span class="card-go">Play</span>
+              <span class="card-best" data-best="dive"><em>No score yet</em></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-game="sonar" style="--accent: var(--violet)">
+            <div class="card-top">
+              <span class="card-index">07</span>
+              <span class="card-tag">Memory</span>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 20a8 8 0 0 0 8-8" />
+              <path d="M12 16a4 4 0 0 0 4-4" />
+              <circle cx="12" cy="12" r="1.4" />
+              <path d="M4 12a8 8 0 0 1 8-8" />
+              <path d="M8 12a4 4 0 0 1 4-4" />
+            </svg>
+            <div>
+              <h3>Sonar Sequence</h3>
+              <p>Watch the sonar pings, then repeat them. The pattern grows until you lose the signal.</p>
+            </div>
+            <div class="card-foot">
+              <span class="card-go">Play</span>
+              <span class="card-best" data-best="sonar"><em>No score yet</em></span>
+            </div>
+          </button>
+
+          <button class="card" type="button" data-game="ecdis" style="--accent: #4f9dff">
+            <div class="card-top">
+              <span class="card-index">08</span>
+              <span class="card-tag">Demo</span>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" />
+              <path d="M9 4v14M15 6v14" />
+              <circle cx="6.5" cy="10" r="1.1" />
+              <path d="M6.5 10c3 3 8 1 11 4" />
+            </svg>
+            <div>
+              <h3>HT ECDIS</h3>
+              <p>Live sea-chart workstation: real Norwegian charts, weather and routing on a bridge display.</p>
+            </div>
+            <div class="card-foot">
+              <span class="card-go">Open demo</span>
+              <span class="card-best"><em>Not for navigation</em></span>
+            </div>
+          </button>
+
+          <div class="card card--board" style="--accent: var(--gold)">
+            <div class="card-top">
+              <span class="card-index">&#9733;</span>
+              <span class="card-tag">Live</span>
+            </div>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 21h8" />
+              <path d="M12 17v4" />
+              <path d="M7 4h10v6a5 5 0 0 1-10 0z" />
+              <path d="M7 6H4a2 2 0 0 0 2 4h1M17 6h3a2 2 0 0 1-2 4h-1" />
+            </svg>
+            <div style="display: grid; gap: 10px; min-height: 0">
+              <h3>Top scores</h3>
+              <ol class="board-list" id="topScores">
+                <li><em>Be the first on the board</em></li>
+              </ol>
+            </div>
+            <div class="card-foot">
+              <span class="card-go" id="playCountLine">0 players today</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <script>
+      (function () {
+        var PATHS = {
+          stacker: "/container-stacker-standalone.html",
+          runner: "/fjord-runner-standalone.html",
+          dive: "/deep-dive-standalone.html",
+          rush: "/harbor-rush-standalone.html",
+          duel: "/bridge-duel-standalone.html",
+          airhockey: "/air-hockey-standalone.html",
+          sonar: "/sonar-sequence-standalone.html",
+          ecdis: "/ecdis/index.html?kiosk=1"
+        };
+
+        function openGame(game) {
+          var path = PATHS[game];
+          if (!path) return;
+          try {
+            localStorage.setItem("selectedGame", game);
+          } catch (error) {
+            /* privat modus - ikke kritisk */
+          }
+          window.location.href = path + (path.indexOf("?") >= 0 ? "&" : "?") + "v=" + Date.now();
+        }
+
+        var cards = document.querySelectorAll("[data-game]");
+        for (var i = 0; i < cards.length; i += 1) {
+          (function (card) {
+            // pointerup, ikke click: virker ogsaa naar en annen finger allerede er nede.
+            card.addEventListener("pointerup", function (event) {
+              event.preventDefault();
+              openGame(card.getAttribute("data-game"));
+            });
+          })(cards[i]);
+        }
+
+        function tickClock() {
+          var now = new Date();
+          document.getElementById("clock").textContent =
+            String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+        }
+
+        tickClock();
+        setInterval(tickClock, 15000);
+
+        function setOffline() {
+          var live = document.getElementById("liveStatus");
+          live.className = "live is-offline";
+          live.innerHTML = "<i></i>Local";
+        }
+
+        function loadBrand() {
+          if (!window.fetch) return Promise.resolve();
+          return fetch("/api/config", { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload || !payload.brand) return;
+              if (payload.brand.companyName) {
+                document.getElementById("companyName").textContent = payload.brand.companyName;
+              }
+              if (payload.brand.tagline) {
+                document.getElementById("tagline").textContent = payload.brand.tagline;
+              }
+            })
+            .catch(function () {
+              setOffline();
+            });
+        }
+
+        // Hvert kort viser sin egen toppscore, ikke en felles liste.
+        function renderPerGameBest(boards) {
+          var slots = document.querySelectorAll("[data-best]");
+          for (var i = 0; i < slots.length; i += 1) {
+            var slot = slots[i];
+            var board = boards[slot.getAttribute("data-best")] || [];
+            var best = board[0];
+
+            slot.innerHTML = "";
+
+            if (!best) {
+              var empty = document.createElement("em");
+              empty.textContent = "No score yet";
+              slot.appendChild(empty);
+              continue;
+            }
+
+            var name = document.createElement("em");
+            var score = document.createElement("b");
+            name.textContent = best.name;
+            score.textContent = String(best.score);
+            slot.append(score, name);
+          }
+        }
+
+        function loadScores() {
+          if (!window.fetch) return;
+          fetch("/api/leaderboard", { cache: "no-store" })
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (payload) {
+              if (!payload) return;
+              renderPerGameBest(payload.boards || {});
+
+              var GAME_LABELS = {
+                stacker: "Stacker",
+                runner: "Runner",
+                dive: "Dive",
+                rush: "Rush",
+                duel: "Duel",
+                airhockey: "Hockey",
+                sonar: "Sonar"
+              };
+              var entries = payload.entries || [];
+              document.getElementById("playCount").textContent = String(entries.length);
+              document.getElementById("playCountLine").textContent = entries.length + " players today";
+
+              var list = document.getElementById("topScores");
+              list.innerHTML = "";
+
+              if (!entries.length) {
+                var empty = document.createElement("li");
+                var emptyText = document.createElement("em");
+                emptyText.textContent = "Be the first on the board";
+                empty.appendChild(emptyText);
+                list.appendChild(empty);
+                return;
+              }
+
+              entries.slice(0, 6).forEach(function (entry, index) {
+                var item = document.createElement("li");
+                var rank = document.createElement("i");
+                var name = document.createElement("em");
+                var game = document.createElement("small");
+                var score = document.createElement("b");
+                rank.textContent = String(index + 1);
+                name.textContent = entry.name;
+                game.textContent = GAME_LABELS[entry.game] || "";
+                score.textContent = String(entry.score);
+                item.append(rank, name, game, score);
+                list.appendChild(item);
+              });
+            })
+            .catch(function () {
+              setOffline();
+            });
+        }
+
+        loadBrand();
+        loadScores();
+        setInterval(loadScores, 20000);
+
+        // Kiosk: ingen kontekstmeny eller lenke-dragging ved lange trykk.
+        document.addEventListener("contextmenu", function (event) {
+          event.preventDefault();
+        });
+        document.addEventListener("dragstart", function (event) {
+          event.preventDefault();
+        });
+      })();
+      // Touch: lenker skal ogsaa virke for finger nr. 2 - "click" kommer bare
+    // fra primaerpekeren, saa en hvilende finger gjor ellers lenker doede.
+    (function () {
+      var links = document.querySelectorAll("a[href]");
+      for (var i = 0; i < links.length; i += 1) {
+        (function (link) {
+          link.addEventListener("pointerup", function (event) {
+            if (event.isPrimary) return;
+            event.preventDefault();
+            window.location.href = link.href;
+          });
+        })(links[i]);
+      }
+    })();
+  </script>
+  </body>
+</html>

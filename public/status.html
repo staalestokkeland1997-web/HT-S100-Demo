@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Kiosk Status | Hatteland Challenge</title>
+    <link rel="stylesheet" href="/styles.css?v=20260428a" />
+  </head>
+  <body class="admin-body">
+    <main class="admin-shell">
+      <section class="admin-panel">
+        <div class="admin-header">
+          <div>
+            <p class="eyebrow">Kiosk status</p>
+            <h1>Drift and data check</h1>
+          </div>
+          <a class="ghost-button" href="/admin.html">Admin home</a>
+        </div>
+
+        <form id="statusLoginForm" class="admin-login">
+          <label class="field">
+            <span>Admin password</span>
+            <input id="statusPasswordInput" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="primary-button" type="submit">Check status</button>
+        </form>
+
+        <p id="statusMessage" class="form-error" aria-live="polite"></p>
+
+        <section id="statusContent" class="admin-content hidden">
+          <div class="stats-grid">
+            <article class="stat-card">
+              <span>Server</span>
+              <strong id="serverStatus">-</strong>
+            </article>
+            <article class="stat-card">
+              <span>Entries</span>
+              <strong id="entryStatus">0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Default route</span>
+              <strong id="routeStatus">-</strong>
+            </article>
+            <article class="stat-card">
+              <span>Latest backup</span>
+              <strong id="backupStatus">None</strong>
+            </article>
+          </div>
+
+          <div class="admin-grid">
+            <section class="table-card">
+              <div class="modal-header">
+                <div>
+                  <p class="eyebrow">Harbor Rush</p>
+                  <h3 id="rushStatusTitle">-</h3>
+                </div>
+              </div>
+              <p id="rushStatusBody" class="subtle-note"></p>
+            </section>
+
+            <section class="table-card">
+              <div class="modal-header">
+                <div>
+                  <p class="eyebrow">Bridge Duel</p>
+                  <h3 id="duelStatusTitle">-</h3>
+                </div>
+              </div>
+              <p id="duelStatusBody" class="subtle-note"></p>
+            </section>
+          </div>
+
+          <div class="cta-row cta-row--center">
+            <button id="refreshStatusButton" class="secondary-button" type="button">Refresh</button>
+            <a class="secondary-button" href="/select.html">Open kiosk</a>
+            <a class="secondary-button" href="/admin-games.html">Game settings</a>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/status.js?v=20260428a" type="module"></script>
+  </body>
+</html>
