@@ -358,6 +358,85 @@
     return simTargets;
   }
 
+  // ================= Avledede live-data for venstre datakolonne =================
+  // Alt foelger demoens aand: ROT maales av faktisk kursendring, loggen
+  // akkumulerer utseilt distanse (localStorage saa den overlever omstart), og
+  // vind/strom/dybde er glatte pseudotilfeldige felt slik at tallene lever
+  // uten aa hoppe. Rutedataene regnes mot samme rute som ECDIS.
+  var rotDegMin = 0, prevRotHdg = own.hdg;
+  var logNm = 0, logSavedAt = 0;
+  (function () {
+    var v = parseFloat((function () { try { return localStorage.getItem("mrd_log") || ""; } catch (e) { return ""; } })());
+    if (isFinite(v) && v >= 0) logNm = v;
+  })();
+  function derivedTick(dt) {
+    if (dt <= 0) return;
+    var d = ((own.hdg - prevRotHdg + 540) % 360) - 180;
+    prevRotHdg = own.hdg;
+    var inst = Math.max(-40, Math.min(40, d / dt * 60));
+    rotDegMin += (inst - rotDegMin) * Math.min(1, dt * 2.2);
+    logNm += own.sog * dt / 3600;
+    var nowMs = Date.now();
+    if (nowMs - logSavedAt > 10000) {
+      logSavedAt = nowMs;
+      try { localStorage.setItem("mrd_log", logNm.toFixed(3)); } catch (e) {}
+    }
+  }
+  function envNow() {
+    var t = Date.now() / 1000;
+    return {
+      set: ((208 + 26 * Math.sin(t / 640) + 8 * Math.sin(t / 151)) % 360 + 360) % 360,
+      drift: 0.7 + 0.35 * Math.sin(t / 540 + 1.3),
+      windDir: ((243 + 24 * Math.sin(t / 590 + 0.6) + 6 * Math.sin(t / 97)) % 360 + 360) % 360,
+      windKn: Math.max(2, 11 + 4.5 * Math.sin(t / 420 + 2) + 1.5 * Math.sin(t / 71)),
+      depth: Math.max(8, 52 + 34 * Math.sin(t / 260 + own.lat * 40) + 9 * Math.sin(t / 53))
+    };
+  }
+  function distToLegNm(p, a, b) {
+    var legBrg = bearingDeg(a, b), L = distNm(a, b) || 1e-6;
+    var ang = (bearingDeg(a, p) - legBrg) * Math.PI / 180;
+    var along = Math.max(0, Math.min(L, distNm(a, p) * Math.cos(ang)));
+    var proj = moveLL(a.lat, a.lon, legBrg, along);
+    return distNm(p, proj);
+  }
+  function navData() {
+    if (route.length < 2) return null;
+    var leg = own.leg;
+    if (live && Date.now() - liveAt < 4000) {
+      // ECDIS styrer posisjonen men deler ikke aktivt legg — bruk naermeste.
+      var best = 1, bd = Infinity;
+      for (var i = 1; i < route.length; i++) {
+        var d = distToLegNm(own, route[i - 1], route[i]);
+        if (d < bd) { bd = d; best = i; }
+      }
+      leg = best;
+    }
+    leg = Math.max(1, Math.min(leg, route.length - 1));
+    var a = route[leg - 1], b = route[leg];
+    var legBrg = bearingDeg(a, b);
+    var ang = (bearingDeg(a, own) - legBrg) * Math.PI / 180;
+    var dst = distNm(own, b);
+    var ttgH = own.sog > 0.5 ? dst / own.sog : null;
+    return {
+      leg: leg, n: route.length,
+      brg: bearingDeg(own, b), dst: dst,
+      xte: distNm(a, own) * Math.sin(ang),   // + = styrbord for legglinjen
+      ttgH: ttgH
+    };
+  }
+  function fmtDur(h) {
+    if (h == null || !isFinite(h)) return "—";
+    var s = Math.round(h * 3600);
+    var mm = Math.floor((s % 3600) / 60), ss = s % 60;
+    if (s < 3600) return String(mm).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
+    return Math.floor(s / 3600) + ":" + String(mm).padStart(2, "0") + ":" + String(ss).padStart(2, "0");
+  }
+  function fmtUTC(ms, withSec) {
+    var d = new Date(ms);
+    var hm = String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0");
+    return withSec ? hm + ":" + String(d.getUTCSeconds()).padStart(2, "0") : hm;
+  }
+
   // ================= Kystlinje for landekko =================
   var coast = null;
   (function loadCoast() {
@@ -732,13 +811,13 @@
   }
 
   // ================= Datablokker i hjornene =================
-  function drawBlock(anchor, rows, width) {
+  function drawBlock(anchor, rows, width, yPos) {
     var P = PALC[state.pal];
     var pad = 9, hh = 0, i;
     for (i = 0; i < rows.length; i++) hh += rows[i].big ? 26 : 15;
     var h = hh + pad * 2 - 3;
     var x = anchor.indexOf("l") > -1 ? 10 : W - 10 - width;
-    var y = anchor.indexOf("t") > -1 ? 10 : H - 10 - h;
+    var y = yPos != null ? yPos : anchor.indexOf("t") > -1 ? 10 : H - 10 - h;
     ctx.fillStyle = P.blockBg;
     ctx.strokeStyle = P.blockBd;
     ctx.lineWidth = 1;
@@ -784,6 +863,7 @@
         cy += 15;
       }
     }
+    return h;
   }
 
   function fmtPos(lat, lon) {
@@ -1043,12 +1123,44 @@
 
     // ---------- datablokker ----------
     var orientTxt = state.orient === "N" ? "N-UP" : state.orient === "H" ? "H-UP" : "C-UP";
-    drawBlock("tl", [
+    var leftY = 10 + drawBlock("tl", [
       { big: true, v: (state.range < 1 ? state.range.toFixed(2) : String(state.range)) + " NM", l: "RANGE" },
       { l: "RINGS", v: state.rings ? (state.range / 4).toFixed(state.range < 3 ? 2 : 1) + " NM" : "OFF" },
       { l: "PULSE", v: state.pulse + " · IR " + (state.ir ? "ON" : "OFF") + " · ES " + (state.es ? "ON" : "OFF"), small: true },
       { l: "MODE", v: orientTxt + " · " + state.motion + (state.offcenter ? " · OC" : "") }
-    ], 196);
+    ], 196) + 8;
+
+    // Venstre live-datakolonne: rute/veipunkt, egne sensorer og miljodata.
+    // Tegnes bare naar gutteren utenfor PPI-sirkelen har plass til den
+    // (kioskens 16:9 har det; smale vinduer beholder bare hjorneblokkene).
+    if (CX - R >= 220) {
+      var nowMs = Date.now();
+      var nv = navData();
+      var env = envNow();
+      if (nv) {
+        var xteAbs = Math.abs(nv.xte);
+        leftY += drawBlock("tl", [
+          { big: true, v: nv.dst.toFixed(2) + " NM", l: "WPT " + (nv.leg + 1) + "/" + nv.n },
+          { l: "BRG WPT", v: fmt3(nv.brg) },
+          { l: "XTE", v: xteAbs.toFixed(2) + " NM" + (xteAbs < 0.01 ? "" : nv.xte > 0 ? " STBD" : " PORT"), col: xteAbs > 0.2 ? WARN : null },
+          { l: "ETA WPT", v: nv.ttgH != null ? fmtUTC(nowMs + nv.ttgH * 3600e3) + " UTC" : "—" },
+          { l: "TTG", v: fmtDur(nv.ttgH) }
+        ], 196, leftY) + 8;
+      }
+      var stw = Math.max(0, own.sog - env.drift * Math.cos((env.set - own.cog) * Math.PI / 180));
+      var rotAbs = Math.abs(rotDegMin);
+      leftY += drawBlock("tl", [
+        { l: "STW", v: stw.toFixed(1) + " KN" },
+        { l: "ROT", v: rotAbs < 0.05 ? "0.0°/MIN" : rotAbs.toFixed(1) + "°/MIN " + (rotDegMin > 0 ? "STBD" : "PORT") },
+        { l: "LOG", v: (logNm < 100 ? logNm.toFixed(2) : logNm.toFixed(1)) + " NM" }
+      ], 196, leftY) + 8;
+      leftY += drawBlock("tl", [
+        { l: "WIND T", v: fmt3(env.windDir) + " · " + env.windKn.toFixed(0) + " KN" },
+        { l: "SET·DRIFT", v: fmt3(env.set) + " · " + env.drift.toFixed(1) + " KN" },
+        { l: "DEPTH", v: env.depth.toFixed(0) + " M" },
+        { l: "UTC", v: fmtUTC(nowMs, true) }
+      ], 196, leftY) + 8;
+    }
 
     drawBlock("tr", [
       { big: true, v: fmt3(own.hdg), l: "GYRO" },
@@ -1116,6 +1228,7 @@
     lastT = ts;
 
     ownTick(dt);
+    derivedTick(dt);
     targetsTick(dt);
     computeOrigin(0);
 

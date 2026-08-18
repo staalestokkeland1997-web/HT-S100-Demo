@@ -61,7 +61,10 @@ relative/sanne vektorer 3/6/12 min, cursoravlesning, EBL/VRM, ARPA-
 maalfolging (ACQ TT) med CPA/TCPA, faremaal-alarm med grenser, guard zone,
 maalliste, alarmliste med ACK, gain/sea/rain + AUTO, interferens-
 undertrykking (IR), echo stretch, gronn/amber fosfor og landekko fra
-kystlinjen. Radaren folger samme seilas som ECDIS (delt lagret tilstand +
+kystlinjen. Paa brede skjermer (som kioskens 16:9) viser venstresiden i
+tillegg en live datakolonne: neste veipunkt med BRG/DST/XTE/ETA/TTG, fart
+gjennom vann (STW), svinghastighet (ROT), tripplogg og vind/strom/dybde med
+UTC-klokke (sim). Radaren folger samme seilas som ECDIS (delt lagret tilstand +
 BroadcastChannel), og knapper kobler ECDIS <-> Radar <-> kiosk.
 **DEMO — ikke for navigasjon.**
 
