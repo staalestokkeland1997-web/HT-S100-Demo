@@ -64,8 +64,14 @@ undertrykking (IR), echo stretch, gronn/amber fosfor og landekko fra
 kystlinjen. Paa brede skjermer (som kioskens 16:9) viser venstresiden i
 tillegg en live datakolonne: neste veipunkt med BRG/DST/XTE/ETA/TTG, fart
 gjennom vann (STW), svinghastighet (ROT), tripplogg og vind/strom/dybde med
-UTC-klokke (sim). Radaren folger samme seilas som ECDIS (delt lagret tilstand +
-BroadcastChannel), og knapper kobler ECDIS <-> Radar <-> kiosk.
+UTC-klokke (sim). Radaren speiler ECDIS live: ECDIS lagrer skip, rute OG
+AIS-bildet hvert 5. sekund (localStorage + `/api/ecdis-state`), og radaren
+adopterer nyere snapshots (server-poll hvert 5. sekund + storage-hendelser)
+og dodregner skip og maal mellom dem — saa begge skjermene viser samme
+seilas og samme AIS-maal ogsaa naar kiosken bytter side eller de kjorer paa
+hver sin maskin. Er ECDIS aapen samtidig i samme nettleser overtar
+direktesendingen (BroadcastChannel), og SRC-feltet paa radaren viser
+ECDIS LIVE / ECDIS SYNC / SIM. Knapper kobler ECDIS <-> Radar <-> kiosk.
 **DEMO — ikke for navigasjon.**
 
 Hele appen er paa engelsk (kiosken staar paa internasjonal messe); README-ene

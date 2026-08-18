@@ -1112,7 +1112,7 @@ class Component extends DCLogic {
     // Query Kartverket at the ship's EXACT position first (harmonic prediction is interpolated to any point in Norwegian waters); fall back to reference stations.
     const fb = [ { name: 'Bergen', lat: 60.398, lon: 5.320 }, { name: 'Haugesund', lat: 59.426, lon: 5.267 }, { name: 'Stavanger', lat: 58.974, lon: 5.730 }, { name: 'Måløy', lat: 61.934, lon: 5.113 } ];
     fb.sort((a, b) => this.distNm(o, a) - this.distNm(o, b));
-    const stations = [ { name: 'Egen posisjon', lat: o.lat, lon: o.lon }, ...fb ];
+    const stations = [ { name: 'Own position', lat: o.lat, lon: o.lon }, ...fb ];
     const now = new Date(); const fmt = d => d.toISOString().slice(0, 16);
     const from = fmt(new Date(now.getTime() - 13 * 3600e3)), to = fmt(new Date(now.getTime() + 13 * 3600e3));
     for (const st of stations) {
@@ -1998,8 +1998,18 @@ class Component extends DCLogic {
         ui: { palette: s.palette, base: s.base, orient: s.orient, displayCat: s.displayCat, layers: s.layers, followShip: s.followShip, rightTab: s.rightTab, rightOpen: s.rightOpen }
       };
       localStorage.setItem('mrd_ship', JSON.stringify(snap));
-      this.persistTrack();
-      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null });
+      // AIS-bildet lagres sammen med skipet slik at radaren viser SAMME maal
+      // som ECDIS ogsaa naar sidene ikke er aapne samtidig (kiosken bytter
+      // side) eller kjorer paa hver sin skjerm (radaren poller serveren).
+      const tgts = {
+        savedAt: snap.savedAt,
+        targets: (this.aisArr() || []).filter(t => t && t.lat != null).slice(0, 40).map(t => ({
+          name: t.name || '', type: t.type || 'Vessel', lat: t.lat, lon: t.lon,
+          cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0
+        }))
+      };
+      localStorage.setItem('mrd_targets', JSON.stringify(tgts));
+      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null, targets: tgts });
       if (unloading && navigator.sendBeacon) navigator.sendBeacon('/api/ecdis-state', new Blob([doc], { type: 'application/json' }));
       else fetch('/api/ecdis-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: doc, keepalive: !!unloading }).catch(() => {});
     } catch (e) {}
