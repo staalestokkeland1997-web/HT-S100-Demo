@@ -51,7 +51,21 @@ folger day/dusk/night automatisk. Havnesoket har innebygd norsk havneliste
 eget touch-tastatur med AE/O/AA i samme glass-stil. Velg et treff for aa faa
 et destinasjonskort med "Set route to destination": appens dybdetrygge
 autoroute planlegger ruten og seilasen startes automatisk. Havner utenfor
-demo-kartomraadet vises som "view only".
+demo-kartomraadet vises som "view only". Ruteplanleggingen kjorer tidsskivet
+i bakgrunnen (en kandidatrute per makrotask), saa kartet kan panoreres og
+zoomes og alle knapper virker mens ruten beregnes.
+
+Kartet har en tegnforklaring nede til venstre som viser fargerampene for de
+aktive datalagene (UKC-baand med gjeldende dybdegrenser, EMODnet-dybde,
+strom, vind, sjotemp, nedbor og trafikktetthet). Rampene samples fra de
+samme fargefunksjonene som tegner lagene, saa forklaringen stemmer alltid
+med kartet, og brikken folger day/dusk/night. Datalagene er ogsaa gjort
+lettere aa lese: S-124 navigasjonsvarsler har skravert flate, pulserende
+ring og tekstchip med bade id og hva varselet gjelder, S-104
+vannstandsstasjoner viser niva OG trend, fyrkarakteristikker ligger i en
+temafolgende chip med fargeprikk for lysfargen, og grunner har
+isolert-fare-symbol med dybden i egen chip (rod naar den er grunnere enn
+egen sikkerhetsdybde).
 
 HT Radar er et fullverdig radarkonsoll (demo) med roterende sveip og
 etterglod, datablokker i hjornene, peilering med kurs- og nordmerke,
@@ -65,14 +79,29 @@ kystlinjen. Paa brede skjermer (som kioskens 16:9) viser venstresiden i
 tillegg en live datakolonne: neste veipunkt med BRG/DST/XTE/ETA/TTG, fart
 gjennom vann (STW), svinghastighet (ROT), tripplogg og vind/strom/dybde med
 UTC-klokke (sim). Radaren speiler ECDIS live: ECDIS lagrer skip, rute OG
-AIS-bildet hvert 5. sekund (localStorage + `/api/ecdis-state`), og radaren
-adopterer nyere snapshots (server-poll hvert 5. sekund + storage-hendelser)
-og dodregner skip og maal mellom dem — saa begge skjermene viser samme
-seilas og samme AIS-maal ogsaa naar kiosken bytter side eller de kjorer paa
-hver sin maskin. Er ECDIS aapen samtidig i samme nettleser overtar
-direktesendingen (BroadcastChannel), og SRC-feltet paa radaren viser
-ECDIS LIVE / ECDIS SYNC / SIM. Knapper kobler ECDIS <-> Radar <-> kiosk.
+AIS-bildet hvert 5. sekund (localStorage `mrd_targets` + `/api/ecdis-state`),
+og radaren adopterer nyere snapshots (server-poll hvert 5. sekund +
+storage-hendelser) og dodregner skip og maal mellom dem — saa begge
+skjermene viser samme seilas og de SAMME baatene ogsaa naar kiosken bytter
+side eller de kjorer paa hver sin maskin. Radaren skriver bildet tilbake til
+samme lager naar ingen ECDIS eier det, og seedes ellers med noyaktig samme
+startflaate som ECDIS genererer — aldri en tilfeldig reserveflaate. Er ECDIS
+aapen samtidig i samme nettleser overtar direktesendingen
+(BroadcastChannel) — ogsaa naar maallisten er tom, saa radaren speiler ECDIS
+eksakt — og SRC-feltet paa radaren viser ECDIS LIVE / ECDIS SYNC / SIM.
+Radarens AIS-liste viser bare fartoy innenfor 4x valgt range, saa listen
+speiler skopet. Knapper kobler ECDIS <-> Radar <-> kiosk.
 **DEMO — ikke for navigasjon.**
+
+Trafikken folger eget skip: sim-baater som sakker mer enn 30 nm akterut
+(typisk etter en lang "Set route to destination"-seilas) respawnes 8-18 nm
+foran baugen med kryssende kurs i farbart vann, baade i ECDIS og paa
+radaren, saa demoen alltid har trafikk rundt skipet. I live-AIS-modus
+varmstartes bildet fra sist kjente fartoy (per MMSI, dodregnet frem) i
+stedet for aa staa tomt mens fartoyene rapporterer inn ett og ett, og
+sim-flaaten vises sammen med de ekte helt til det finnes minst tre ekte
+fartoy innen 25 nm — live-boksen dekker hele norskekysten, saa uten den
+terskelen ble kartet tomt rundt eget skip.
 
 Hele appen er paa engelsk (kiosken staar paa internasjonal messe); README-ene
 er paa norsk for drift.

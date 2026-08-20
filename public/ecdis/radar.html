@@ -300,19 +300,29 @@
 
   // AIS-bildet ECDIS lagrer hvert 5. sekund: samme maal som paa kartet,
   // dodregnet frem langs egen COG/SOG for tiden som er gaatt.
-  var snapTargets = null, snapTargetsAt = 0;
+  var snapTargets = null, snapTargetsAt = 0, snapMode = "sim", snapSrc = "ecdis";
   function adoptTargets(tg) {
     if (!tg || !Array.isArray(tg.targets) || !tg.savedAt || tg.savedAt <= snapTargetsAt) return false;
     snapTargetsAt = tg.savedAt;
-    var sec = Math.max(0, (Date.now() - tg.savedAt) / 1000);
+    snapMode = tg.mode || snapMode;
+    // src skiller ECDIS' bilde fra radarens eget (se persistFleet): radaren
+    // skal ikke behandle sin egen lagring som "ECDIS eier flaaten".
+    snapSrc = tg.src || "ecdis";
+    // Eldre enn en time: posisjonene er verdilose, la radaren simulere selv.
+    if (Date.now() - tg.savedAt > 3600e3) { snapTargets = null; return false; }
+    // Dodregningen klampes til 20 minutter — et halvgammelt bilde skal ikke
+    // kastes hundrevis av nm av gaarde.
+    var sec = Math.min(Math.max(0, (Date.now() - tg.savedAt) / 1000), 1200);
     snapTargets = [];
     for (var i = 0; i < tg.targets.length; i++) {
       var t = tg.targets[i];
       if (!t || t.lat == null || t.lon == null) continue;
-      var p = (t.sog > 0.1 && sec > 1) ? moveLL(t.lat, t.lon, t.cog || 0, t.sog * sec / 3600) : t;
+      var cog = (t.cog != null ? t.cog : t.hdg) || 0;
+      var p = (t.sog > 0.1 && sec > 1) ? moveLL(t.lat, t.lon, cog, t.sog * sec / 3600) : t;
       snapTargets.push({
         name: t.name || "", lat: p.lat, lon: p.lon,
-        cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0
+        cog: cog, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : cog),
+        type: t.type, col: t.col, mmsi: t.mmsi
       });
     }
     return true;
@@ -326,7 +336,9 @@
       var m = e.data;
       if (!m || m.type !== "state" || !m.ship) return;
       live = m.ship; liveAt = Date.now();
-      if (m.targets && m.targets.length) { liveTargets = m.targets; liveTargetsAt = Date.now(); }
+      // Adopter ECDIS' maalliste ogsaa naar den er tom — radaren skal speile
+      // ECDIS eksakt saa lenge den siden er aapen og sender.
+      if (m.targets) { liveTargets = m.targets; liveTargetsAt = Date.now(); }
     };
   } catch (e) {}
 
@@ -378,44 +390,60 @@
     }
   }
 
-  // ================= AIS-maal: felles trafikk-sim naar ECDIS ikke er aapen =================
-  var NAMES = ["NORDIC STAR", "BERGEN PEARL", "FJORD PILOT", "VESTLAND TRADER", "SKAGERAK", "MS SOLUND", "KYSTVAKT 3"];
+  // ================= AIS-maal: SAMME bilde som ECDIS =================
+  // ECDIS lagrer flaaten sin (sim eller live) i mrd_targets hvert 5. sekund —
+  // lokalt og paa serveren. Radaren adopterer bildet (adoptTargets over) og
+  // dodregner det videre, saa begge skjermene viser de SAMME baatene ogsaa
+  // naar sidene aapnes etter hverandre eller kjorer paa hver sin maskin.
+  // Uten lagret bilde (forste boot) seedes noyaktig samme startflaate som
+  // ECDIS' initShip() genererer.
   var simTargets = [];
   (function seedTargets() {
-    for (var i = 0; i < NAMES.length; i++) {
-      var a = i * 2.399963;
-      var rNm = 1.5 + (i * 53 % 100) / 100 * 6.5;
-      var p = moveLL(own.lat, own.lon, a * 180 / Math.PI, rNm);
-      simTargets.push({
-        name: NAMES[i], lat: p.lat, lon: p.lon,
-        cog: (a * 180 / Math.PI + 120 + (i % 2) * 120) % 360,
-        sog: 6 + (i * 37) % 11, hdg: 0
-      });
+    // Samme startflaate som ECDIS' initShip() — navn, posisjon, kurs, fart, type, farge.
+    var FLEET = [
+      [60.18, 5.00, "NORDIC STAR", 245, 12.5, "Cargo", "#0A84FF"], [60.05, 5.05, "BERGEN PEARL", 30, 22, "HSC", "#34C759"],
+      [59.80, 4.78, "GAS PIONEER", 150, 11, "Tanker", "#FF9F0A"], [59.40, 5.10, "HAVFISK", 95, 5.5, "Fishing", "#BF5AF2"],
+      [60.33, 4.85, "FJORD PILOT", 200, 14, "Pilot", "#FF375F"], [59.55, 4.62, "STENA LINK", 75, 18, "Ro-Ro", "#30B0C7"]
+    ];
+    for (var f = 0; f < FLEET.length; f++) {
+      simTargets.push({ lat: FLEET[f][0], lon: FLEET[f][1], name: FLEET[f][2], cog: FLEET[f][3], hdg: FLEET[f][3], sog: FLEET[f][4], type: FLEET[f][5], col: FLEET[f][6] });
     }
   })();
+  // Speiler radaren en ECDIS som eier bildet akkurat naa? Enten sender ECDIS
+  // direkte (BroadcastChannel), eller et ferskt snapshot kom fra server/
+  // localStorage. Da skal radaren verken respawne eller lagre flaaten.
+  function mirroring() {
+    if (liveTargets && Date.now() - liveTargetsAt < 6000) return true;
+    return snapSrc !== "radar" && !!snapTargetsAt && Date.now() - snapTargetsAt < 30000;
+  }
+  // Flaaten radaren selv fremskriver: ECDIS-snapshotet naar det finnes, ellers
+  // den lokale startflaaten.
+  function localFleet() { return (snapTargets && snapTargets.length) ? snapTargets : simTargets; }
+  // Ren dodregning langs COG — samme fremskriving som ECDIS gjor for baatene
+  // sine, saa bildet holder seg likt naar man bytter mellom sidene.
+  var fleetAcc = 0;
   function targetsTick(dt) {
-    // ECDIS-snapshotmaal dodregnes rett frem langs egen COG/SOG — ingen
-    // kunstig styring; neste poll/lagring korrigerer dem uansett.
-    if (snapTargets) {
-      for (var j = 0; j < snapTargets.length; j++) {
-        var st = snapTargets[j];
-        if (st.sog > 0.1) {
-          var sp = moveLL(st.lat, st.lon, st.cog, st.sog * dt / 3600);
-          st.lat = sp.lat; st.lon = sp.lon;
-        }
-      }
-      return;
-    }
-    for (var i = 0; i < simTargets.length; i++) {
-      var t = simTargets[i];
-      t.hdg = t.cog;
+    var fleet = localFleet();
+    for (var i = 0; i < fleet.length; i++) {
+      var t = fleet[i];
+      if (t.hdg == null) t.hdg = t.cog;
+      if (!t.sog) continue;
       var step = moveLL(t.lat, t.lon, t.cog, t.sog * dt / 3600);
       t.lat = step.lat; t.lon = step.lon;
-      if (distNm(t, own) > 11) {
-        var back = bearingDeg(t, own);
-        var diff = ((back - t.cog + 540) % 360) - 180;
-        t.cog = (t.cog + Math.sign(diff) * Math.min(16, Math.abs(diff)) * dt * 2.2 + 360) % 360;
-      }
+    }
+    // Flaaten folger eget skip (samme oppforsel som ECDIS): baater som er
+    // sakket > 30 nm akterut respawnes 8-18 nm foran baugen med kryssende
+    // kurs, saa skopet alltid har trafikk ogsaa paa lange transitter.
+    if (mirroring()) return;
+    fleetAcc += dt;
+    if (fleetAcc < 5) return;
+    fleetAcc = 0;
+    for (var j = 0; j < fleet.length; j++) {
+      var s2 = fleet[j];
+      if (distNm(s2, own) <= 30) continue;
+      var p = moveLL(own.lat, own.lon, (own.cog || 0) + (Math.random() * 120 - 60), 8 + Math.random() * 10);
+      s2.lat = p.lat; s2.lon = p.lon;
+      s2.cog = s2.hdg = ((own.cog || 0) + 100 + Math.random() * 160) % 360;
     }
   }
   function targets() {
@@ -423,6 +451,38 @@
     if (snapTargets && snapTargets.length) return snapTargets;
     return simTargets;
   }
+  // Naar direktesendingen fra en aapen ECDIS opphorer (siden ble lukket), tas
+  // bildet den nettopp lagret over — og finnes det ikke, beholdes maalene den
+  // sist sendte. Overgangen til radarens egen simulering blir somlos.
+  var liveWasFresh = false;
+  setInterval(function () {
+    var fresh = !!(liveTargets && Date.now() - liveTargetsAt < 6000);
+    if (liveWasFresh && !fresh) {
+      if (!adoptTargets(loadJson("mrd_targets")) && liveTargets && liveTargets.length) {
+        adoptTargets({ savedAt: Date.now(), mode: snapMode, src: "radar", targets: liveTargets });
+      }
+    }
+    liveWasFresh = fresh;
+  }, 1000);
+  // Radaren skriver bildet tilbake til mrd_targets (men aldri mens en ECDIS
+  // eier det — da skriver ECDIS selv, ogsaa til serveren), slik at neste side
+  // som aapnes fortsetter med de samme baatene der de faktisk var.
+  function persistFleet() {
+    if (mirroring()) return;
+    var fleet = localFleet();
+    if (!fleet.length) return;
+    try {
+      snapSrc = "radar";
+      localStorage.setItem("mrd_targets", JSON.stringify({
+        savedAt: Date.now(), mode: snapMode, src: "radar",
+        targets: fleet.slice(0, 40).map(function (t) {
+          return { name: t.name || "", type: t.type, lat: t.lat, lon: t.lon, cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0, col: t.col, mmsi: t.mmsi };
+        })
+      }));
+    } catch (e) {}
+  }
+  setInterval(persistFleet, 5000);
+  window.addEventListener("pagehide", persistFleet);
 
   // ================= Avledede live-data for venstre datakolonne =================
   // Alt foelger demoens aand: ROT maales av faktisk kursendring, loggen
@@ -1355,8 +1415,11 @@
         "<span class=\"sub\">CPA " + info.cpa.toFixed(2) + " NM · TCPA " + (info.tcpaMin != null && info.tcpaMin > 0 && info.tcpaMin < 99 ? info.tcpaMin.toFixed(1) + " MIN" : "—") + " · " + (t.sog || 0).toFixed(1) + " KN</span></div>");
     }
     if (state.ais) {
+      // Bare fartoy i skopets naerhet (4x range) — en liste full av maal
+      // hundrevis av nm unna ser ut som feil, ikke som AIS.
       var ais = targets().filter(function (x) { return x.name && !ttFor(x.name); })
         .map(function (x) { return { t: x, info: cpaMap[x.name] || evalTarget(x) }; })
+        .filter(function (x) { return x.info.rng < state.range * 4; })
         .sort(function (a, b) { return a.info.rng - b.info.rng; })
         .slice(0, Math.max(0, 5 - rows.length));
       for (i = 0; i < ais.length; i++) {

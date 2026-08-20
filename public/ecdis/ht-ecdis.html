@@ -49,6 +49,15 @@
           if (remote.route && remote.route.route) localStorage.setItem("mrd_route", JSON.stringify(remote.route));
         }
       }
+      // AIS-bildet hentes ogsaa fra serveren, saa en ECDIS som starter paa en
+      // annen maskin viser SAMME flaate som radaren/kiosken hadde sist.
+      if (remote.targets && remote.targets.savedAt) {
+        var localT = {};
+        try { localT = JSON.parse(localStorage.getItem("mrd_targets") || "{}") || {}; } catch (e) {}
+        if (!localT.savedAt || remote.targets.savedAt > localT.savedAt) {
+          localStorage.setItem("mrd_targets", JSON.stringify(remote.targets));
+        }
+      }
     }
   } catch (e) { /* uten server gjelder localStorage alene */ }
 })();
@@ -717,6 +726,7 @@ class Component extends DCLogic {
     this.loadTrack();
     this.loadRoute();
     window.__ecdis = this;
+    this.loadAisState();
     this.loadShipState();
     this._persistT = setInterval(() => { if (!document.hidden) this.saveShipState(); }, 5000);
     this._pagehideH = () => this.saveShipState(true);
@@ -887,28 +897,54 @@ class Component extends DCLogic {
   // strict (default): a sample on an UNLOADED chart tile (chartLandAt === null) counts as NOT clear, so a route is only ever accepted once its whole corridor's chart data is really loaded — this prevents committing a route computed on half-loaded tiles (undecoded cells look like water and yield phantom routes through land). lax: treat unloaded as water (best-effort, used only on the final give-up attempt).
   routeClear(R, lax) { if (!R || R.length < 2) return false; for (let i = 1; i < R.length; i++) { const a = R[i - 1], b = R[i]; const n = Math.max(2, Math.ceil(this.distNm(a, b) / 0.04)); for (let s = 0; s <= n; s++) { const f = s / n, la = a.lat + (b.lat - a.lat) * f, lo = a.lon + (b.lon - a.lon) * f; const cl = this.chartLandAt(la, lo, 12); if (cl === true) return false; if (cl == null && !lax) return false; } } return true; }
   _doPlan(dest, quiet) {
-    try {
+    // Tidsskivet planlegging: en planRoute-kandidat per makrotask i stedet for
+    // hele kaskaden i ett jafs, saa kartet kan panoreres/zoomes og alle knapper
+    // virker mens ruten beregnes. Nye kall mens en kaskade kjorer koalesceres
+    // (siste vinner) i stedet for aa stables oppaa hverandre.
+    if (this._planBusy) { this._planAgain = { dest, quiet }; return; }
+    this._planBusy = true;
+    if (!this._planWorking) { this._planWorking = true; this.setState({ routeVer: this.state.routeVer + 1 }); }
     const o = this.ownShip; const draught = this.draughtV || 7;
     const tries = [...new Set([Math.max(this.state.safetyC, draught + 1.5), draught, this.state.shallowC, 1, 0.5].filter(v => v > 0))].sort((a, b) => b - a);
-    let path = null, used = null;
-    // (cellDivisor, paddingMultiplier, dilationCells) combos. Finer grids + a few cells of land-dilation keep the route mid-channel so straight legs can't clip headlands (clean routes in open/deep fjords); the dil=0 + wider-box combos fall back for narrow channels and long winding sounds. STRICT routeClear validates every candidate against loaded chart data.
+    // (cellDivisor, paddingMultiplier, dilationCells) combos. Finer grids + a few cells of land-dilation keep the route mid-channel so straight legs can't clip headlands (clean routes in open/deep fjords); the dil=0 + wider-box combos fall back for narrow channels and long winding sounds. STRICT routeClear validates every candidate against loaded chart data; lax (unloaded tiles as water) only on the final give-up attempts.
     const combos = [[560, 1, 2], [560, 1, 0], [400, 2.0, 1], [300, 3.2, 0]];
-    for (const [dv, pk, dl] of combos) { for (const clr of tries) { const p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, clr, false, dv, pk, dl); if (p && this.routeClear(p)) { path = p; used = clr; break; } } if (path) break; }
-    // fallback: ignore AIS discs (a vessel may be sitting in the only channel)
-    if (!path) { for (const [dv, pk, dl] of combos) { for (const clr of tries) { const p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, clr, true, dv, pk, dl); if (p && this.routeClear(p)) { path = p; used = clr; break; } } if (path) break; } }
-    // final give-up attempt only: accept a best-effort route validated laxly (unloaded tiles treated as water) so a tile that never loads can't block an otherwise-good route forever.
-    if (!path && !quiet) { for (const [dv, pk, dl] of combos) { for (const clr of tries) { const p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, clr, true, dv, pk, dl); if (p && this.routeClear(p, true)) { path = p; used = clr; break; } } if (path) break; } }
-    if (!path) {
-      // quiet === true means data may still be loading and a retry is scheduled — don't flash a failure yet, just show a working status.
-      if (quiet) { if (!this._planWorking) { this._planWorking = true; this.setState({ routeVer: this.state.routeVer + 1 }); } return; }
-      this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false; this.addAlarm('warning', 'No safe route found to that point — it is blocked by land/shoals. Pick a point in navigable water.'); this.setState({ routeVer: this.state.routeVer + 1 }); return;
-    }
-    // A route that passed STRICT routeClear is validated against loaded chart data along its whole length, so it is safe to commit immediately (no separate tile-readiness gate needed).
-    this._planWorking = false;
-    this.route = path; this.activeLeg = 1; this.routeCheck = null; this.autoNav = false; this.routePending = true; this._routeClr = used;
-    this.helm = Object.assign(this.helm || {}, { active: false, ap: false });
-    this.setState({ simRunning: false, routeVer: this.state.routeVer + 1, tool: 'pan', autoOpen: true });
-    } catch (e) {}
+    const jobs = [];
+    for (const noAis of [false, true]) for (const [dv, pk, dl] of combos) for (const clr of tries) jobs.push({ dv, pk, dl, clr, noAis, lax: false });
+    if (!quiet) for (const [dv, pk, dl] of combos) for (const clr of tries) jobs.push({ dv, pk, dl, clr, noAis: true, lax: true });
+    let i = 0;
+    const chain = () => {
+      const again = this._planAgain; this._planAgain = null;
+      if (again && !this.routePending) setTimeout(() => this._doPlan(again.dest, again.quiet), 30);
+    };
+    const finish = (path, used) => {
+      this._planBusy = false;
+      if (path) {
+        // A route that passed STRICT routeClear is validated against loaded chart data along its whole length, so it is safe to commit immediately.
+        this._planWorking = false;
+        this.route = path; this.activeLeg = 1; this.routeCheck = null; this.autoNav = false; this.routePending = true; this._routeClr = used;
+        this.helm = Object.assign(this.helm || {}, { active: false, ap: false });
+        this.setState({ simRunning: false, routeVer: this.state.routeVer + 1, tool: 'pan', autoOpen: true });
+      } else if (!quiet) {
+        this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false;
+        this.addAlarm('warning', 'No safe route found to that point — it is blocked by land/shoals. Pick a point in navigable water.');
+        this.setState({ routeVer: this.state.routeVer + 1 });
+      }
+      // quiet uten treff: _planWorking blir staaende saa panelet viser "Computing route…" mens retry-loopen fortsetter.
+      chain();
+    };
+    const step = () => {
+      if (this._planDest !== dest || this.routePending) { this._planBusy = false; chain(); return; }
+      const t0 = performance.now();
+      while (i < jobs.length && performance.now() - t0 < 26) {
+        const j = jobs[i++];
+        let p = null;
+        try { p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, j.clr, j.noAis, j.dv, j.pk, j.dl); } catch (e) {}
+        if (p && this.routeClear(p, j.lax)) { finish(p, j.clr); return; }
+      }
+      if (i >= jobs.length) { finish(null); return; }
+      setTimeout(step, 30);
+    };
+    setTimeout(step, 0);
   }
   routeStats() { const R = this.route; if (!R || R.length < 2) return null; const o = this.ownShip; let rem = this.distNm(o, R[Math.min(this.activeLeg, R.length - 1)]); for (let i = this.activeLeg + 1; i < R.length; i++) rem += this.distNm(R[i - 1], R[i]); const total = R.reduce((a, p, i) => i ? a + this.distNm(R[i - 1], p) : 0, 0); const spd = (this.autoNav && o.sog > 0.3) ? o.sog : 14; return { rem, total, legs: R.length - 1, eta: rem / Math.max(6, spd) * 60 }; }
   startAutoNav() { if (!this.route) return; this.routePending = false; this.autoNav = true; this.helm = Object.assign(this.helm || {}, { active: false, ap: false }); this.saveRoute(); this.setState({ simRunning: true, routeVer: this.state.routeVer + 1 }); const st = this.routeStats(); this.addAlarm('info', 'Autonomous voyage started — ' + (st ? st.legs + ' legs · ' + st.total.toFixed(1) + ' nm · ≥ ' + (this._routeClr || this.state.safetyC).toFixed(0) + ' m UKC · ETA ~' + Math.round(st.eta) + ' min.' : 'steering to destination.')); }
@@ -1136,12 +1172,42 @@ class Component extends DCLogic {
   tideNow() { const T = this.tide; if (!T || !T.pts.length) return null; const p = T.pts, now = Date.now(); if (now <= p[0].t) return { v: p[0].v, rate: 1 }; for (let i = 1; i < p.length; i++) { if (now <= p[i].t) { const f = (now - p[i - 1].t) / (p[i].t - p[i - 1].t || 1); return { v: p[i - 1].v + (p[i].v - p[i - 1].v) * f, rate: p[i].v - p[i - 1].v }; } } return { v: p[p.length - 1].v, rate: -1 }; }
   tideExtremes() { const p = (this.tide && this.tide.pts) || [], ex = []; for (let i = 1; i < p.length - 1; i++) { if (p[i].v > p[i - 1].v && p[i].v >= p[i + 1].v) ex.push({ type: 'high', t: p[i].t, v: p[i].v }); else if (p[i].v < p[i - 1].v && p[i].v <= p[i + 1].v) ex.push({ type: 'low', t: p[i].t, v: p[i].v }); } return ex; }
 
-  aisArr() { return this.state.aisMode === 'live' && this.aisLive ? Object.values(this.aisLive).filter(t => t.lat != null) : this.ais; }
+  aisArr() {
+    // Varmstart + lokal blanding: i live-modus vises sim-/sist kjente flaate
+    // helt til det faktisk finnes ekte trafikk I NAEROMRAADET. Live-boksen
+    // dekker hele norskekysten, saa de forste ekte fartoyene kan ligge
+    // hundrevis av nm unna — byttet radaren/kartet til ren live for tidlig,
+    // saa demoen "dod" ut rundt eget skip. Til det er minst 3 ekte fartoy
+    // innen 25 nm vises derfor sim-flaaten sammen med de ekte som er kommet.
+    if (this.state.aisMode === 'live' && this.aisLive) {
+      const v = Object.values(this.aisLive).filter(t => t.lat != null);
+      if (v.length) {
+        const o = this.ownShip;
+        let near = 0;
+        for (const t of v) if (this.distNm(o, t) < 25) { near++; if (near >= 3) break; }
+        if (near >= 3) { this._aisView = 'live'; return v; }
+        this._aisView = 'blend';
+        return this.ais.concat(v);
+      }
+    }
+    this._aisView = 'sim';
+    return this.ais;
+  }
   aisColor(id) { const c = ['#0A84FF', '#34C759', '#FF9F0A', '#BF5AF2', '#FF375F', '#30B0C7', '#FFD60A']; return c[Math.abs(id | 0) % c.length]; }
   shipTypeName(c) { if (c == null) return 'Vessel'; if (c >= 60 && c <= 69) return 'Passenger'; if (c >= 70 && c <= 79) return 'Cargo'; if (c >= 80 && c <= 89) return 'Tanker'; if (c >= 40 && c <= 49) return 'HSC'; if (c === 30) return 'Fishing'; if (c === 35) return 'Military'; if (c === 36) return 'Sailing'; if (c === 37) return 'Pleasure'; if (c === 50) return 'Pilot'; if (c === 51) return 'SAR'; if (c === 52) return 'Tug'; return 'Vessel'; }
   connectAis(key) {
     this.disconnectAis(); key = (key || '').trim(); if (!key) { this.setState({ aisMode: 'sim', aisStatus: 'off' }); return; }
     this.aisKey = key; this.aisLive = {}; const B = this.aisBox || this.bbox;
+    // Varmstart fra siste lagrede AIS-bilde: skjermen er befolket med sist
+    // kjente (ekte) fartoy umiddelbart, dodregnet frem. Ekte meldinger tar
+    // over per MMSI; fartoy som ikke lenger sender prunes av 5-min-regelen.
+    try {
+      const c = this.loadAisCache();
+      if (c && c.mode === 'live') for (const t of c.targets) {
+        if (t.mmsi == null || t.lat == null) continue;
+        this.aisLive[t.mmsi] = { mmsi: t.mmsi, name: t.name || ('MMSI ' + t.mmsi), type: t.type || 'Vessel', col: t.col || this.aisColor(t.mmsi), lat: t.lat, lon: t.lon, cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0, last: Date.now() - 60000 };
+      }
+    } catch (e) {}
     try {
       const ws = new WebSocket('wss://stream.aisstream.io/v0/stream'); this.aisWs = ws;
       ws.onopen = () => { ws.send(JSON.stringify({ APIKey: key, BoundingBoxes: [[[B.latMin, B.lonMin], [B.latMax, B.lonMax]]], FilterMessageTypes: ['PositionReport', 'ShipStaticData'] })); this._aisKeyInput = key; this.saveSrcCfg(); this.setState({ aisStatus: 'connected', aisMode: 'live' }); };
@@ -1226,7 +1292,7 @@ class Component extends DCLogic {
   postShipState(force) {
     if (!this.helmCh) return; const o = this.ownShip; const _tn = this.tideNow(); const _tv = _tn ? _tn.v : 0; const _ld = (this.liveDepthOk && this.liveDepth != null) ? this.liveDepth : Math.max(0, this.depthAt(o.lat, o.lon)); const dep = Math.max(0, _ld + _tv); const mw = this.met || {};
     const _al = (this.state.alarms || []).filter(a => !a.ack)[0]; const alarm = _al ? { level: _al.level, text: _al.text, time: _al.time } : null;
-    try { this.helmCh.postMessage({ type: 'state', sid: this.SID, t: Date.now(), ship: { lat: o.lat, lon: o.lon, hdg: o.hdg, cog: o.cog, sog: o.sog, rot: (this._rot || 0), rudder: (o.rudder || 0), depth: dep, ukc: dep - this.draughtV, active: !!(this.helm && this.helm.active), ordered: this.helm ? this.helm.orderedSpeed : 0, telegraph: this.helm ? this.helm.telegraph : 'Stop', ap: !!(this.helm && this.helm.ap), apHeading: this.helm ? this.helm.apHeading : 0, windSpd: mw.windSpd, windDir: mw.windDir, sim: this.state.simSpeed, alarm: alarm, autoNav: !!this.autoNav }, targets: (this.aisArr() || []).slice(0, 40).map(t => ({ lat: t.lat, lon: t.lon, cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0, name: t.name || '' })) }); } catch (e) {}
+    try { this.helmCh.postMessage({ type: 'state', sid: this.SID, t: Date.now(), ship: { lat: o.lat, lon: o.lon, hdg: o.hdg, cog: o.cog, sog: o.sog, rot: (this._rot || 0), rudder: (o.rudder || 0), depth: dep, ukc: dep - this.draughtV, active: !!(this.helm && this.helm.active), ordered: this.helm ? this.helm.orderedSpeed : 0, telegraph: this.helm ? this.helm.telegraph : 'Stop', ap: !!(this.helm && this.helm.ap), apHeading: this.helm ? this.helm.apHeading : 0, windSpd: mw.windSpd, windDir: mw.windDir, sim: this.state.simSpeed, alarm: alarm, autoNav: !!this.autoNav }, targets: (this.aisArr() || []).filter(t => t && t.lat != null).sort((a, b) => this.distNm(o, a) - this.distNm(o, b)).slice(0, 40).map(t => ({ lat: t.lat, lon: t.lon, cog: (t.cog != null ? t.cog : t.hdg) || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0, name: t.name || '', type: t.type, col: t.col, mmsi: t.mmsi })) }); } catch (e) {}
   }
   // Shared ship dynamics — rudder, turn rate, engine inertia, thrusters. Used by
   // BOTH manual helm (Helm Console) AND the autonomous controller, so there is a
@@ -1448,10 +1514,12 @@ class Component extends DCLogic {
     // faster, so a wall-clock cadence would let ships close half a mile
     // between give-way decisions.
     this._trafAcc = (this._trafAcc || 0) + sdt;
-    if (!live && this._trafAcc > 15) {
+    // Kjorres for SIM-flaaten ogsaa i blandet live-visning — men aldri paa
+    // ekte fartoy (deres kurs skal ikke muteres av demolgikken).
+    if (this._aisView !== 'live' && this._trafAcc > 15) {
       this._trafAcc = 0;
       const cpaLim = (s.cpaLimit || 0.5), tcpaLim = (s.tcpaLimit || 12);
-      for (const t of arr) {
+      for (const t of this.ais) {
         if (t._baseHdg == null) t._baseHdg = t.hdg;
         const cp = this.cpa(o, t);
         if (cp.tcpa > 0 && cp.tcpa < tcpaLim * 1.15 && cp.cpa < cpaLim * 1.6) t._avoid = Math.min(60, (t._avoid || 0) + 20);
@@ -1464,6 +1532,27 @@ class Component extends DCLogic {
       }
     }
     for (const t of arr) { if (t.sog) { const adv = live ? dt : sdt; const nd = this.moveLL(t.lat, t.lon, (t.cog != null ? t.cog : t.hdg), t.sog / 3600 * adv); t.lat = nd.lat; t.lon = nd.lon; } if (!live) { if (t.lon < B.lonMin) t.lon = B.lonMax - .02; if (t.lon > B.lonMax) t.lon = B.lonMin + .02; if (t.lat < B.latMin) t.lat = B.latMax - .02; if (t.lat > B.latMax) t.lat = B.latMin + .02; } }
+    // Sim-flaaten FOLGER eget skip: en baat som er sakket > 30 nm akterut
+    // (typisk etter "Set route to destination" langt av gaarde) respawnes
+    // 8-18 nm foran skipet med kryssende kurs — i farbart vann (dybdesjekk).
+    // Slik har demoen alltid trafikk rundt skipet uansett hvor det seiler,
+    // og radaren arver det samme bildet via mrd_targets.
+    this._fleetAcc = (this._fleetAcc || 0) + sdt;
+    if (this._fleetAcc > 5) {
+      this._fleetAcc = 0;
+      for (const t of this.ais) {
+        if (this.distNm(t, o) <= 30) continue;
+        let p = null;
+        for (let tr = 0; tr < 6 && !p; tr++) {
+          const cand = this.moveLL(o.lat, o.lon, (o.cog || 0) + (Math.random() * 120 - 60), 8 + Math.random() * 10);
+          if (this.depthAt(cand.lat, cand.lon) > 5) p = cand;
+        }
+        if (!p) continue;
+        t.lat = p.lat; t.lon = p.lon;
+        t.cog = t.hdg = t._baseHdg = ((o.cog || 0) + 100 + Math.random() * 160) % 360;
+        t._avoid = 0; t._trail = [];
+      }
+    }
     if (s.layers.trails) { for (const t of arr) { if (!t._trail) t._trail = []; const last = t._trail[t._trail.length - 1]; if (!last || this.distNm(last, t) > 0.02) { t._trail.push({ lat: t.lat, lon: t.lon }); if (t._trail.length > 50) t._trail.shift(); } } }
     if (live && this.aisLive) { const now = Date.now(); for (const k in this.aisLive) if (now - (this.aisLive[k].last || 0) > 300000) delete this.aisLive[k]; }
     if (performance.now() - (this._lastAlarmWall || 0) > 1500) { this._lastAlarmWall = performance.now(); this.checkAlarms(); }
@@ -1544,7 +1633,73 @@ class Component extends DCLogic {
     if (this.cursor && this.state.tool === 'route') this.drawCursor(ctx);
     if (this.cursor && this.state.tool === 'ebl') this.drawEBL(ctx);
     if (this.mob) this.drawMOB(ctx);
+    this.drawLegend(ctx, P);
     if (this.srcStatus && this.srcStatus.chart === 'error') this.drawTileError(ctx);
+  }
+  // Tegnforklaring nede til venstre for aktive datalag. Rampene samples fra
+  // NOYAKTIG de samme fargefunksjonene som tegner lagene, saa forklaringen
+  // alltid stemmer med kartet, og brikken folger day/dusk/night via P.ui.
+  drawLegend(ctx, P) {
+    const s = this.state, wide = this.view.zoom < 7.5, u = P.ui;
+    const rows = [];
+    if (s.layers.s129 && !wide) rows.push({ label: 'UKC', type: 'bands', range: 'm UKC', bands: [['rgba(255,59,48,.88)', '<' + s.shallowC], ['rgba(255,149,10,.88)', '<' + s.safetyC], ['rgba(255,214,90,.92)', '<' + s.deepC]] });
+    if (s.layers.s102) rows.push({ label: 'Depth', fn: (v) => this.rampRGB([[0, [14, 58, 138]], [0.45, [64, 136, 202]], [0.75, [145, 198, 234]], [1, [224, 240, 250]]], v), v0: 0, v1: 1, range: 'deep → shallow' });
+    if (s.layers.s111 && !wide) rows.push({ label: 'Current', fn: (v) => this.curColor(v), v0: 0, v1: 3.6, range: '0–3.6 kn' });
+    if (s.layers.wind && !wide) rows.push({ label: 'Wind', fn: (v) => this.windColor(v), v0: 0, v1: 32, range: '0–32 m/s' });
+    if (s.layers.temp && !wide) rows.push({ label: 'Sea temp', fn: (v) => this.tempColor(v).join(','), v0: -6, v1: 25, range: '−6–25 °C' });
+    if (s.layers.precip && !wide) rows.push({ label: 'Precip', fn: (v) => this.precipColor(v), v0: 0.1, v1: 25, range: '0–25 mm/h' });
+    if (s.layers.density) rows.push({ label: 'Traffic', fn: (v) => this.rampRGB([[0, [20, 90, 200]], [0.3, [30, 200, 200]], [0.55, [120, 220, 110]], [0.78, [245, 215, 90]], [1, [240, 70, 60]]], v), v0: 0, v1: 1, range: 'low → high' });
+    if (!rows.length) return;
+    const wPanel = 200, rowH = 19, pad = 10, titleH = 16;
+    const h = pad * 2 + titleH + rows.length * rowH - 5;
+    const x = 14, y = this.H - 78 - h;
+    ctx.save();
+    ctx.fillStyle = u.glassBg;
+    ctx.strokeStyle = u.hair;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, wPanel, h, 14); else ctx.rect(x, y, wPanel, h);
+    ctx.fill(); ctx.stroke();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.font = '800 7.5px Inter';
+    ctx.fillStyle = u.muted;
+    ctx.fillText('L E G E N D  ·  A C T I V E  L A Y E R S', x + pad, y + pad + 3);
+    let ry = y + pad + titleH + 5;
+    for (const r of rows) {
+      ctx.font = '700 9.5px Inter';
+      ctx.fillStyle = u.ink;
+      ctx.fillText(r.label, x + pad, ry);
+      const bx = x + pad + 58, bw = 60, bh = 8;
+      if (r.bands) {
+        let sx = bx - 2;
+        for (const [col, txt] of r.bands) {
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(sx, ry - 4, 11, 8, 2); else ctx.rect(sx, ry - 4, 11, 8);
+          ctx.fill();
+          ctx.font = '700 7.5px Inter';
+          ctx.fillStyle = u.ink;
+          ctx.fillText(txt, sx + 13, ry);
+          sx += 13 + ctx.measureText(txt).width + 6;
+        }
+      } else {
+        const g = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+        for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, 'rgb(' + r.fn(r.v0 + (r.v1 - r.v0) * i / 6) + ')');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(bx, ry - bh / 2, bw, bh, 4); else ctx.rect(bx, ry - bh / 2, bw, bh);
+        ctx.fill();
+        ctx.strokeStyle = u.hair;
+        ctx.stroke();
+      }
+      ctx.font = '600 8px Inter';
+      ctx.fillStyle = u.muted;
+      ctx.textAlign = 'right';
+      ctx.fillText(r.range, x + wPanel - pad, ry);
+      ctx.textAlign = 'left';
+      ry += rowH;
+    }
+    ctx.restore();
   }
   // On-map notice when the chart tile host is unreachable — without it the
   // demo shows silently blank sea and only the buried provider panel hints why.
@@ -1620,17 +1775,172 @@ class Component extends DCLogic {
   drawRadar(ctx, P) { const o = this.ownShip; const [cx, cy] = this.ll2s(o.lat, o.lon); const rings = [0.25, 0.5, 1, 2, 4]; const maxR = this.nmToPx(rings[rings.length - 1]); ctx.save(); ctx.lineCap = 'round'; for (const r of rings) { const rp = this.nmToPx(r); if (rp < 16 || rp > Math.hypot(this.W, this.H)) continue; ctx.globalAlpha = 0.32; ctx.strokeStyle = P.ui.muted; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.arc(cx, cy, rp, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 0.7; ctx.fillStyle = P.ui.muted; ctx.font = '600 8px Inter'; ctx.textAlign = 'center'; ctx.fillText(r + ' nm', cx, cy - rp - 3); } ctx.globalAlpha = 0.4; ctx.strokeStyle = P.ui.muted; ctx.lineWidth = 1; for (let b = 0; b < 360; b += 30) { const aa = b * Math.PI / 180 + this.view.bearing; const r1 = maxR - 7, r2 = maxR; ctx.beginPath(); ctx.moveTo(cx + Math.sin(aa) * r1, cy - Math.cos(aa) * r1); ctx.lineTo(cx + Math.sin(aa) * r2, cy - Math.cos(aa) * r2); ctx.stroke(); } const sweep = (performance.now() / 1000 * 0.9) % (Math.PI * 2); for (let k = 0; k < 28; k++) { const aa = sweep - k * 0.018; ctx.strokeStyle = 'rgba(52,199,89,' + (0.16 * (1 - k / 28)).toFixed(3) + ')'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.sin(aa) * maxR, cy - Math.cos(aa) * maxR); ctx.stroke(); } ctx.globalAlpha = 1; ctx.strokeStyle = 'rgba(52,199,89,0.85)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.sin(sweep) * maxR, cy - Math.cos(sweep) * maxR); ctx.stroke(); ctx.restore(); }
   drawTrails(ctx, P) { ctx.save(); ctx.lineCap = 'round'; for (const t of this.aisArr()) { const tr = t._trail; if (!tr || tr.length < 2) continue; if (!this.inView(t.lat, t.lon, 40)) continue; for (let i = 1; i < tr.length; i++) { const [x1, y1] = this.ll2s(tr[i - 1].lat, tr[i - 1].lon); const [x2, y2] = this.ll2s(tr[i].lat, tr[i].lon); const a = (i / tr.length) * 0.5; ctx.strokeStyle = (t.dangerous ? 'rgba(255,59,48,' : 'rgba(130,150,170,') + a.toFixed(2) + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); } } ctx.restore(); }
   drawWaves(ctx, P) { const m = this.met; const h = (m && m.waveH != null) ? m.waveH : 1; if (h < 0.15) return; const fromDir = (m && m.windDir != null) ? m.windDir : 225; const ang = ((fromDir + 180) % 360) * Math.PI / 180 + this.view.bearing; const dx = Math.sin(ang), dy = -Math.cos(ang); const px = -dy, py = dx; const t = performance.now() / 1000; const amp = Math.min(1, h / 4); const day = this.state.palette === 'day'; const cx0 = this.W / 2, cy0 = this.H / 2; const diag = Math.hypot(this.W, this.H) / 2 + 50; const spacing = 32 - amp * 9; const flow = (t * (16 + amp * 26)) % spacing; ctx.save(); ctx.lineCap = 'round'; for (let d = -diag; d < diag; d += spacing) { const dd = d + flow; ctx.beginPath(); let pen = false; for (let s = -diag; s < diag; s += 11) { const wob = Math.sin(s * 0.035 + dd * 0.05 + t * 0.6) * 4 * amp; const cx = cx0 + dx * (dd + wob) + px * s; const cy = cy0 + dy * (dd + wob) + py * s; if (cx < -20 || cx > this.W + 20 || cy < -20 || cy > this.H + 20) { pen = false; continue; } const w = this.s2ll(cx, cy); if (this.landAt && this.landAt(w[0], w[1])) { pen = false; continue; } if (!pen) { ctx.moveTo(cx, cy); pen = true; } else ctx.lineTo(cx, cy); } const br = 0.5 + 0.5 * Math.sin(dd * 0.05 - t * 1.2); const a = (0.05 + 0.13 * amp) * (0.4 + 0.6 * br); ctx.strokeStyle = (day ? 'rgba(255,255,255,' : 'rgba(175,212,242,') + a.toFixed(3) + ')'; ctx.lineWidth = 1 + amp * 1.6; ctx.stroke(); } ctx.restore(); }
-  drawShoals(ctx, P) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (this.view.zoom >= 8) for (const sh of this.shoals) { if (!this.inView(sh.lat, sh.lon, 10)) continue; const unsafe = sh.d < this.state.safetyC; const shoalHi = sh.d < this.state.safetyD; const [x, y] = this.ll2s(sh.lat, sh.lon); if (unsafe) { ctx.fillStyle = 'rgba(191,90,242,.15)'; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill(); ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.4; ctx.setLineDash([3, 2]); ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke(); ctx.setLineDash([]); } ctx.fillStyle = unsafe ? '#BF5AF2' : P.ui.muted; ctx.font = 'bold 11px Inter'; ctx.fillText('✸', x, y); ctx.font = (shoalHi ? 'bold ' : '600 ') + '9px Inter'; ctx.fillStyle = shoalHi ? '#FF3B30' : P.ui.muted; ctx.fillText(sh.d.toFixed(1), x, y + 12); } ctx.restore(); }
+  // Grunner: isolert-fare-symbol med hvit halo og dybden i en liten chip —
+  // tallet forsvinner ikke lenger i kartdetaljene, og roedt betyr grunnere
+  // enn egen sikkerhetsdybde.
+  drawShoals(ctx, P) {
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (this.view.zoom >= 8) for (const sh of this.shoals) {
+      if (!this.inView(sh.lat, sh.lon, 10)) continue;
+      const unsafe = sh.d < this.state.safetyC;
+      const shoalHi = sh.d < this.state.safetyD;
+      const [x, y] = this.ll2s(sh.lat, sh.lon);
+      if (unsafe) {
+        ctx.fillStyle = 'rgba(191,90,242,.14)';
+        ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 2.5]);
+        ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.font = 'bold 11px Inter';
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.9)';
+      ctx.strokeText('✸', x, y);
+      ctx.fillStyle = unsafe ? '#BF5AF2' : P.ui.muted;
+      ctx.fillText('✸', x, y);
+      const label = sh.d.toFixed(1);
+      ctx.font = (shoalHi ? '800' : '700') + ' 8.5px Inter';
+      const tw = ctx.measureText(label).width;
+      const rw = tw + 10, rh = 13, rx = x - rw / 2, ry = y + 11;
+      ctx.fillStyle = P.ui.attrbg;
+      ctx.strokeStyle = P.ui.hair; ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, 6.5); else ctx.rect(rx, ry, rw, rh);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = shoalHi ? '#FF3B30' : (unsafe ? '#BF5AF2' : P.ui.ink);
+      ctx.fillText(label, x, ry + rh / 2 + 0.5);
+    }
+    ctx.restore();
+  }
   drawRoute(ctx) { const R = this.route, S = R.map(w => this.ll2s(w.lat, w.lon)); const dl = (this.routeCheck && this.routeCheck.dangerLegs) || []; ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(10,132,255,0.16)'; ctx.lineWidth = Math.max(6, this.nmToPx(this.channel) * 2); ctx.beginPath(); S.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); ctx.lineWidth = 2.2; ctx.setLineDash([8, 5]); for (let i = 1; i < S.length; i++) { ctx.strokeStyle = dl.includes(i) ? '#FF3B30' : this.accent; ctx.beginPath(); ctx.moveTo(S[i - 1][0], S[i - 1][1]); ctx.lineTo(S[i][0], S[i][1]); ctx.stroke(); } ctx.setLineDash([]); if (this._wop) { const [wx, wy] = this.ll2s(this._wop.lat, this._wop.lon); ctx.fillStyle = 'rgba(255,159,10,.3)'; ctx.strokeStyle = '#FF9F0A'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(wx, wy, 6, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#FF9F0A'; ctx.font = '700 8px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('WOP', wx, wy - 12); } S.forEach((p, i) => { const active = i === this.activeLeg; const danger = dl.includes(i) || dl.includes(i + 1); ctx.fillStyle = active ? '#FF9F0A' : (danger ? '#FF3B30' : this.accent); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p[0], p[1], active ? 7 : 5.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(i, p[0], p[1]); }); ctx.restore(); }
   drawEBL(ctx) { const o = this.ownShip; const [ox, oy] = this.ll2s(o.lat, o.lon); const [cx, cy] = this.ll2s(this.cursor.lat, this.cursor.lon); const rng = this.distNm(o, this.cursor); ctx.save(); ctx.strokeStyle = this.accent; ctx.lineWidth = 1.3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(cx, cy); ctx.stroke(); const rp = this.nmToPx(rng); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(ox, oy, rp, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy); ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10); ctx.stroke(); ctx.restore(); }
   drawReplay(ctx) { const T = this.track; if (T.length < 2) return; const t0 = T[0].t || 0, t1 = T[T.length - 1].t || 1; const tt = t0 + (this._replayPos || 0) * (t1 - t0); let pt = T[0]; for (let i = 1; i < T.length; i++) { if ((T[i].t || 0) >= tt) { const f = (tt - (T[i - 1].t || 0)) / (((T[i].t || 0) - (T[i - 1].t || 0)) || 1); pt = { lat: T[i - 1].lat + (T[i].lat - T[i - 1].lat) * f, lon: T[i - 1].lon + (T[i].lon - T[i - 1].lon) * f }; break; } pt = T[i]; } const [x, y] = this.ll2s(pt.lat, pt.lon); ctx.save(); ctx.fillStyle = 'rgba(191,90,242,.9)'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(x, y, 6.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = this.PAL[this.state.palette].ui.ink; ctx.font = '700 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const d = new Date(tt); ctx.fillText(String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), x, y - 12); ctx.restore(); }
   drawTrack(ctx) { if (this.track.length < 2) return; ctx.save(); ctx.strokeStyle = this.state.palette === 'night' ? 'rgba(180,200,215,.6)' : 'rgba(30,40,55,.5)'; ctx.lineWidth = 1.4; ctx.setLineDash([2, 3]); ctx.beginPath(); this.track.forEach((w, i) => { const [x, y] = this.ll2s(w.lat, w.lon); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
-  drawWarnings(ctx, P) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; for (const w of this.warnings) { if (!this.inView(w.lat, w.lon, 60)) continue; const [x, y] = this.ll2s(w.lat, w.lon); const rp = this.nmToPx(w.r); ctx.fillStyle = 'rgba(191,90,242,.10)'; ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.fill(); ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.4; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#BF5AF2'; ctx.font = 'bold 13px Inter'; ctx.fillText('⚠', x, y - 0.5); if (this.view.zoom > 8.5) { ctx.font = '600 9px Inter'; ctx.fillStyle = P.ui.ink; ctx.fillText(w.id, x, y + rp + 10); } } ctx.restore(); }
-  drawTideStations(ctx, P) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const phase = Math.sin(this.simTime / 22350 * Math.PI * 2); for (const t of this.tideStations) { if (!this.inView(t.lat, t.lon, 20)) continue; const [x, y] = this.ll2s(t.lat, t.lon); const lvl = (t.base + 1.0 + phase * 1.0); ctx.fillStyle = '#0A84FF'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = 'bold 7px Inter'; ctx.fillText('≈', x, y + 0.5); if (this.view.zoom > 8) { const label = t.name + '  ' + lvl.toFixed(1) + ' m'; ctx.font = '600 9px Inter'; const w = ctx.measureText(label).width; ctx.fillStyle = 'rgba(10,132,255,.92)'; ctx.beginPath(); const rx = x + 9, ry = y - 7, rw = w + 12, rh = 15; if (ctx.roundRect) { ctx.roundRect(rx, ry, rw, rh, 7); ctx.fill(); } else ctx.fillRect(rx, ry, rw, rh); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(label, rx + 6, ry + rh / 2); ctx.textAlign = 'center'; } } ctx.restore(); }
+  // S-124: skravert flate + sakte pulserende ring + senterbadge og en tydelig
+  // tekstchip med baade id OG hva varselet gjelder — mye lettere aa lese enn
+  // en tynn sirkel med et ensomt id-nummer under.
+  drawWarnings(ctx, P) {
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (!this._warnPat) {
+      const pc = document.createElement('canvas'); pc.width = pc.height = 8;
+      const px = pc.getContext('2d');
+      px.strokeStyle = 'rgba(191,90,242,0.30)'; px.lineWidth = 1.4; px.lineCap = 'square';
+      px.beginPath(); px.moveTo(-2, 10); px.lineTo(10, -2); px.moveTo(2, 14); px.lineTo(14, 2); px.stroke();
+      this._warnPat = ctx.createPattern(pc, 'repeat');
+    }
+    const dashOff = -(performance.now() / 90) % 12;
+    for (const w of this.warnings) {
+      if (!this.inView(w.lat, w.lon, 60)) continue;
+      const [x, y] = this.ll2s(w.lat, w.lon);
+      const rp = this.nmToPx(w.r);
+      ctx.fillStyle = 'rgba(191,90,242,.07)';
+      ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.fill();
+      ctx.fillStyle = this._warnPat;
+      ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.6;
+      ctx.setLineDash([7, 5]); ctx.lineDashOffset = dashOff;
+      ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.stroke();
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+      ctx.fillStyle = '#BF5AF2';
+      ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(x, y, 9.5, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Inter'; ctx.fillText('⚠', x, y - 0.5);
+      if (this.view.zoom > 8.5) {
+        const label = w.id + ' · ' + w.text;
+        ctx.font = '700 9px Inter';
+        const tw = ctx.measureText(label).width;
+        const rx = x - tw / 2 - 8, ry = y + rp + 6, rw = tw + 16, rh = 17;
+        ctx.fillStyle = 'rgba(191,90,242,.94)';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, 8.5); else ctx.rect(rx, ry, rw, rh);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, x, ry + rh / 2 + 0.5);
+      }
+    }
+    ctx.restore();
+  }
+  // S-104: stasjonsbrikke med vannstand OG trend (stigende ▲ / fallende ▼) —
+  // trenden er det en navigator faktisk leter etter, ikke bare tallet.
+  drawTideStations(ctx, P) {
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const ph = this.simTime / 22350 * Math.PI * 2;
+    const phase = Math.sin(ph), rising = Math.cos(ph) > 0;
+    for (const t of this.tideStations) {
+      if (!this.inView(t.lat, t.lon, 20)) continue;
+      const [x, y] = this.ll2s(t.lat, t.lon);
+      const lvl = (t.base + 1.0 + phase * 1.0);
+      ctx.strokeStyle = 'rgba(10,132,255,.38)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, 9.5, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#0A84FF'; ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Inter'; ctx.fillText('≈', x, y + 0.5);
+      if (this.view.zoom > 8) {
+        const arrow = rising ? ' ▲' : ' ▼';
+        const val = lvl.toFixed(1) + ' m' + arrow;
+        ctx.font = '600 9px Inter'; const nw = ctx.measureText(t.name).width;
+        ctx.font = '800 9px Inter'; const vw = ctx.measureText(val).width;
+        const rw = nw + vw + 21, rh = 17, rx = x + 11, ry = y - rh / 2;
+        ctx.fillStyle = 'rgba(10,132,255,.94)';
+        ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, 8.5); else ctx.rect(rx, ry, rw, rh);
+        ctx.fill(); ctx.stroke();
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '600 9px Inter';
+        ctx.fillText(t.name, rx + 7, ry + rh / 2 + 0.5);
+        ctx.fillStyle = rising ? '#BDF5D3' : '#FFE0A6'; ctx.font = '800 9px Inter';
+        ctx.fillText(val, rx + 7 + nw + 7, ry + rh / 2 + 0.5);
+        ctx.textAlign = 'center';
+      }
+    }
+    ctx.restore();
+  }
   aisTypeColor(type) { const t = (type || '').toLowerCase(); if (t.includes('cargo')) return '#2E9E5B'; if (t.includes('tanker')) return '#C0392B'; if (t.includes('passenger') || t.includes('passasjer')) return '#2C6FDB'; if (t.includes('hsc') || t.includes('high')) return '#16A4A4'; if (t.includes('tug') || t.includes('pilot') || t.includes('sar') || t.includes('law') || t.includes('port')) return '#16A4A4'; if (t.includes('fish')) return '#C77D2E'; if (t.includes('sail') || t.includes('pleasure')) return '#9B59B6'; if (t.includes('dredg') || t.includes('military')) return '#C77D2E'; return '#7d8794'; }
   drawAIS(ctx, P) { ctx.save(); const fly = this.state.base === 'flyfoto'; const halo = fly ? 'rgba(0,0,0,.62)' : 'rgba(255,255,255,.92)'; for (const t of this.aisArr()) { if (!this.inView(t.lat, t.lon, 30)) continue; const [x, y] = this.ll2s(t.lat, t.lon); const col = t.dangerous ? '#FF3B30' : this.aisTypeColor(t.type); const sc = this.view.zoom > 11.5 ? 1.3 : (this.view.zoom > 9.5 ? 1.12 : 1); if (t.dangerous) { const dr = Math.max(15, this.nmToPx(this.state.cpaLimit || 0.5)); ctx.fillStyle = 'rgba(255,59,48,.10)'; ctx.beginPath(); ctx.arc(x, y, dr, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(255,59,48,.55)'; ctx.lineWidth = 1.4; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(x, y, dr, 0, 7); ctx.stroke(); ctx.setLineDash([]); } ctx.save(); ctx.translate(x, y); ctx.rotate((t.cog != null ? t.cog : t.hdg) * Math.PI / 180 + this.view.bearing); ctx.lineJoin = 'round'; const shape = () => { ctx.beginPath(); ctx.moveTo(0, -9.5 * sc); ctx.lineTo(6 * sc, 7 * sc); ctx.lineTo(0, 3.5 * sc); ctx.lineTo(-6 * sc, 7 * sc); ctx.closePath(); }; const vlen = Math.max(11, t.sog * 1.6); ctx.strokeStyle = halo; ctx.lineWidth = 3.2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -vlen); ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -vlen); ctx.stroke(); shape(); ctx.lineWidth = 3.4; ctx.strokeStyle = halo; ctx.stroke(); shape(); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke(); ctx.restore(); if (t.dangerous) { ctx.strokeStyle = '#FF3B30'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, 13 * sc, 0, 7); ctx.stroke(); } if (this.view.zoom > 9.5) { const ln = t.name || ''; ctx.font = '600 9px Inter'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = halo; ctx.strokeText(ln, x + 10 * sc, y - 5); ctx.fillStyle = fly ? '#fff' : P.ui.ink; ctx.fillText(ln, x + 10 * sc, y - 5); } } ctx.restore(); }
   drawWake(ctx) { const T = this.track; if (T.length < 2 || this.ownShip.sog < 1) return; const n = Math.min(22, T.length - 1); ctx.save(); ctx.lineCap = 'round'; for (let i = T.length - n; i < T.length; i++) { const a = T[i - 1], b = T[i]; const [x1, y1] = this.ll2s(a.lat, a.lon); const [x2, y2] = this.ll2s(b.lat, b.lon); const f = (i - (T.length - n)) / n; ctx.strokeStyle = 'rgba(205,232,247,' + (f * 0.34).toFixed(2) + ')'; ctx.lineWidth = 1.5 + f * 5.5; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); } ctx.restore(); }
-  drawLights(ctx, P) { const now = performance.now() / 1000; ctx.save(); ctx.textBaseline = 'middle'; for (const L of (this.lights || [])) { if (!this.inView(L.lat, L.lon, 16)) continue; const [x, y] = this.ll2s(L.lat, L.lon); const ph = now % L.per; const lit = ph < (L.on || 0.5); ctx.fillStyle = '#BF5AF2'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 7); ctx.fill(); ctx.stroke(); if (lit) { const rad = 17; const g = ctx.createRadialGradient(x, y, 0, x, y, rad); const c = L.col === 'R' ? '255,70,70' : L.col === 'G' ? '60,220,120' : '255,240,180'; g.addColorStop(0, 'rgba(' + c + ',.95)'); g.addColorStop(0.5, 'rgba(' + c + ',.45)'); g.addColorStop(1, 'rgba(' + c + ',0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill(); } if (this.view.zoom > 9.2) { ctx.font = '600 8px Inter'; ctx.textAlign = 'left'; ctx.lineWidth = 2.6; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.strokeText(L.label, x + 7, y + 8); ctx.fillStyle = P.ui.muted; ctx.fillText(L.label, x + 7, y + 8); } } ctx.restore(); }
+  // Fyr og lykter: blink-halo som for, men karakteristikk-etiketten ligger naa
+  // i en temafolgende chip med fargeprikk (lysfargen) — lesbar paa alle
+  // basemap, ogsaa flyfoto og night.
+  drawLights(ctx, P) {
+    const now = performance.now() / 1000;
+    ctx.save(); ctx.textBaseline = 'middle';
+    for (const L of (this.lights || [])) {
+      if (!this.inView(L.lat, L.lon, 16)) continue;
+      const [x, y] = this.ll2s(L.lat, L.lon);
+      const ph = now % L.per;
+      const lit = ph < (L.on || 0.5);
+      const c = L.col === 'R' ? '255,70,70' : L.col === 'G' ? '60,220,120' : '255,214,120';
+      ctx.fillStyle = '#BF5AF2'; ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 7); ctx.fill(); ctx.stroke();
+      if (lit) {
+        const rad = 18;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+        g.addColorStop(0, 'rgba(' + c + ',.95)');
+        g.addColorStop(0.5, 'rgba(' + c + ',.42)');
+        g.addColorStop(1, 'rgba(' + c + ',0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+      }
+      if (this.view.zoom > 9.2) {
+        ctx.font = '600 8.5px Inter';
+        const tw = ctx.measureText(L.label).width;
+        const rx = x + 8, ry = y + 5, rw = tw + 19, rh = 15;
+        ctx.fillStyle = P.ui.attrbg;
+        ctx.strokeStyle = P.ui.hair; ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, 7.5); else ctx.rect(rx, ry, rw, rh);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgb(' + c + ')';
+        ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.arc(rx + 8, ry + rh / 2, 2.8, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.textAlign = 'left';
+        ctx.fillStyle = P.ui.ink;
+        ctx.fillText(L.label, rx + 14, ry + rh / 2 + 0.5);
+      }
+    }
+    ctx.restore();
+  }
   drawShip(ctx) { const o = this.ownShip; const [x, y] = this.ll2s(o.lat, o.lon); const dark = this.state.palette !== 'day'; ctx.save(); ctx.translate(x, y); ctx.rotate(o.cog * Math.PI / 180 + this.view.bearing); ctx.setLineDash([5, 4]); ctx.strokeStyle = this.hazardPt ? '#FF3B30' : '#34C759'; ctx.lineWidth = this.hazardPt ? 2.2 : 1.6; ctx.beginPath(); ctx.moveTo(0, 0); const _pm = this.state.predMin || 0; const _vl = _pm ? Math.max(20, this.nmToPx(o.sog * _pm / 60)) : Math.max(26, this.nmToPx(o.sog / 10)); ctx.lineTo(0, -_vl); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); ctx.save(); ctx.translate(x, y); ctx.rotate(o.hdg * Math.PI / 180 + this.view.bearing); const Lpx = this.nmToPx(o.len / 1852); ctx.strokeStyle = dark ? '#fff' : '#0A2540'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -Math.max(34, Lpx * 1.4)); ctx.stroke(); if (Lpx > 13) { const l = Lpx / 2, b = Math.max(2.4, this.nmToPx(o.beam / 1852) / 2); ctx.fillStyle = dark ? 'rgba(255,255,255,.6)' : 'rgba(10,37,64,.55)'; ctx.strokeStyle = dark ? '#fff' : '#0A2540'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, -l); ctx.lineTo(b, -l + b * 1.4); ctx.lineTo(b, l); ctx.lineTo(-b, l); ctx.lineTo(-b, -l + b * 1.4); ctx.closePath(); ctx.fill(); ctx.stroke(); } else { ctx.fillStyle = dark ? '#fff' : '#0A2540'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill(); ctx.strokeStyle = this.accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 8, 0, 7); ctx.stroke(); } ctx.restore(); }
   drawPredictor(ctx) { const o = this.ownShip; const pm = this.state.predMin || 0; if (!pm || o.sog < 0.3) return; const pp = this.moveLL(o.lat, o.lon, o.cog, o.sog * pm / 60); const [px, py] = this.ll2s(pp.lat, pp.lon); const dark = this.state.palette !== 'day'; ctx.save(); ctx.fillStyle = this.hazardPt ? '#FF3B30' : '#34C759'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(px, py, 4.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.font = '700 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 2.6; ctx.strokeStyle = dark ? 'rgba(0,0,0,.5)' : 'rgba(255,255,255,.85)'; ctx.strokeText(pm + ' min', px, py - 10); ctx.fillStyle = dark ? '#fff' : '#0A2540'; ctx.fillText(pm + ' min', px, py - 10); ctx.restore(); }
   drawHazard(ctx) { const h = this.hazardPt; if (!h) return; const o = this.ownShip; const [sx, sy] = this.ll2s(o.lat, o.lon); const [hx, hy] = this.ll2s(h.lat, h.lon); const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180); ctx.save(); ctx.strokeStyle = 'rgba(255,59,48,' + (0.4 + 0.4 * pulse).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(255,59,48,' + (0.22 + 0.3 * pulse).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(hx, hy, 12 + pulse * 3, 0, 7); ctx.fill(); ctx.fillStyle = '#FF3B30'; ctx.font = '700 14px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚠', hx, hy); ctx.font = '700 8px Inter'; ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(0,0,0,.5)'; const lbl = (h.land ? 'LAND' : 'SHOAL') + ' ' + h.d.toFixed(1) + ' nm'; ctx.strokeText(lbl, hx, hy + 18); ctx.fillStyle = '#fff'; ctx.fillText(lbl, hx, hy + 18); ctx.restore(); }
@@ -2001,18 +2311,57 @@ class Component extends DCLogic {
       // AIS-bildet lagres sammen med skipet slik at radaren viser SAMME maal
       // som ECDIS ogsaa naar sidene ikke er aapne samtidig (kiosken bytter
       // side) eller kjorer paa hver sin skjerm (radaren poller serveren).
-      const tgts = {
-        savedAt: snap.savedAt,
-        targets: (this.aisArr() || []).filter(t => t && t.lat != null).slice(0, 40).map(t => ({
+      // Sortert paa avstand fra eget skip for kuttet ved 40: bildet skal
+      // baere fartoyene i NAEROMRAADET, ikke et vilkaarlig utvalg av hele
+      // kystens live-trafikk. mmsi/col folger med, saa live-laget kan
+      // varmstartes per fartoy ved neste oppstart (se connectAis).
+      const fleet = (this.aisArr() || []).filter(t => t && t.lat != null)
+        .sort((a, b) => this.distNm(o, a) - this.distNm(o, b)).slice(0, 40).map(t => ({
           name: t.name || '', type: t.type || 'Vessel', lat: t.lat, lon: t.lon,
-          cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0
-        }))
-      };
-      localStorage.setItem('mrd_targets', JSON.stringify(tgts));
-      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null, targets: tgts });
+          cog: (t.cog != null ? t.cog : t.hdg) || 0, sog: t.sog || 0,
+          hdg: (t.hdg != null ? t.hdg : t.cog) || 0, col: t.col, mmsi: t.mmsi
+        }));
+      // Lagres bare naar flaaten faktisk har innhold: en tom live-liste under
+      // tilkobling skal ikke viske ut et brukbart bilde — da beholdes forrige.
+      if (fleet.length) this._tgtSnap = { savedAt: snap.savedAt, mode: s.aisMode, src: 'ecdis', targets: fleet };
+      const tgts = this._tgtSnap || null;
+      if (tgts) localStorage.setItem('mrd_targets', JSON.stringify(tgts));
+      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null, targets: tgts || undefined });
       if (unloading && navigator.sendBeacon) navigator.sendBeacon('/api/ecdis-state', new Blob([doc], { type: 'application/json' }));
       else fetch('/api/ecdis-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: doc, keepalive: !!unloading }).catch(() => {});
     } catch (e) {}
+  }
+  // Siste lagrede AIS-bilde (mrd_targets, fra denne eller radarsiden), dodregnet frem
+  // etter veggklokken (maks 20 min) saa posisjonene er plausible.
+  loadAisCache() {
+    try {
+      const raw = localStorage.getItem('mrd_targets'); if (!raw) return null;
+      const c = JSON.parse(raw);
+      if (!c || !c.savedAt || !c.targets || !c.targets.length) return null;
+      const age = (Date.now() - c.savedAt) / 1000;
+      if (age > 3600) return null;
+      const adv = Math.min(age, 1200);
+      const targets = c.targets.filter(t => t && t.lat != null).map(t => {
+        const p = (t.sog > 0.2 && t.cog != null) ? this.moveLL(t.lat, t.lon, t.cog, t.sog * adv / 3600) : t;
+        return Object.assign({}, t, { lat: p.lat, lon: p.lon });
+      });
+      return targets.length ? { mode: c.mode || 'sim', savedAt: c.savedAt, targets } : null;
+    } catch (e) { return null; }
+  }
+  // Erstatter den genererte sim-flaaten med sist viste flaate, saa ECDIS og
+  // radar viser SAMME baater ogsaa naar sidene aapnes etter hverandre.
+  // Fartoy MED mmsi horer til live-laget og varmstartes i connectAis i
+  // stedet — tas de inn her ogsaa, vises de dobbelt i blandet modus.
+  loadAisState() {
+    const c = this.loadAisCache();
+    if (!c) return;
+    const sim = c.targets.filter(t => t.mmsi == null);
+    if (!sim.length) return;
+    this.ais = sim.map(t => ({
+      lat: t.lat, lon: t.lon, name: t.name || 'VESSEL', type: t.type || 'Vessel',
+      hdg: (t.hdg != null ? t.hdg : t.cog) || 0, cog: (t.cog != null ? t.cog : t.hdg) || 0,
+      sog: t.sog || 0, col: t.col || '#0A84FF', dangerous: false
+    }));
   }
   loadShipState() {
     try {
