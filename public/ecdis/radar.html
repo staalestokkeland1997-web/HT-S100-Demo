@@ -393,13 +393,59 @@
     if (c >= 80 && c <= 89) return "Tanker";
     if (c >= 40 && c <= 49) return "HSC";
     if (c === 30) return "Fishing";
+    if (c === 31 || c === 32 || c === 52) return "Tug";
+    if (c === 33) return "Dredger";
+    if (c === 34) return "Dive vessel";
     if (c === 35) return "Military";
     if (c === 36) return "Sailing";
     if (c === 37) return "Pleasure";
     if (c === 50) return "Pilot";
     if (c === 51) return "SAR";
-    if (c === 52) return "Tug";
+    if (c === 53) return "Port tender";
+    if (c === 54) return "Anti-pollution";
+    if (c === 55) return "Law enforcement";
+    if (c === 58) return "Medical";
     return "Vessel";
+  }
+  // Statisk fartoydata (navn/type/dimensjoner per MMSI) - SAMME cache som
+  // ECDIS bruker (mrd_ais_static). AIS sender de statiske feltene bare hvert
+  // ~6. minutt, saa uten cachen staar maallisten full av "MMSI ..." i
+  // minuttene etter en kaldstart. Kun ekte, tidligere mottatte data.
+  var aisStatic = loadJson("mrd_ais_static") || {};
+  var aisStaticDirty = false, aisStaticSavedAt = 0;
+  function mergeStatic(mmsi, t) {
+    if (mmsi == null) return;
+    var e = aisStatic[mmsi];
+    // "MMSI ..."-plassholderen laeres aldri som navn, og dirty settes KUN
+    // ved reelle endringer - samme regler som ECDIS-siden av cachen.
+    var name = (t.name && !/^MMSI \d+$/.test(t.name)) ? t.name : "";
+    if (name || t.shipType != null || (t.dim && t.dim.l)) {
+      e = aisStatic[mmsi] = e || {};
+      if (name && e.n !== name) { e.n = name; aisStaticDirty = true; }
+      if (t.shipType != null && e.st !== t.shipType) { e.st = t.shipType; aisStaticDirty = true; }
+      if (t.dim && t.dim.l && (!e.d || e.d[0] !== t.dim.l || e.d[1] !== (t.dim.b || 0))) { e.d = [t.dim.l, t.dim.b || 0]; aisStaticDirty = true; }
+      e.at = Date.now();
+    }
+    if (!e) return;
+    if (!t.name && e.n && !/^MMSI \d+$/.test(e.n)) t.name = e.n;
+    if (t.shipType == null && e.st != null) t.shipType = e.st;
+    if (!t.dim && e.d) t.dim = { l: e.d[0], b: e.d[1] };
+  }
+  function saveStatic() {
+    if (!aisStaticDirty || Date.now() - aisStaticSavedAt < 10000) return;
+    aisStaticDirty = false; aisStaticSavedAt = Date.now();
+    try { localStorage.setItem("mrd_ais_static", JSON.stringify(aisStatic)); } catch (e) {}
+  }
+  // Storrelsesfaktor: store skip gir store ekko - som paa en ekte radar.
+  function sizeK(t) {
+    var l = t.dim && t.dim.l;
+    if (!l) return 1;
+    if (l >= 200) return 2;
+    if (l >= 120) return 1.65;
+    if (l >= 60) return 1.35;
+    if (l >= 30) return 1.12;
+    if (l >= 15) return 0.95;
+    return 0.8;
   }
   var AIS_COLS = ["#0A84FF", "#34C759", "#FF9F0A", "#BF5AF2", "#FF375F", "#30B0C7", "#FFD60A"];
   function aisColor(mmsi) { return AIS_COLS[Math.abs(mmsi | 0) % AIS_COLS.length]; }
@@ -415,15 +461,19 @@
           var m = src[i];
           if (m.lat == null || m.lon == null) continue;
           var cog = m.cog != null ? m.cog : (m.hdg || 0);
-          out.push({
+          var t = {
             mmsi: m.mmsi, lat: m.lat, lon: m.lon,
             sog: m.sog || 0, cog: cog, hdg: m.hdg != null ? m.hdg : cog,
-            name: m.name || ("MMSI " + m.mmsi),
-            type: m.shipType != null ? shipTypeName(m.shipType) : "Vessel",
+            name: m.name || "", shipType: m.shipType, dim: m.dim,
             col: aisColor(m.mmsi)
-          });
+          };
+          mergeStatic(m.mmsi, t);
+          t.type = t.shipType != null ? shipTypeName(t.shipType) : "Vessel";
+          if (!t.name) t.name = "MMSI " + m.mmsi;
+          out.push(t);
         }
         aisTargets = out;
+        saveStatic();
         aisAt = Date.now();
         aisState = snap.state || "connected";
         if (aisFails >= 4) addAlarm("AIS FEED RESTORED", "info");
@@ -822,7 +872,7 @@
       var p = geoToScope(t.lat, t.lon);
       var d = Math.hypot(p.x, p.y);
       if (d > RMAX) continue;
-      var blob = Math.max(3, 6.4 - d / R * 2.6) * pulseK;
+      var blob = Math.max(3, 6.4 - d / R * 2.6) * pulseK * sizeK(t);
       var rx = blob * 2.2 * (state.es ? 1.5 : 1);
       var g = echo.createRadialGradient(p.x, p.y, 0, p.x, p.y, blob * 2.1);
       g.addColorStop(0, P.echoA);
@@ -1073,13 +1123,14 @@
       ctx.lineTo(p.x + Math.sin(va) * vl, p.y - Math.cos(va) * vl);
       ctx.stroke();
 
+      var sk = 0.8 + sizeK(t) * 0.35;
       if (danger && blinkOn) {
         // faremaal: fylt roed blinkende trekant
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate((t.cog || 0) * Math.PI / 180);
         ctx.fillStyle = DANGER;
-        ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(6.5, 7); ctx.lineTo(-6.5, 7); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0, -9 * sk); ctx.lineTo(6.5 * sk, 7 * sk); ctx.lineTo(-6.5 * sk, 7 * sk); ctx.closePath(); ctx.fill();
         ctx.restore();
       } else if (tt) {
         // sporet maal (TT): sirkel — stiplet mens den etableres
@@ -1096,7 +1147,7 @@
         ctx.rotate((t.cog || 0) * Math.PI / 180);
         ctx.strokeStyle = col;
         ctx.lineWidth = 1.2;
-        ctx.beginPath(); ctx.moveTo(0, -6.5); ctx.lineTo(4.5, 5.5); ctx.lineTo(-4.5, 5.5); ctx.closePath(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, -6.5 * sk); ctx.lineTo(4.5 * sk, 5.5 * sk); ctx.lineTo(-4.5 * sk, 5.5 * sk); ctx.closePath(); ctx.stroke();
         ctx.restore();
       }
       var label = (tt ? tt.id + " " : "") + (t.name || "");
