@@ -44,6 +44,18 @@ HT ECDIS er en innebygd sjokart-demonstrator: ekte norske sjokart, vaer og
 ruteplanlegging. `/proxy`-endepunktet (streng allowlist) fungerer ogsaa paa
 Vercel, saa MET/yr-vaer og Kartverket tidevann virker som for.
 
+Vaerlagene folger yr sitt uttrykk: en jevn, sammenhengende fargeflate paa yr
+sin m/s-skala med hvite stromlinjer oppaa, og en staaende tegnforklaring med
+tallmerker nede til venstre. I tillegg ligger symbolspraaket fra ekte bro- og
+vaerkart over: meteorologiske vindfjaer (halv fjaer 5 kt, hel 10, vimpel 50)
+med farten i m/s, stromspiler med fart i knop, og doenning som boelgekam med
+retning og signifikant boelgehoyde. Bare ETT lag males som farget flate om
+gangen (nedbor > temperatur > strom > vind) — resten vises som symboler, saa
+kartet ikke drukner naar flere lag staar paa. Feltene bygges i lav opplosning
+og slores for de skaleres opp, saa overgangene er myke i stedet for
+firkantete, og partikkelsporene tegnes som kurver med fart maalt i piksler —
+da er streken like lang uansett zoom.
+
 ECDIS-dokken (Main kiosk- og Radar-knappene nede til venstre og havnesoket
 oppe ved merkevare-pillen) er stylet med appens egne palettvariabler og
 folger day/dusk/night automatisk. Havnesoket har innebygd norsk havneliste
@@ -51,7 +63,11 @@ folger day/dusk/night automatisk. Havnesoket har innebygd norsk havneliste
 eget touch-tastatur med AE/O/AA i samme glass-stil. Velg et treff for aa faa
 et destinasjonskort med "Set route to destination": appens dybdetrygge
 autoroute planlegger ruten og seilasen startes automatisk. Havner utenfor
-demo-kartomraadet vises som "view only".
+demo-kartomraadet vises som "view only". Ruteplanleggingen kjorer tidsskivet i
+bakgrunnen, saa kartet kan panoreres/zoomes og alle knapper virker mens ruten
+beregnes. I live-AIS-modus varmstartes skjermen fra sist kjente fartoy
+(dodregnet frem) til ekte meldinger tar over, i stedet for aa staa tom mens
+fartoyene rapporterer inn en og en.
 
 HT Radar er et fullverdig radarkonsoll (demo) med roterende sveip og
 etterglod, datablokker i hjornene, peilering med kurs- og nordmerke,
@@ -65,13 +81,19 @@ kystlinjen. Paa brede skjermer (som kioskens 16:9) viser venstresiden i
 tillegg en live datakolonne: neste veipunkt med BRG/DST/XTE/ETA/TTG, fart
 gjennom vann (STW), svinghastighet (ROT), tripplogg og vind/strom/dybde med
 UTC-klokke (sim). Radaren speiler ECDIS live: ECDIS lagrer skip, rute OG
-AIS-bildet hvert 5. sekund (localStorage + `/api/ecdis-state`), og radaren
-adopterer nyere snapshots (server-poll hvert 5. sekund + storage-hendelser)
-og dodregner skip og maal mellom dem — saa begge skjermene viser samme
-seilas og samme AIS-maal ogsaa naar kiosken bytter side eller de kjorer paa
-hver sin maskin. Er ECDIS aapen samtidig i samme nettleser overtar
-direktesendingen (BroadcastChannel), og SRC-feltet paa radaren viser
-ECDIS LIVE / ECDIS SYNC / SIM. Knapper kobler ECDIS <-> Radar <-> kiosk.
+AIS-bildet hvert 5. sekund (`mrd_ais` i localStorage + `/api/ecdis-state`), og
+radaren adopterer nyere snapshots (server-poll hvert 5. sekund +
+storage-hendelser) og dodregner skip og maal mellom dem — saa begge skjermene
+viser samme seilas og samme AIS-maal ogsaa naar kiosken bytter side eller de
+kjorer paa hver sin maskin. Begge sidene skriver til `mrd_ais`, saa den som
+staar aapen holder flaaten fersk for den neste. Bildet baerer de 40 NAERMESTE
+fartoyene, ikke et vilkaarlig utvalg — med live AIS langs hele kysten er det
+forskjellen paa en radar med trafikk og en tom skjerm. Er ECDIS aapen samtidig
+i samme nettleser overtar direktesendingen (BroadcastChannel), og SRC-feltet
+paa radaren viser ECDIS LIVE / ECDIS SYNC / SIM. Trafikken folger eget skip:
+baater som sakker mer enn 30 nm akterut respawnes foran baugen med kryssende
+kurs, saa skopet har trafikk ogsaa paa lange transitter.
+Knapper kobler ECDIS <-> Radar <-> kiosk.
 **DEMO — ikke for navigasjon.**
 
 Hele appen er paa engelsk (kiosken staar paa internasjonal messe); README-ene
@@ -138,6 +160,8 @@ akkurat som de lokale `data/backups/`-kopiene gjorde.
 | --- | --- |
 | `ADMIN_PASSWORD` | Overstyrer adminpassordet fra `config/contest-config.json`. **Anbefales** — standardpassordet ligger i et offentlig repo. |
 | `AISSTREAM_API_KEY` | Overstyrer `apiKeys.aisstream` (live AIS i ECDIS). |
+| `AIS_KYSTVERKET_ENABLED` | `0` skrur Kystverket-kilden helt av (samme som `ais.enabled: false`). |
+| `AIS_KYSTVERKET_HOST` / `AIS_KYSTVERKET_PORT` | Overstyrer Kystverkets stroem (standard `153.44.253.27:5631`). |
 | `ARCGIS_API_KEY` | Overstyrer `apiKeys.arcgis` (flyfoto/Ocean-basemap + stedssok i ECDIS). |
 | `SUPABASE_URL` | Supabase-prosjektets URL — varig lagring via Supabase (alternativ til Redis). |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role-nokkel (hemmelig, kun server-side). |
@@ -160,8 +184,43 @@ Viktige seksjoner:
 - `brand`: navn, logo, premie og lenker.
 - `admin.password`: standardpassord for adminsidene (overstyr med
   `ADMIN_PASSWORD` i Vercel).
+- `ais`: AIS-kilde for HT ECDIS. Tre valg i "Live sources"-panelet:
+
+  | Kilde | Nokkel | Flere faner samtidig | Dekning |
+  | --- | --- | --- | --- |
+  | Simulated | nei | ja | fast demoflaate |
+  | Kystverket | nei | ja | norskekysten, 40-60 nm ut |
+  | aisstream.io | ja | **nei** (kun EN paa gratisnokkel) | global, men tynn i norske fjorder |
+
+  `ais.source` styrer hva som velges ved oppstart: `auto` (standard) prover
+  Kystverket forst og faller tilbake til aisstream hvis stroemmen ikke svarer
+  innen noen sekunder. `sim`, `kystverket` eller `aisstream` laaser valget.
+  `ais.host`/`ais.port` peker paa Kystverkets aapne stroem
+  (153.44.253.27:5631) og `ais.enabled: false` skrur kilden helt av.
+
+  Kystverket kringkaster raa NMEA (AIVDM) over TCP, som en nettleser ikke kan
+  snakke med. Serverless-funksjonen bor derfor oppkoblingen, dekoder
+  meldingene og deler dem ut paa `/ais/targets` og `/ais/status` — det er
+  grunnen til at ECDIS og radar kan staa aapne samtidig, i motsetning til
+  aisstream. Dataene er gratis under NLOD; den aapne stroemmen utelater
+  fiskefartoy under 15 m og fritidsbaater under 45 m.
+
+  **Vercel-forskjellen mot den lokale kiosk-serveren:** en funksjon fryses
+  mellom kall, saa TCP-stroemmen kan ikke pusses av et intervall i bakgrunnen.
+  Vedlikeholdet kjorer derfor naar en klient faktisk spor, og forste kall etter
+  en kaldstart venter i inntil 2,5 s paa at stroemmen leverer i stedet for aa
+  svare tomt (et tomt svar ville sendt klienten tilbake til simulert AIS).
+  Sockelen overlever mellom kall saa lenge instansen holdes varm, og klienten
+  poller hvert 3. sekund, saa den gjor den normalt. Er kilden nede, svarer
+  endepunktet umiddelbart i stedet for aa holde funksjonen opptatt.
+
+  Merk at utgaaende TCP mot port 5631 maa vaere aapent fra Vercels
+  kjoremiljo. Bruk "Test connection" i kildepanelet for aa sjekke det, eller
+  `GET /ais/status` — `connected: true` og `targets > 0` betyr at broen har
+  kontakt.
+
 - `apiKeys`: API-nokler for innebygde demoer. `apiKeys.aisstream` brukes av
-  HT ECDIS som standardnokkel for live AIS — appen kobler til automatisk.
+  HT ECDIS naar aisstream er valgt som AIS-kilde.
   `apiKeys.arcgis` laaser opp Flyfoto/Ocean-basemaps og legger ArcGIS-treff
   oppaa havnesoket (den innebygde norske havnelisten virker uten nokkel).
 - HT ECDIS husker seg selv mellom okter: skipets posisjon, kurs, rute,
@@ -184,6 +243,8 @@ GET  /api/leaderboard?game=<id>
 GET  /api/games
 POST /api/standalone-entry
 GET/POST /api/ecdis-state
+GET  /ais/status                     (Kystverket-broens tilstand)
+GET  /ais/targets?bbox=<lat,lon,lat,lon>[&atons=1]
 GET  /proxy?url=<https-url>          (allowlist: MET/yr, Kartverket m.fl.)
 GET  /api/admin/entries              (header: x-admin-password)
 GET/POST /api/admin/settings
