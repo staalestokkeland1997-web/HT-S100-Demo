@@ -65,9 +65,10 @@ et destinasjonskort med "Set route to destination": appens dybdetrygge
 autoroute planlegger ruten og seilasen startes automatisk. Havner utenfor
 demo-kartomraadet vises som "view only". Ruteplanleggingen kjorer tidsskivet i
 bakgrunnen, saa kartet kan panoreres/zoomes og alle knapper virker mens ruten
-beregnes. I live-AIS-modus varmstartes skjermen fra sist kjente fartoy
-(dodregnet frem) til ekte meldinger tar over, i stedet for aa staa tom mens
-fartoyene rapporterer inn en og en.
+beregnes. AIS-laget er **kun ekte trafikk**: det finnes ingen simulert
+flaate og ingen varmstart fra en gammel cache. Er stroemmen nede eller tom,
+staar skopet tomt og kildepanelet sier hvorfor — et tomt AIS-bilde er sant,
+en oppdiktet flaate er det ikke.
 
 HT Radar er et fullverdig radarkonsoll (demo) med roterende sveip og
 etterglod, datablokker i hjornene, peilering med kurs- og nordmerke,
@@ -80,19 +81,18 @@ undertrykking (IR), echo stretch, gronn/amber fosfor og landekko fra
 kystlinjen. Paa brede skjermer (som kioskens 16:9) viser venstresiden i
 tillegg en live datakolonne: neste veipunkt med BRG/DST/XTE/ETA/TTG, fart
 gjennom vann (STW), svinghastighet (ROT), tripplogg og vind/strom/dybde med
-UTC-klokke (sim). Radaren speiler ECDIS live: ECDIS lagrer skip, rute OG
-AIS-bildet hvert 5. sekund (`mrd_ais` i localStorage + `/api/ecdis-state`), og
-radaren adopterer nyere snapshots (server-poll hvert 5. sekund +
-storage-hendelser) og dodregner skip og maal mellom dem — saa begge skjermene
-viser samme seilas og samme AIS-maal ogsaa naar kiosken bytter side eller de
-kjorer paa hver sin maskin. Begge sidene skriver til `mrd_ais`, saa den som
-staar aapen holder flaaten fersk for den neste. Bildet baerer de 40 NAERMESTE
-fartoyene, ikke et vilkaarlig utvalg — med live AIS langs hele kysten er det
-forskjellen paa en radar med trafikk og en tom skjerm. Er ECDIS aapen samtidig
-i samme nettleser overtar direktesendingen (BroadcastChannel), og SRC-feltet
-paa radaren viser ECDIS LIVE / ECDIS SYNC / SIM. Trafikken folger eget skip:
-baater som sakker mer enn 30 nm akterut respawnes foran baugen med kryssende
-kurs, saa skopet har trafikk ogsaa paa lange transitter.
+UTC-klokke (sim). Radaren speiler ECDIS' seilas: ECDIS lagrer skip og rute
+hvert 5. sekund (localStorage + `/api/ecdis-state`), og radaren adopterer
+nyere snapshots (server-poll hvert 5. sekund + storage-hendelser) og dodregner
+mellom dem — saa begge skjermene viser samme seilas ogsaa naar kiosken bytter
+side eller de kjorer paa hver sin maskin. Er ECDIS aapen samtidig i samme
+nettleser overtar direktesendingen (BroadcastChannel), og SRC-feltet viser
+ECDIS LIVE / ECDIS SYNC / GYRO OK. AIS-maalene deles derimot **ikke** mellom
+sidene: radaren henter dem selv fra `/ais/targets` med et utsnitt rundt eget
+skip, samme ekte stroem som ECDIS bruker. Broen holder EN TCP-oppkobling og
+deler den ut, saa begge sidene kan staa aapne samtidig — og radaren viser ekte
+trafikk ogsaa naar ECDIS er lukket. AIS-feltet i datablokken viser
+LIVE · N TGT, WAIT eller NO FEED.
 Knapper kobler ECDIS <-> Radar <-> kiosk.
 **DEMO — ikke for navigasjon.**
 
@@ -184,17 +184,17 @@ Viktige seksjoner:
 - `brand`: navn, logo, premie og lenker.
 - `admin.password`: standardpassord for adminsidene (overstyr med
   `ADMIN_PASSWORD` i Vercel).
-- `ais`: AIS-kilde for HT ECDIS. Tre valg i "Live sources"-panelet:
+- `ais`: AIS-kilde for HT ECDIS og HT Radar. Begge valgene i "Live
+  sources"-panelet er EKTE AIS — det finnes ingen simulert flaate:
 
   | Kilde | Nokkel | Flere faner samtidig | Dekning |
   | --- | --- | --- | --- |
-  | Simulated | nei | ja | fast demoflaate |
   | Kystverket | nei | ja | norskekysten, 40-60 nm ut |
   | aisstream.io | ja | **nei** (kun EN paa gratisnokkel) | global, men tynn i norske fjorder |
 
   `ais.source` styrer hva som velges ved oppstart: `auto` (standard) prover
   Kystverket forst og faller tilbake til aisstream hvis stroemmen ikke svarer
-  innen noen sekunder. `sim`, `kystverket` eller `aisstream` laaser valget.
+  innen noen sekunder. `kystverket` eller `aisstream` laaser valget.
   `ais.host`/`ais.port` peker paa Kystverkets aapne stroem
   (153.44.253.27:5631) og `ais.enabled: false` skrur kilden helt av.
 
@@ -209,15 +209,20 @@ Viktige seksjoner:
   mellom kall, saa TCP-stroemmen kan ikke pusses av et intervall i bakgrunnen.
   Vedlikeholdet kjorer derfor naar en klient faktisk spor, og forste kall etter
   en kaldstart venter i inntil 2,5 s paa at stroemmen leverer i stedet for aa
-  svare tomt (et tomt svar ville sendt klienten tilbake til simulert AIS).
+  svare tomt.
   Sockelen overlever mellom kall saa lenge instansen holdes varm, og klienten
   poller hvert 3. sekund, saa den gjor den normalt. Er kilden nede, svarer
   endepunktet umiddelbart i stedet for aa holde funksjonen opptatt.
 
+  Klientene spor med et utsnitt (`bbox`) rundt eget skip, ikke hele kysten:
+  broen kapper svaret paa de 900 ferskeste maalene, og med hele norskekysten i
+  boksen kunne fartoy rett ved skipet bli kappet vekk.
+
   Merk at utgaaende TCP mot port 5631 maa vaere aapent fra Vercels
   kjoremiljo. Bruk "Test connection" i kildepanelet for aa sjekke det, eller
   `GET /ais/status` — `connected: true` og `targets > 0` betyr at broen har
-  kontakt.
+  kontakt. Er den stengt, vises ingen AIS-maal i det hele tatt (ingen
+  demoflaate tar over) — velg aisstream.io i kildepanelet i stedet.
 
 - `apiKeys`: API-nokler for innebygde demoer. `apiKeys.aisstream` brukes av
   HT ECDIS naar aisstream er valgt som AIS-kilde.

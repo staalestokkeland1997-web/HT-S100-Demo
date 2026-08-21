@@ -156,6 +156,7 @@ async function handleApi(request, response, url) {
 
   // HT ECDIS: skipets posisjon/kurs/innstillinger lagres server-side slik at
   // demoen fortsetter der den slapp selv om nettleserprofilen nullstilles.
+  // AIS-maal lagres IKKE her - hver skjerm henter dem fra /ais/targets.
   if (pathname === "/api/ecdis-state") {
     if (request.method === "GET") {
       const state = await store.getJson("ecdis-state");
@@ -486,8 +487,8 @@ async function handleApi(request, response, url) {
 // Sockelen henger paa modulnivaa slik at den overlever mellom kall saa lenge
 // Vercel holder instansen varm; klienten poller hvert 3. sekund, saa den gjor
 // den normalt. Er instansen kald, venter forste kall paa at stroemmen leverer
-// (ready) i stedet for aa svare tomt - et tomt svar ville sendt klienten
-// tilbake til simulert AIS selv om Kystverket er tilgjengelig.
+// (ready) i stedet for aa svare tomt - klientene har ingen simulert flaate aa
+// falle tilbake paa, saa et tomt svar er et tomt kart.
 
 let aisBridge = null;
 
