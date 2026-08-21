@@ -134,7 +134,13 @@ function requireAdmin(request, response, config) {
 }
 
 async function handleApi(request, response, url) {
-  const pathname = url.pathname;
+  // Samme ett-segments-begrensning som for AIS: /api/admin/<x> naar funksjonen
+  // som /api/admin?sub=<x> via rewriten i vercel.json. Gjenoppbygg stien.
+  let pathname = url.pathname;
+  if (/^\/api\/admin\/?$/.test(pathname)) {
+    const sub = url.searchParams.get("sub");
+    if (sub) pathname = "/api/admin/" + sub.replace(/^\/+/, "");
+  }
   const config = await contest.loadConfig();
 
   if (request.method === "GET" && pathname === "/api/config") {
@@ -156,6 +162,7 @@ async function handleApi(request, response, url) {
 
   // HT ECDIS: skipets posisjon/kurs/innstillinger lagres server-side slik at
   // demoen fortsetter der den slapp selv om nettleserprofilen nullstilles.
+  // AIS-maal lagres IKKE her - hver skjerm henter dem fra /ais/targets.
   if (pathname === "/api/ecdis-state") {
     if (request.method === "GET") {
       const state = await store.getJson("ecdis-state");
@@ -486,8 +493,8 @@ async function handleApi(request, response, url) {
 // Sockelen henger paa modulnivaa slik at den overlever mellom kall saa lenge
 // Vercel holder instansen varm; klienten poller hvert 3. sekund, saa den gjor
 // den normalt. Er instansen kald, venter forste kall paa at stroemmen leverer
-// (ready) i stedet for aa svare tomt - et tomt svar ville sendt klienten
-// tilbake til simulert AIS selv om Kystverket er tilgjengelig.
+// (ready) i stedet for aa svare tomt - klientene har ingen simulert flaate aa
+// falle tilbake paa, saa et tomt svar er et tomt kart.
 
 let aisBridge = null;
 
@@ -534,7 +541,14 @@ function parseBox(raw) {
 async function handleAis(request, response, url) {
   const cors = { "Access-Control-Allow-Origin": "*" };
   const bridge = await getAisBridge();
-  const route = url.pathname.replace(/^\/api/, "");
+  // Vercel matcher bare ETT path-segment inn i denne funksjonen, saa
+  // vercel.json skriver /ais/<x> om til /api/ais?sub=<x>. Avhengig av lag kan
+  // funksjonen se originalstien ELLER destinasjonen - taal begge.
+  let route = url.pathname.replace(/^\/api/, "");
+  if (!/^\/ais\//.test(route)) {
+    const sub = url.searchParams.get("sub");
+    if (sub) route = "/ais/" + sub.replace(/^\/+/, "");
+  }
 
   if (!bridge) {
     sendJson(response, 503, { error: "The Kystverket source is switched off in config (ais.enabled).", state: "off" });
@@ -639,8 +653,9 @@ module.exports = async (request, response) => {
       return;
     }
 
-    // Samme for /ais/* -> /api/ais/*.
-    if (url.pathname.startsWith("/ais/") || url.pathname.startsWith("/api/ais/")) {
+    // Samme for /ais/* -> /api/ais/*. Rewriten treffer ogsaa som eksakt
+    // /api/ais (med halen i ?sub=), saa den maa med her.
+    if (/^\/(api\/)?ais(\/|$)/.test(url.pathname)) {
       await handleAis(request, response, url);
       return;
     }

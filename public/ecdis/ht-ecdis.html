@@ -36,7 +36,7 @@
         }
       }
     }
-  } catch (e) { /* file-modus eller server nede: appen kjorer simulert AIS */ }
+  } catch (e) { /* file-modus eller server nede: da finnes ingen AIS-kilde */ }
   try {
     var xhr2 = new XMLHttpRequest();
     xhr2.open("GET", "/api/ecdis-state", false);
@@ -183,7 +183,6 @@
               </button>
               <sc-if value="{{ aisKeyOpen }}" hint-placeholder-val="{{ false }}">
                 <div style="display:flex;gap:3px;background:var(--seg,rgba(118,118,128,.12));border-radius:10px;padding:3px;margin-top:9px;">
-                  <button onClick="{{ onAisSrcSim }}" style="{{ aisSegSim }}">Simulated</button>
                   <button onClick="{{ onAisSrcKv }}" style="{{ aisSegKv }}">Kystverket</button>
                   <button onClick="{{ onAisSrcStream }}" style="{{ aisSegStream }}">aisstream</button>
                 </div>
@@ -277,7 +276,7 @@
 
           <div style="{{ cardInner }}padding:11px 13px;margin-top:14px;font-size:10.5px;line-height:1.5;color:var(--muted,#8e8e93);">
             <div style="display:flex;justify-content:space-between;color:var(--ink,#1c1c1e);font-weight:600;margin-bottom:4px;"><span>Data provenance</span><span style="color:#34C759;">● Live charts</span></div>
-            Charts &amp; imagery are live official APIs (Kartverket · OpenSeaMap · EMODnet · Esri). Weather &amp; currents are live MET/yr. AIS is simulated until an aisstream.io key is added; Kartverket tide needs the data proxy (auto-detected when running locally).
+            Charts &amp; imagery are live official APIs (Kartverket · OpenSeaMap · EMODnet · Esri). Weather &amp; currents are live MET/yr. AIS is live only — Kystverket open AIS (NLOD) by default, aisstream.io with a key; no simulated targets are ever drawn. Kartverket tide needs the data proxy (auto-detected when running locally).
           </div>
         </div>
       </sc-if>
@@ -370,6 +369,9 @@
               </div>
             </div>
           </sc-for>
+          <sc-if value="{{ aisEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ cardInner }}padding:13px 14px;font-size:10.5px;color:var(--muted,#8e8e93);line-height:1.45;">{{ aisEmptyText }}</div>
+          </sc-if>
         </div>
       </sc-if>
 
@@ -691,7 +693,7 @@ class Component extends DCLogic {
     sensorFail: { gnss: false, gyro: false }, replay: { on: false, playing: false, pos: 1 }, routeChkVer: 0, predMin: 5, hazardWarn: true, voyOpen: false, cpaLimit: 0.5, tcpaLimit: 12,
     layers: { s101: true, s102: false, s104: true, s111: true, s124: true, s129: true, ais: true, route: true, wind: false, waves: false, radar: true, trails: true, lights: true, temp: false, clouds: true, density: false, precip: false, traffic: false },
     alarms: [], aisSummary: [], routeVer: 0, pick: null, metVer: 0,
-    wxOpen: false, tideOpen: false, gyroOpen: false, conningOpen: false, shipUnlocked: false, autoMin: false, autoOpen: false, followShip: false, aisKeyOpen: false, aisMode: 'sim', aisStatus: 'off', aisSrc: 'sim', aisKvInfo: null, gpsStatus: 'off', proxyOpen: false, srcVer: 0,
+    wxOpen: false, tideOpen: false, gyroOpen: false, conningOpen: false, shipUnlocked: false, autoMin: false, autoOpen: false, followShip: false, aisKeyOpen: false, aisMode: 'off', aisStatus: 'off', aisSrc: 'kystverket', aisKvInfo: null, gpsStatus: 'off', proxyOpen: false, srcVer: 0,
     showIntro: (() => { try { return !localStorage.getItem('mrd_seen'); } catch (e) { return true; } })(),
   };
   ros = {}; ownShip = { lat: 60.06, lon: 5.00, hdg: 18, cog: 18, sog: 0, len: 180, beam: 28, rudder: 0 }; channel = 0.2; route = null; activeLeg = 1; met = {}; tiles = (typeof window !== 'undefined' ? (window.__mrdTiles = window.__mrdTiles || {}) : {}); tileLoading = (typeof window !== 'undefined' ? (window.__mrdTileLoading = window.__mrdTileLoading || {}) : {});
@@ -706,6 +708,9 @@ class Component extends DCLogic {
     this.brandName = this.props.productName || 'HT ECDIS';
     this.accent = this.props.accentColor || '#0A84FF';
     this.bbox = { latMin: 56.0, latMax: 64.0, lonMin: 0.5, lonMax: 10.5 };
+    // Ytre grense for AIS-forespoersler. Selve utsnittet beregnes rundt eget
+    // skip i aisReqBox() - broen kapper svaret paa 900 maal, og med hele
+    // norskekysten i boksen kunne fartoy rett ved skipet bli kappet vekk.
     this.aisBox = { latMin: 57.0, latMax: 71.8, lonMin: 1.5, lonMax: 31.5 };
     this.cosMid = Math.cos(60.0 * Math.PI / 180);
     this.view = { lat: 60.12, lon: 5.06, zoom: 10.2, bearing: 0 };
@@ -736,7 +741,6 @@ class Component extends DCLogic {
     this.loadTrack();
     this.loadRoute();
     window.__ecdis = this;
-    this.loadAisState();
     this.loadShipState();
     this._persistT = setInterval(() => { if (!document.hidden) this.saveShipState(); }, 5000);
     this._pagehideH = () => this.saveShipState(true);
@@ -1041,8 +1045,6 @@ class Component extends DCLogic {
 
   initShip() {
     this.ownShip = { lat: 60.06, lon: 5.00, hdg: 18, cog: 18, sog: 0, len: 180, beam: 28, rudder: 0 };
-    const mk = (lat, lon, name, type, hdg, sog, col) => ({ lat, lon, name, type, hdg, cog: hdg, sog, col, dangerous: false });
-    this.ais = [ mk(60.18, 5.00, 'NORDIC STAR', 'Cargo', 245, 12.5, '#0A84FF'), mk(60.05, 5.05, 'BERGEN PEARL', 'HSC', 30, 22, '#34C759'), mk(59.80, 4.78, 'GAS PIONEER', 'Tanker', 150, 11, '#FF9F0A'), mk(59.40, 5.10, 'HAVFISK', 'Fishing', 95, 5.5, '#BF5AF2'), mk(60.33, 4.85, 'FJORD PILOT', 'Pilot', 200, 14, '#FF375F'), mk(59.55, 4.62, 'STENA LINK', 'Ro-Ro', 75, 18, '#30B0C7') ];
   }
   loadDemoRoute() { const r = (lat, lon) => ({ lat, lon }); this.route = [r(59.985, 4.66), r(60.04, 4.78), r(60.075, 4.90), r(60.115, 5.00), r(60.165, 5.08), r(60.225, 5.17), r(60.30, 5.235), r(60.345, 5.27)]; this._demoSail = true; this.channel = 0.2; this.activeLeg = 1; this.groundFired = false; this.track = []; const o = this.ownShip; o.lat = this.route[0].lat; o.lon = this.route[0].lon; o.sog = 0; const b = this.bearingDeg(this.route[0], this.route[1]); o.hdg = b; o.cog = b; this.view.lat = o.lat; this.view.lon = o.lon; this.view.zoom = 11.2; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1, simRunning: true, simSpeed: 1, rightTab: 'route', planning: false, tool: 'pan' }); }
   clearRoute() { clearInterval(this._planRetry); this._planDest = null; this._planWorking = false; this._demoSail = false; this.route = null; this.track = []; this.activeLeg = 1; this.routeCheck = null; this.autoNav = false; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1, simRunning: false }); }
@@ -1322,7 +1324,6 @@ class Component extends DCLogic {
     if (!cfg.aisKey) { try { const old = localStorage.getItem('mrd_ais_key'); if (old) { cfg.aisKey = old; localStorage.setItem('mrd_sources', JSON.stringify(cfg)); localStorage.removeItem('mrd_ais_key'); } } catch (e) {} }
     this.srcCfg = cfg;
     this._aisKeyInput = cfg.aisKey || '';
-    this._aisSrcSaved = cfg.aisSrc || '';
     this._proxyInput = cfg.proxyUrl || '';
     this.proxyUrl = cfg.proxyUrl || '';
     this.srcStatus = { chart: 'wait', met: 'wait', tide: 'wait' };
@@ -1330,7 +1331,7 @@ class Component extends DCLogic {
   // Persist the COMMITTED proxy value, not the raw input field — otherwise a
   // half-typed proxy URL gets silently persisted whenever the AIS socket
   // opens, changing request routing on the next reload without a Save.
-  saveSrcCfg() { try { const stored = (this.srcCfg && this.srcCfg.proxyUrl) || ''; this.srcCfg = { ...(this.srcCfg || {}), aisKey: this._aisKeyInput || '', aisSrc: this.state.aisSrc || 'sim', proxyUrl: this._proxySaved ? (this._proxyInput || '').trim() : stored }; this._proxySaved = false; localStorage.setItem('mrd_sources', JSON.stringify(this.srcCfg)); } catch (e) {} }
+  saveSrcCfg() { try { const stored = (this.srcCfg && this.srcCfg.proxyUrl) || ''; this.srcCfg = { ...(this.srcCfg || {}), aisKey: this._aisKeyInput || '', proxyUrl: this._proxySaved ? (this._proxyInput || '').trim() : stored }; delete this.srcCfg.aisSrc; this._proxySaved = false; localStorage.setItem('mrd_sources', JSON.stringify(this.srcCfg)); } catch (e) {} }
   metBase() { return ((this.srcCfg && this.srcCfg.metBase) || 'https://api.met.no').replace(/\/$/, ''); }
   tideBase() { return ((this.srcCfg && this.srcCfg.tideBase) || 'https://vannstand.kartverket.no').replace(/\/$/, ''); }
   detectProxy() {
@@ -1422,37 +1423,39 @@ class Component extends DCLogic {
   tideNow() { const T = this.tide; if (!T || !T.pts.length) return null; const p = T.pts, now = Date.now(); if (now <= p[0].t) return { v: p[0].v, rate: 1 }; for (let i = 1; i < p.length; i++) { if (now <= p[i].t) { const f = (now - p[i - 1].t) / (p[i].t - p[i - 1].t || 1); return { v: p[i - 1].v + (p[i].v - p[i - 1].v) * f, rate: p[i].v - p[i - 1].v }; } } return { v: p[p.length - 1].v, rate: -1 }; }
   tideExtremes() { const p = (this.tide && this.tide.pts) || [], ex = []; for (let i = 1; i < p.length - 1; i++) { if (p[i].v > p[i - 1].v && p[i].v >= p[i + 1].v) ex.push({ type: 'high', t: p[i].t, v: p[i].v }); else if (p[i].v < p[i - 1].v && p[i].v <= p[i + 1].v) ex.push({ type: 'low', t: p[i].t, v: p[i].v }); } return ex; }
 
+  // KUN ekte AIS. Er stroemmen nede eller tom, tegnes ingen maal — et tomt
+  // AIS-bilde er sant, en oppdiktet flaate er det ikke.
   aisArr() {
-    // Varmstart + lokal blanding: i live-modus vises sim-/sist kjente flaate
-    // helt til det faktisk finnes ekte trafikk I NAEROMRAADET. Live-boksen
-    // dekker hele norskekysten, saa de forste ekte fartoyene kan ligge
-    // hundrevis av nm unna — byttet radaren/kartet til ren live for tidlig,
-    // saa demoen "dod" ut rundt eget skip. Til det er minst 3 ekte fartoy
-    // innen 60 nm vises derfor sim-flaaten sammen med de ekte som er kommet.
-    if (this.state.aisMode === 'live' && this.aisLive) {
-      const v = Object.values(this.aisLive).filter(t => t.lat != null);
-      if (v.length) {
-        const o = this.ownShip;
-        let near = 0;
-        for (const t of v) if (this.distNm(o, t) < 25) { near++; if (near >= 3) break; }
-        if (near >= 3) { this._aisView = 'live'; return v; }
-        this._aisView = 'blend';
-        return this.ais.concat(v);
-      }
-    }
-    this._aisView = 'sim';
-    return this.ais;
+    if (!this.aisLive) return [];
+    return Object.values(this.aisLive).filter(t => t.lat != null);
   }
   aisColor(id) { const c = ['#0A84FF', '#34C759', '#FF9F0A', '#BF5AF2', '#FF375F', '#30B0C7', '#FFD60A']; return c[Math.abs(id | 0) % c.length]; }
   shipTypeName(c) { if (c == null) return 'Vessel'; if (c >= 60 && c <= 69) return 'Passenger'; if (c >= 70 && c <= 79) return 'Cargo'; if (c >= 80 && c <= 89) return 'Tanker'; if (c >= 40 && c <= 49) return 'HSC'; if (c === 30) return 'Fishing'; if (c === 35) return 'Military'; if (c === 36) return 'Sailing'; if (c === 37) return 'Pleasure'; if (c === 50) return 'Pilot'; if (c === 51) return 'SAR'; if (c === 52) return 'Tug'; return 'Vessel'; }
   // -------------------------------------------------------------------
-  // AIS-kilder: simulert, Kystverket (aapne data) eller aisstream.io
+  // AIS-kilder: Kystverket (aapne data) eller aisstream.io. Begge er EKTE
+  // fartoy — det finnes ingen simulert flaate i denne appen.
   // -------------------------------------------------------------------
   // Kystverket kringkaster raa NMEA over TCP, som nettleseren ikke naar. Det
   // er kiosk-serveren som holder oppkoblingen og deler den ut - derfor kan
   // ECDIS og radar staa aapne samtidig, i motsetning til aisstream der en
   // gratisnokkel bare tillater EN tilkobling.
   aisBase() { return /^https?:$/.test(location.protocol) ? location.origin : ''; }
+
+  // Utsnittet det spoerres om: rundt eget skip OG dagens kartutsnitt, med
+  // margin, klippet mot aisBox. Broen kapper svaret paa de ferskeste 900
+  // maalene, saa en boks over hele kysten kunne skyve ut nettopp de fartoyene
+  // som ligger ved skipet.
+  aisReqBox() {
+    const o = this.ownShip, v = this.view, B = this.aisBox;
+    const padLat = 2.0, padLon = 2.0 / Math.max(0.25, this.cosMid);
+    const lats = [o.lat, v.lat], lons = [o.lon, v.lon];
+    return {
+      latMin: Math.max(B.latMin, Math.min(...lats) - padLat),
+      latMax: Math.min(B.latMax, Math.max(...lats) + padLat),
+      lonMin: Math.max(B.lonMin, Math.min(...lons) - padLon),
+      lonMax: Math.min(B.lonMax, Math.max(...lons) + padLon)
+    };
+  }
 
   // Sjekker om broen faktisk har kontakt med Kystverket. Den lokale serveren
   // svarer selv om port 5631 er sperret i brannmuren, saa det holder ikke aa
@@ -1477,42 +1480,46 @@ class Component extends DCLogic {
   async bootAisSource() {
     const cfg = window.__kioskAis || {};
     const kvOn = !cfg.kystverket || cfg.kystverket.enabled !== false;
-    let want = this._aisSrcSaved || '';
-    if (!want) {
-      const wanted = cfg.source || 'auto';
-      if (wanted === 'auto') {
-        // Prov Kystverket forst - den trenger ingen nokkel og taaler flere
-        // faner. Svarer den ikke innen noen sekunder, fall til aisstream.
-        want = (kvOn && await this.probeKystverket(6000)) ? 'kystverket'
-             : (this._aisKeyInput ? 'aisstream' : 'sim');
-      } else want = wanted;
+    // Lagret kildevalg brukes IKKE ved boot: en gammel lagret verdi laaste
+    // appen til feil kilde ('sim' for, 'aisstream' etter en fallback) og
+    // Kystverket ble aldri provd igjen. Boot velger alltid ut fra hva som
+    // faktisk svarer NAA; bare server-configen kan pinne en kilde.
+    let want = cfg.source || 'auto';
+    if (want === 'sim') want = 'auto';
+    if (want === 'auto') {
+      // Prov Kystverket forst - den trenger ingen nokkel og taaler flere
+      // faner. Svarer den ikke innen noen sekunder, fall til aisstream.
+      want = (kvOn && await this.probeKystverket(6000)) ? 'kystverket'
+           : (this._aisKeyInput ? 'aisstream' : 'kystverket');
     }
-    if (want === 'kystverket' && !kvOn) want = this._aisKeyInput ? 'aisstream' : 'sim';
+    if (want === 'kystverket' && !kvOn) want = 'aisstream';
     this.setAisSource(want, true);
   }
 
   setAisSource(src, quiet) {
-    if (!['sim', 'kystverket', 'aisstream'].includes(src)) src = 'sim';
+    if (!['kystverket', 'aisstream'].includes(src)) src = 'kystverket';
+    // Et manuelt valg laaser kilden: da skal ikke automatikken bytte bak ryggen.
+    if (!quiet) this._aisSrcPinned = true;
     this.disconnectAis();
     this.setState({ aisSrc: src, aisKvInfo: null });
     this.saveSrcCfg();
-    if (src === 'kystverket') this.connectAisKystverket(quiet);
-    else if (src === 'aisstream') {
+    if (src === 'aisstream') {
       if (!this._aisKeyInput && !quiet) this.addAlarm('warning', 'Live AIS - aisstream.io requires an API key. Enter it in the source panel, or use Kystverket, which is open without a key.');
       this.connectAis(this._aisKeyInput);
-    } else this.setState({ aisMode: 'sim', aisStatus: 'off' });
+    } else this.connectAisKystverket(quiet);
   }
 
   connectAisKystverket(quiet) {
     const base = this.aisBase();
     if (!base) {
       if (!quiet) this.addAlarm('warning', 'Live AIS - the Kystverket source needs ECDIS served over http(s) from the kiosk site, not opened as a local file.');
-      this.setState({ aisSrc: 'sim', aisMode: 'sim', aisStatus: 'off' });
+      this.setState({ aisMode: 'off', aisStatus: 'error' });
       return;
     }
     this.aisLive = {};
     this._aisKvOn = true;
     this._aisKvFails = 0;
+    this._aisKvDry = 0;
     this.setState({ aisStatus: 'connecting', aisMode: 'live' });
     const tick = () => { if (this._aisKvOn) this.pollKystverket(base); };
     tick();
@@ -1522,7 +1529,7 @@ class Component extends DCLogic {
   async pollKystverket(base) {
     if (this._aisKvBusy) return;
     this._aisKvBusy = true;
-    const B = this.aisBox || this.bbox;
+    const B = this.aisReqBox();
     const bbox = [B.latMin, B.lonMin, B.latMax, B.lonMax].map(n => n.toFixed(4)).join(',');
     try {
       const r = await fetch(base + '/ais/targets?bbox=' + bbox, { cache: 'no-store' });
@@ -1555,6 +1562,13 @@ class Component extends DCLogic {
       this.aisLive = live;
       this._aisLastMsg = Date.now();
       const connected = snap.state === 'connected';
+      // Broen svarer, men cachen er helt tom (snap.total teller HELE kysten,
+      // ikke bare utsnittet). Holder det seg slik i ~30 s, naar ikke serveren
+      // Kystverket, og da er aisstream eneste ekte kilde igjen.
+      if (!connected && !snap.total) {
+        this._aisKvDry = (this._aisKvDry || 0) + 1;
+        if (this._aisKvDry >= 10 && this.aisFallbackToStream('the site API has no contact with the Kystverket stream')) return;
+      } else this._aisKvDry = 0;
       this.setState({
         aisStatus: connected ? 'connected' : (snap.state === 'reconnecting' ? 'reconnecting' : 'connecting'),
         aisMode: 'live',
@@ -1563,10 +1577,39 @@ class Component extends DCLogic {
     } catch (e) {
       if (!this._aisKvOn) return;
       if (++this._aisKvFails === 4) {
+        if (this.aisFallbackToStream('cannot reach the Kystverket bridge in the site API')) return;
         this.addAlarm('warning', 'Live AIS - cannot reach the Kystverket bridge in the site API. Check that outbound TCP to ' + ((window.__kioskAis && window.__kioskAis.kystverket && window.__kioskAis.kystverket.host) || '153.44.253.27') + ':' + ((window.__kioskAis && window.__kioskAis.kystverket && window.__kioskAis.kystverket.port) || 5631) + ' is open.');
         this.setState({ aisStatus: 'error' });
       }
     } finally { this._aisKvBusy = false; }
+  }
+
+  // Motsatt vei: aisstream er "connected", men har ikke levert ETT fartoy paa
+  // 45 s — dekningen er tynn i norske fjorder. Svarer Kystverket-broen naa,
+  // bytt dit. Kjorres bare naar kilden ble valgt automatisk.
+  async aisRecoverToKv() {
+    if (this._kvRecovering || this._aisSrcPinned || this.state.aisSrc !== 'aisstream') return;
+    const cfg = window.__kioskAis || {};
+    if (cfg.kystverket && cfg.kystverket.enabled === false) return;
+    this._kvRecovering = true;
+    try {
+      const st = await this.probeKystverket(4000);
+      if (!st || this.state.aisSrc !== 'aisstream') return;
+      if (Object.values(this.aisLive || {}).some(t => t.lat != null)) return;
+      this.addAlarm('info', 'Live AIS - aisstream.io has delivered no vessels here. Switching to Kystverket (' + st.targets + ' vessels cached).');
+      this.setAisSource('kystverket', true);
+    } finally { this._kvRecovering = false; }
+  }
+
+  // Broen svarer, men Kystverket-stroemmen leverer ingenting (typisk: utgaaende
+  // TCP mot 5631 er stengt i kjoremiljoet). Da byttes det til aisstream.io hvis
+  // det finnes en nokkel — fortsatt EKTE AIS, bare en annen leverandor. Har
+  // brukeren valgt kilde selv, respekteres det valget.
+  aisFallbackToStream(why) {
+    if (this._aisSrcPinned || !this._aisKeyInput || this.state.aisSrc !== 'kystverket') return false;
+    this.addAlarm('warning', 'Live AIS - ' + why + '. Switching to aisstream.io (live AIS, API key from config).');
+    this.setAisSource('aisstream', true);
+    return true;
   }
 
   stopKystverket() {
@@ -1576,18 +1619,10 @@ class Component extends DCLogic {
   }
 
   connectAis(key) {
-    this.disconnectAis(); key = (key || '').trim(); if (!key) { this.setState({ aisMode: 'sim', aisStatus: 'off' }); return; }
-    this.aisKey = key; this.aisLive = {}; const B = this.aisBox || this.bbox;
-    // Varmstart fra siste lagrede AIS-bilde: skjermen er befolket med sist
-    // kjente (ekte) fartoy umiddelbart, dodregnet frem. Ekte meldinger tar
-    // over per MMSI; fartoy som ikke lenger sender prunes av 5-min-regelen.
-    try {
-      const c = this.loadAisCache();
-      if (c && c.mode === 'live') for (const t of c.targets) {
-        if (t.mmsi == null || t.lat == null) continue;
-        this.aisLive[t.mmsi] = { mmsi: t.mmsi, name: t.name || ('MMSI ' + t.mmsi), type: t.type || 'Vessel', col: t.col || this.aisColor(t.mmsi), lat: t.lat, lon: t.lon, cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0, last: Date.now() - 60000 };
-      }
-    } catch (e) {}
+    this.disconnectAis(); key = (key || '').trim(); if (!key) { this.setState({ aisMode: 'off', aisStatus: 'off' }); return; }
+    // Ingen varmstart fra cache: skjermen skal vise det stroemmen faktisk
+    // sender naa, ikke dodregnede posisjoner fra sist okt.
+    this.aisKey = key; this.aisLive = {}; const B = this.aisReqBox();
     try {
       const ws = new WebSocket('wss://stream.aisstream.io/v0/stream'); this.aisWs = ws;
       ws.onopen = () => { ws.send(JSON.stringify({ APIKey: key, BoundingBoxes: [[[B.latMin, B.lonMin], [B.latMax, B.lonMax]]], FilterMessageTypes: ['PositionReport', 'ShipStaticData'] })); this._aisKeyInput = key; this.saveSrcCfg(); this.setState({ aisStatus: 'connected', aisMode: 'live' }); };
@@ -1596,10 +1631,15 @@ class Component extends DCLogic {
       ws.onclose = () => { if (this.aisKey && this.state.aisStatus !== 'key error') { this.setState({ aisStatus: 'reconnecting' }); clearTimeout(this._aisReWS); this._aisReWS = setTimeout(() => this.connectAis(this.aisKey), 4000); } };
       this.setState({ aisStatus: 'connecting', aisMode: 'live' });
       clearInterval(this._aisWatch);
-      this._aisWatch = setInterval(() => { if (this.aisKey && this.state.aisStatus === 'connected' && Date.now() - (this._aisLastMsg || 0) > 90000) { try { this.aisWs && this.aisWs.close(); } catch (e) {} } }, 30000);
+      this._aisStreamStart = Date.now();
+      this._aisWatch = setInterval(() => {
+        if (!this.aisKey) return;
+        if (this.state.aisStatus === 'connected' && Date.now() - (this._aisLastMsg || 0) > 90000) { try { this.aisWs && this.aisWs.close(); } catch (e) {} }
+        if (this.state.aisStatus === 'connected' && Date.now() - (this._aisStreamStart || 0) > 45000 && !Object.values(this.aisLive || {}).some(t => t.lat != null)) this.aisRecoverToKv();
+      }, 30000);
     } catch (e) { this.setState({ aisStatus: 'error' }); }
   }
-  disconnectAis() { const kv = this._aisKvOn; this.stopKystverket(); clearTimeout(this._aisReWS); clearInterval(this._aisWatch); const k = this.aisKey; this.aisKey = null; if (this.aisWs) { try { this.aisWs.onclose = null; this.aisWs.close(); } catch (e) {} this.aisWs = null; } if (k || kv) { this.aisLive = null; this.setState({ aisMode: 'sim', aisStatus: 'off' }); } }
+  disconnectAis() { const kv = this._aisKvOn; this.stopKystverket(); clearTimeout(this._aisReWS); clearInterval(this._aisWatch); const k = this.aisKey; this.aisKey = null; if (this.aisWs) { try { this.aisWs.onclose = null; this.aisWs.close(); } catch (e) {} this.aisWs = null; } if (k || kv) { this.aisLive = null; this.setState({ aisMode: 'off', aisStatus: 'off' }); } }
   startGps() { if (!navigator.geolocation) { this.setState({ gpsStatus: 'unavailable' }); return; } this.setState({ gpsStatus: 'acquiring' }); this.gpsId = navigator.geolocation.watchPosition((p) => { const c = p.coords; this.ownShip.lat = c.latitude; this.ownShip.lon = c.longitude; if (c.speed != null && !isNaN(c.speed)) this.ownShip.sog = c.speed * 1.94384; if (c.heading != null && !isNaN(c.heading)) { this.ownShip.hdg = c.heading; this.ownShip.cog = c.heading; } if (!this.gpsMode) { this.gpsMode = true; this.view.lat = c.latitude; this.view.lon = c.longitude; } this.setState({ gpsStatus: 'fix' }); }, () => { this.gpsMode = false; this.setState({ gpsStatus: 'denied' }); }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 12000 }); }
   stopGps() { if (this.gpsId != null && navigator.geolocation) navigator.geolocation.clearWatch(this.gpsId); this.gpsId = null; this.gpsMode = false; this.setState({ gpsStatus: 'off' }); }
   wxIconFor(c) { c = c || ''; if (c.includes('clearsky')) return '☀'; if (c.includes('fair')) return '🌤'; if (c.includes('partlycloudy')) return '⛅'; if (c.includes('thunder')) return '⛈'; if (c.includes('sleet')) return '🌨'; if (c.includes('snow')) return '❄'; if (c.includes('rain') || c.includes('showers')) return '🌧'; if (c.includes('fog')) return '🌫'; if (c.includes('cloudy')) return '☁'; return '·'; }
@@ -1884,57 +1924,18 @@ class Component extends DCLogic {
     }
     if (this.state.followShip && o) { this.view.lat = o.lat; this.view.lon = o.lon; }
     if (s.simRunning || this.gpsMode) { if (!this.track.length || this.distNm(this.track[this.track.length - 1], o) > 0.08) { this.track.push({ lat: o.lat, lon: o.lon, t: Date.now() }); const cut = Date.now() - 12 * 3600e3; while (this.track.length && (this.track[0].t || 0) < cut) this.track.shift(); if (this.track.length > 1200) this.track.shift(); if (performance.now() - (this._lastTrackSave || 0) > 8000) { this._lastTrackSave = performance.now(); this.persistTrack(); } } }
-    const B = this.bbox, live = s.aisMode === 'live'; const arr = this.aisArr();
-    // Simulated traffic gives way: real vessels do not hold a blind straight
-    // line through a close-quarters situation, and without this the demo sits
-    // in a latched "dangerous target" CPA alarm more or less continuously.
-    // Starboard alteration while the encounter is live, easing back to the
-    // base course once clear (COLREG-ish, good enough for a demo).
-    // Throttled on SIM time, not wall time: at 30x an encounter develops 30x
-    // faster, so a wall-clock cadence would let ships close half a mile
-    // between give-way decisions.
-    this._trafAcc = (this._trafAcc || 0) + sdt;
-    // Kjorres for SIM-flaaten ogsaa i blandet live-visning — men aldri paa
-    // ekte fartoy (deres kurs skal ikke muteres av demolgikken).
-    if (this._aisView !== 'live' && this._trafAcc > 15) {
-      this._trafAcc = 0;
-      const cpaLim = (s.cpaLimit || 0.5), tcpaLim = (s.tcpaLimit || 12);
-      for (const t of this.ais) {
-        if (t._baseHdg == null) t._baseHdg = t.hdg;
-        const cp = this.cpa(o, t);
-        if (cp.tcpa > 0 && cp.tcpa < tcpaLim * 1.15 && cp.cpa < cpaLim * 1.6) t._avoid = Math.min(60, (t._avoid || 0) + 20);
-        else if (t._avoid) t._avoid = Math.max(0, t._avoid - 8);
-        if (t._avoid || t.hdg !== t._baseHdg) {
-          const want = (t._baseHdg + (t._avoid || 0) + 360) % 360;
-          const err = ((want - t.hdg + 540) % 360) - 180;
-          t.hdg = (t.hdg + Math.max(-14, Math.min(14, err)) + 360) % 360; t.cog = t.hdg;
-        }
-      }
-    }
-    for (const t of arr) { if (t.sog) { const adv = live ? dt : sdt; const nd = this.moveLL(t.lat, t.lon, (t.cog != null ? t.cog : t.hdg), t.sog / 3600 * adv); t.lat = nd.lat; t.lon = nd.lon; } if (!live) { if (t.lon < B.lonMin) t.lon = B.lonMax - .02; if (t.lon > B.lonMax) t.lon = B.lonMin + .02; if (t.lat < B.latMin) t.lat = B.latMax - .02; if (t.lat > B.latMax) t.lat = B.latMin + .02; } }
-    // Sim-flaaten FOLGER eget skip: en baat som er sakket > 30 nm akterut
-    // (typisk etter "Set route to destination" langt av gaarde) respawnes
-    // 8-18 nm foran skipet med kryssende kurs — i farbart vann (dybdesjekk).
-    // Slik har demoen alltid trafikk rundt skipet uansett hvor det seiler,
-    // og radaren arver det samme bildet via mrd_ais.
-    this._fleetAcc = (this._fleetAcc || 0) + sdt;
-    if (this._fleetAcc > 5) {
-      this._fleetAcc = 0;
-      for (const t of this.ais) {
-        if (this.distNm(t, o) <= 30) continue;
-        let p = null;
-        for (let tr = 0; tr < 6 && !p; tr++) {
-          const cand = this.moveLL(o.lat, o.lon, (o.cog || 0) + (Math.random() * 120 - 60), 8 + Math.random() * 10);
-          if (this.depthAt(cand.lat, cand.lon) > 5) p = cand;
-        }
-        if (!p) continue;
-        t.lat = p.lat; t.lon = p.lon;
-        t.cog = t.hdg = t._baseHdg = ((o.cog || 0) + 100 + Math.random() * 160) % 360;
-        t._avoid = 0; t._trail = [];
-      }
+    const arr = this.aisArr();
+    // Ekte AIS-maal dodregnes bare MELLOM meldingene, slik en ECDIS gjor for
+    // aa faa jevn bevegelse: neste poll (hvert 3. sekund) setter posisjonen
+    // tilbake til det fartoyet faktisk rapporterer. Kursen deres roeres
+    // aldri — det som tegnes skal vaere det de sender.
+    for (const t of arr) {
+      if (!t.sog) continue;
+      const nd = this.moveLL(t.lat, t.lon, (t.cog != null ? t.cog : t.hdg), t.sog / 3600 * dt);
+      t.lat = nd.lat; t.lon = nd.lon;
     }
     if (s.layers.trails) { for (const t of arr) { if (!t._trail) t._trail = []; const last = t._trail[t._trail.length - 1]; if (!last || this.distNm(last, t) > 0.02) { t._trail.push({ lat: t.lat, lon: t.lon }); if (t._trail.length > 50) t._trail.shift(); } } }
-    if (live && this.aisLive) { const now = Date.now(); for (const k in this.aisLive) if (now - (this.aisLive[k].last || 0) > 300000) delete this.aisLive[k]; }
+    if (this.aisLive) { const now = Date.now(); for (const k in this.aisLive) if (now - (this.aisLive[k].last || 0) > 300000) delete this.aisLive[k]; }
     if (performance.now() - (this._lastAlarmWall || 0) > 1500) { this._lastAlarmWall = performance.now(); this.checkAlarms(); }
     if (s.replay.on && s.replay.playing && this.track.length > 1) { this._replayPos = (this._replayPos || 0) + dt * 0.05; if (this._replayPos >= 1) this._replayPos = 0; }
   }
@@ -2544,7 +2545,7 @@ class Component extends DCLogic {
     if (this.cursor) this.set('cursor', this.fmtPos(this.cursor.lat, this.cursor.lon));
     if (this.route && this.activeLeg < this.route.length) { const a = this.route[this.activeLeg - 1], b = this.route[this.activeLeg]; const xtd = this.crossTrack(a, b, o); this.set('activeWp', String(this.activeLeg).padStart(2, '0')); const xe = this.ros.xtd; if (xe) { xe.textContent = (xtd >= 0 ? 'R' : 'L') + Math.abs(xtd).toFixed(2); xe.style.color = Math.abs(xtd) > this.channel ? '#FF3B30' : 'var(--ink,#1c1c1e)'; } let dtg = this.distNm(o, b); for (let i = this.activeLeg + 1; i < this.route.length; i++) dtg += this.distNm(this.route[i - 1], this.route[i]); this.set('dtg', dtg.toFixed(1) + ' · ' + this.bearingDeg(o, b).toFixed(0) + '°'); const ttg = o.sog > 0.5 ? dtg / o.sog : 0; const eta = new Date(Date.now() + ttg * 3600e3); this.set('ttg', (ttg * 60).toFixed(0) + 'm · ' + String(eta.getHours()).padStart(2, '0') + ':' + String(eta.getMinutes()).padStart(2, '0')); this._wop = null; if (this.activeLeg + 1 < this.route.length) { const nxt = this.route[this.activeLeg + 1]; const inBrg = this.bearingDeg(a, b), outBrg = this.bearingDeg(b, nxt); const turn = Math.abs(((outBrg - inBrg + 540) % 360) - 180); const wod = this.wheelOverDist(turn, o.sog); this._wop = this.moveLL(b.lat, b.lon, (inBrg + 180) % 360, wod); const dWop = Math.max(0, this.distNm(o, b) - wod); const ttw = o.sog > 0.5 ? dWop / o.sog * 60 : 0; this.set('wop', dWop.toFixed(2) + 'nm · ' + ttw.toFixed(0) + 'm'); } else this.set('wop', 'last leg'); }
     else { this.set('activeWp', '—'); this.set('xtd', '—'); this.set('dtg', '—'); this.set('ttg', '—'); this.set('wop', this.route ? 'arrived' : '—'); this._wop = null; }
-    if (ts - this.lastAisPush > 950) { this.lastAisPush = ts; this.setState({ aisSummary: this.aisArr().map(t => { const cp = this.cpa(o, t); return { name: t.name, type: t.type, col: t.col, dangerous: t.dangerous, rng: this.distNm(o, t).toFixed(1) + 'nm', brg: this.bearingDeg(o, t).toFixed(0) + '°', cpa: cp.cpa.toFixed(2), tcpa: cp.tcpa.toFixed(0) + 'm' }; }) }); }
+    if (ts - this.lastAisPush > 950) { this.lastAisPush = ts; this.setState({ aisSummary: this.aisArr().slice().sort((a, b) => this.distNm(o, a) - this.distNm(o, b)).slice(0, 40).map(t => { const cp = this.cpa(o, t); return { name: t.name, type: t.type, col: t.col, dangerous: t.dangerous, rng: this.distNm(o, t).toFixed(1) + 'nm', brg: this.bearingDeg(o, t).toFixed(0) + '°', cpa: cp.cpa.toFixed(2), tcpa: cp.tcpa.toFixed(0) + 'm' }; }) }); }
   }
 
   // events
@@ -2611,8 +2612,9 @@ class Component extends DCLogic {
   dropMOB() { this.mob = { lat: this.ownShip.lat, lon: this.ownShip.lon }; this.addAlarm('alarm', 'MAN OVERBOARD marker dropped at ' + this.fmtPos(this.ownShip.lat, this.ownShip.lon) + '.'); }
   navStatusName(n) { return ({ 0: 'Under way (engine)', 1: 'At anchor', 2: 'Not under command', 3: 'Restricted manoeuvr.', 4: 'Constrained by draught', 5: 'Moored', 6: 'Aground', 7: 'Engaged in fishing', 8: 'Under way (sail)', 9: 'Reserved (HSC)', 11: 'Towing astern', 12: 'Pushing/towing', 14: 'AIS-SART', 15: 'Undefined' }[n] || '—'); }
   aisPickInfo(t) {
-    const cp = this.cpa(this.ownShip, t); const live = this.state.aisMode === 'live'; const rows = [];
-    rows.push(['MMSI', t.mmsi ? String(t.mmsi) : (t.name ? '2576' + (t.name.length * 137 % 1000) : '—')]);
+    const cp = this.cpa(this.ownShip, t); const rows = [];
+    // Ekte maal har alltid MMSI; ingen oppdiktet nummer lenger.
+    rows.push(['MMSI', t.mmsi ? String(t.mmsi) : '—']);
     if (t.callsign) rows.push(['Call sign', t.callsign]);
     if (t.imo) rows.push(['IMO', String(t.imo)]);
     rows.push(['Position', this.fmtPos(t.lat, t.lon)]);
@@ -2625,7 +2627,7 @@ class Component extends DCLogic {
     if (t.draught) rows.push(['Draught', t.draught.toFixed(1) + ' m']);
     if (t.dest) rows.push(['Destination', t.dest]);
     if (t.last) rows.push(['Last seen', Math.max(0, Math.round((Date.now() - t.last) / 1000)) + ' s ago']);
-    rows.push(['Source', !live ? 'Simulated AIS class A' : this.state.aisSrc === 'kystverket' ? 'Live AIS · Kystverket (NLOD)' : 'Live AIS · aisstream.io']);
+    rows.push(['Source', this.state.aisSrc === 'aisstream' ? 'Live AIS · aisstream.io' : 'Live AIS · Kystverket (NLOD)']);
     return { title: t.name || (t.mmsi ? 'MMSI ' + t.mmsi : 'Unknown vessel'), cls: 'AIS · ' + (t.type || 'Vessel') + (t.dangerous ? ' · ⚠ DANGER' : ''), rows };
   }
 
@@ -2678,7 +2680,7 @@ class Component extends DCLogic {
       ['traffic', '🚢', 'Ship traffic density', 'EMODnet vessel density · AIS averages', 'rgba(255,149,0,.16)'],
       ['trails', '➰', 'AIS trails', 'Fading target tracks', 'rgba(130,150,170,.2)'],
       ['lights', '💡', 'Navigation lights', 'Charted lights · live blink', 'rgba(255,214,90,.2)'],
-      ['ais', '⬩', 'AIS targets', s.aisMode !== 'live' ? 'Simulated · CPA/TCPA' : s.aisSrc === 'kystverket' ? 'Live · Kystverket' : 'Live · aisstream.io', 'rgba(191,90,242,.16)'],
+      ['ais', '⬩', 'AIS targets', s.aisMode !== 'live' ? 'No live feed' : s.aisSrc === 'aisstream' ? 'Live · aisstream.io' : 'Live · Kystverket', 'rgba(191,90,242,.16)'],
     ];
     const sw = (on) => `width:42px;height:25px;border-radius:13px;background:${on ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;transition:background .18s;`;
     const knob = (on) => `position:absolute;top:2px;left:${on ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`;
@@ -2758,6 +2760,14 @@ class Component extends DCLogic {
       onCheckRoute: () => this.checkRoute(),
       onCpaLimit: (e) => { const v = +e.target.value; this.setState({ cpaLimit: v }); if (this.ros.vCpa) this.ros.vCpa.textContent = v.toFixed(2) + ' nm'; },
       onTcpaLimit: (e) => { const v = +e.target.value; this.setState({ tcpaLimit: v }); if (this.ros.vTcpa) this.ros.vTcpa.textContent = v + ' min'; },
+      aisEmpty: !(s.aisSummary || []).length,
+      aisEmptyText: (s.aisStatus === 'connected'
+        ? 'Live feed connected — no vessels reported in this area yet.'
+        : s.aisStatus === 'connecting' || s.aisStatus === 'reconnecting'
+          ? 'Connecting to the live AIS feed…'
+          : s.aisStatus === 'key error'
+            ? 'aisstream.io rejected the API key. Open Sources and check the key, or switch to Kystverket.'
+            : 'No live AIS feed. Open Sources to pick Kystverket or aisstream.io — simulated targets are never drawn.'),
       dangerCount: (s.aisSummary || []).filter(t => t.dangerous).length, dangerCountColor: (s.aisSummary || []).filter(t => t.dangerous).length ? '#FF3B30' : '#34C759',
       onToolPan: () => this.setTool('pan'), onToolRoute: () => this.setTool('route'), onToolAuto: () => { if (this.autoNav && s.autoMin) { this.setState({ autoMin: false }); } else { this.setState({ autoMin: false }); this.setTool('autoroute'); } }, onToolPick: () => this.setTool('pick'), onToolEbl: () => this.setTool('ebl'), onToolMob: () => this.dropMOB(),
       onToggleShipLock: () => { const u = !this.state.shipUnlocked; this.setState({ shipUnlocked: u, tool: 'pan' }); this.addAlarm('info', u ? 'Own-ship drag UNLOCKED — drag the ship symbol to reposition. Re-locks after one move.' : 'Own-ship drag locked.'); },
@@ -2822,7 +2832,7 @@ class Component extends DCLogic {
         // Kildevelger for AIS. Kystverket er aapne data uten nokkel og deles
         // av alle faner via kiosk-serveren; aisstream krever nokkel og taaler
         // bare EN samtidig tilkobling paa gratisnivaa.
-        const src = s.aisSrc || 'sim';
+        const src = s.aisSrc || 'kystverket';
         const seg = (on) => C(`flex:1;padding:6px 4px;border-radius:8px;border:none;background:${on ? 'var(--segon,#fff)' : 'transparent'};color:${on ? A : 'var(--muted,#8e8e93)'};font-size:10.5px;font-weight:700;cursor:pointer;box-shadow:${on ? '0 1px 3px rgba(0,0,0,.12)' : 'none'};font-family:inherit;`);
         const kvCfg = (window.__kioskAis && window.__kioskAis.kystverket) || {};
         const info = s.aisKvInfo;
@@ -2831,11 +2841,11 @@ class Component extends DCLogic {
           ? 'Kystverket open AIS (NLOD). No key, and ECDIS + radar can stay open at the same time. Requires that the site API reaches ' + (kvCfg.host || '153.44.253.27') + ':' + (kvCfg.port || 5631) + ' — fishing vessels under 15 m and leisure craft under 45 m are not in the open stream.'
           : src === 'aisstream'
           ? 'aisstream.io requires an API key. The free key allows only ONE concurrent connection — with ECDIS and radar open at the same time, one of them is rejected.'
-          : 'Simulated AIS fleet. No network, always something to show on screen.';
+          : 'Live AIS only — no simulated vessels. Nothing is drawn while the feed is down.';
         return {
           aisSrcIsStream: src === 'aisstream', aisSrcIsKv: src === 'kystverket', aisSrcHelp: help,
-          aisSegSim: seg(src === 'sim'), aisSegKv: seg(src === 'kystverket'), aisSegStream: seg(src === 'aisstream'),
-          onAisSrcSim: () => this.setAisSource('sim'), onAisSrcKv: () => this.setAisSource('kystverket'), onAisSrcStream: () => this.setAisSource('aisstream'),
+          aisSegKv: seg(src === 'kystverket'), aisSegStream: seg(src === 'aisstream'),
+          onAisSrcKv: () => this.setAisSource('kystverket'), onAisSrcStream: () => this.setAisSource('aisstream'),
           aisKvState: stateTxt[s.aisStatus] || s.aisStatus,
           aisKvCount: info ? (info.shown + ' on chart · ' + info.total + ' along the coast') : '—',
           aisKvHost: (kvCfg.host || '153.44.253.27') + ' : ' + (kvCfg.port || 5631),
@@ -2851,9 +2861,9 @@ class Component extends DCLogic {
           }
         };
       })(),
-      aisKeyVal: this._aisKeyInput || '', onAisKeyInput: (e) => { this._aisKeyInput = e.target.value; }, onAisConnect: () => { (s.aisMode === 'live') ? this.setAisSource('sim') : this.setAisSource('aisstream'); },
+      aisKeyVal: this._aisKeyInput || '', onAisKeyInput: (e) => { this._aisKeyInput = e.target.value; }, onAisConnect: () => { (s.aisMode === 'live') ? this.setAisSource('kystverket') : this.setAisSource('aisstream'); },
       aisBtnLabel: s.aisMode === 'live' ? 'Stop' : 'Connect', aisBtnStyle: C(`padding:7px 12px;border-radius:9px;border:none;background:${s.aisMode === 'live' ? '#FF3B30' : A};color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;`),
-      aisStatusLabel: ({ off: 'simulated', connecting: 'connecting…', connected: 'live', reconnecting: 'reconnecting…', error: 'error', 'key error': 'invalid key' }[s.aisStatus] || s.aisStatus), aisStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${s.aisStatus === 'connected' ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${s.aisStatus === 'connected' ? '#34C759' : 'var(--muted,#8e8e93)'};`),
+      aisStatusLabel: ({ off: 'no feed', connecting: 'connecting…', connected: 'live', reconnecting: 'reconnecting…', error: 'error', 'key error': 'invalid key' }[s.aisStatus] || s.aisStatus), aisStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${s.aisStatus === 'connected' ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${s.aisStatus === 'connected' ? '#34C759' : 'var(--muted,#8e8e93)'};`),
       onToggleGps: () => { (this.gpsMode || s.gpsStatus === 'acquiring') ? this.stopGps() : this.startGps(); }, gpsSwitch: C(`width:42px;height:25px;border-radius:13px;border:none;background:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;cursor:pointer;padding:0;`), gpsKnob: C(`position:absolute;top:2px;left:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`), gpsStatusLabel: ({ off: 'off', acquiring: 'acquiring…', fix: 'position fix', denied: 'permission denied', unavailable: 'unavailable' }[s.gpsStatus] || s.gpsStatus),
       showIntro: s.showIntro,
       proxyOpen: s.proxyOpen, onToggleProxy: () => this.setState({ proxyOpen: !s.proxyOpen }), proxyChevron: s.proxyOpen ? '▾' : '▸',
@@ -2861,9 +2871,9 @@ class Component extends DCLogic {
       onProxySave: () => { this.proxyUrl = (this._proxyInput || '').trim(); this._proxySaved = true; this.saveSrcCfg(); this.setState({ srcVer: (s.srcVer || 0) + 1 }); this.fetchMet(); this.fetchAlerts(); this.fetchTide(); },
       proxyStatusLabel: this.proxyUrl ? 'active' : 'direct', proxyStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${this.proxyUrl ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${this.proxyUrl ? '#34C759' : 'var(--muted,#8e8e93)'};`),
       srcRows: (() => { const st = this.srcStatus || {}; const lab = { ok: 'live', wait: 'waiting…', error: 'error', blocked: 'CORS-blocked · needs proxy' }; const dot = { ok: '#34C759', wait: '#FF9F0A', error: '#FF3B30', blocked: '#FF3B30' };
-        const aisK = s.aisMode === 'live' ? (s.aisStatus === 'connected' ? 'ok' : 'wait') : 'sim';
-        return [ { name: 'Kartverket · sea charts', k: st.chart || 'wait' }, { name: 'MET Norway · yr weather', k: st.met || 'wait' }, { name: 'Kartverket · tide levels', k: st.tide || 'wait' }, { name: s.aisSrc === 'kystverket' ? 'Kystverket · open AIS' : s.aisSrc === 'aisstream' ? 'aisstream.io · live AIS' : 'AIS · simulert', k: aisK } ]
-          .map(r => ({ name: r.name, dot: r.k === 'sim' ? 'var(--muted,#8e8e93)' : (dot[r.k] || '#FF9F0A'), status: r.k === 'sim' ? 'simulated · add API key' : (lab[r.k] || r.k) })); })(),
+        const aisK = s.aisStatus === 'connected' ? 'ok' : (s.aisStatus === 'error' || s.aisStatus === 'key error') ? 'error' : 'wait';
+        return [ { name: 'Kartverket · sea charts', k: st.chart || 'wait' }, { name: 'MET Norway · yr weather', k: st.met || 'wait' }, { name: 'Kartverket · tide levels', k: st.tide || 'wait' }, { name: s.aisSrc === 'aisstream' ? 'aisstream.io · live AIS' : 'Kystverket · open AIS', k: aisK } ]
+          .map(r => ({ name: r.name, dot: dot[r.k] || '#FF9F0A', status: lab[r.k] || r.k })); })(),
     };
   }
   setSafety(k, v) { const s = this.state; if (k === 'safetyC') v = Math.min(Math.max(v, s.shallowC), s.deepC); else if (k === 'shallowC') v = Math.min(v, s.safetyC); else if (k === 'deepC') v = Math.max(v, s.safetyC); this.setState({ [k]: v }); const lbl = { shallowC: 'vShallow', safetyC: 'vSafety', deepC: 'vDeep', safetyD: 'vSafetyD' }[k]; if (this.ros[lbl]) this.ros[lbl].textContent = v + ' m'; }
@@ -2898,60 +2908,15 @@ class Component extends DCLogic {
         ui: { palette: s.palette, base: s.base, orient: s.orient, displayCat: s.displayCat, layers: s.layers, followShip: s.followShip, rightTab: s.rightTab, rightOpen: s.rightOpen }
       };
       localStorage.setItem('mrd_ship', JSON.stringify(snap));
-      // The AIS picture is shared with the radar page (and the next boot) via
-      // mrd_ais, and rides along to the server so a radar on another screen or
-      // browser sees the same vessels. Written only when the fleet actually has
-      // content, so an empty live list mid-connect can't wipe a usable picture.
-      let aisDoc = null;
-      try {
-        // Sort by distance from own ship before cutting at 40: the shared cache
-        // (and therefore the radar) must carry the vessels in the VICINITY, not
-        // an arbitrary slice of the whole coast's live traffic.
-        const fleet = (this.aisArr() || []).filter(t => t.lat != null)
-          .sort((a, b) => this.distNm(o, a) - this.distNm(o, b)).slice(0, 40).map(t => ({
-          lat: t.lat, lon: t.lon, cog: (t.cog != null ? t.cog : t.hdg) || 0, sog: t.sog || 0,
-          hdg: (t.hdg != null ? t.hdg : t.cog) || 0, name: t.name || '', type: t.type || 'Vessel',
-          col: t.col, mmsi: t.mmsi
-        }));
-        if (fleet.length) { aisDoc = { savedAt: Date.now(), mode: s.aisMode, targets: fleet }; localStorage.setItem('mrd_ais', JSON.stringify(aisDoc)); }
-      } catch (e) {}
+      // AIS-bildet deles IKKE videre herfra. Radaren henter de samme ekte
+      // maalene fra /ais/targets selv, saa ingen skjerm viser dodregnede
+      // fartoy fra en gammel cache.
+      try { localStorage.removeItem('mrd_ais'); } catch (e) {}
       this.persistTrack();
-      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null, targets: aisDoc });
+      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null, targets: null });
       if (unloading && navigator.sendBeacon) navigator.sendBeacon('/api/ecdis-state', new Blob([doc], { type: 'application/json' }));
       else fetch('/api/ecdis-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: doc, keepalive: !!unloading }).catch(() => {});
     } catch (e) {}
-  }
-  // Siste lagrede AIS-bilde (fra denne eller radarsiden), dodregnet frem
-  // etter veggklokken (maks 20 min) saa posisjonene er plausible.
-  loadAisCache() {
-    try {
-      const raw = localStorage.getItem('mrd_ais'); if (!raw) return null;
-      const c = JSON.parse(raw);
-      if (!c || !c.savedAt || !c.targets || !c.targets.length) return null;
-      const age = (Date.now() - c.savedAt) / 1000;
-      if (age > 3600) return null;
-      const adv = Math.min(age, 1200);
-      const targets = c.targets.filter(t => t && t.lat != null).map(t => {
-        const p = (t.sog > 0.2 && t.cog != null) ? this.moveLL(t.lat, t.lon, t.cog, t.sog * adv / 3600) : t;
-        return Object.assign({}, t, { lat: p.lat, lon: p.lon });
-      });
-      return targets.length ? { mode: c.mode || 'sim', savedAt: c.savedAt, targets } : null;
-    } catch (e) { return null; }
-  }
-  // Erstatter den genererte sim-flaaten med sist viste flaate, saa ECDIS og
-  // radar viser SAMME baater ogsaa naar sidene aapnes etter hverandre.
-  // Fartoy MED mmsi horer til live-laget og varmstartes i connectAis i
-  // stedet — tas de inn her ogsaa, vises de dobbelt i blandet modus.
-  loadAisState() {
-    const c = this.loadAisCache();
-    if (!c) return;
-    const sim = c.targets.filter(t => t.mmsi == null);
-    if (!sim.length) return;
-    this.ais = sim.map(t => ({
-      lat: t.lat, lon: t.lon, name: t.name || 'VESSEL', type: t.type || 'Vessel',
-      hdg: (t.hdg != null ? t.hdg : t.cog) || 0, cog: (t.cog != null ? t.cog : t.hdg) || 0,
-      sog: t.sog || 0, col: t.col || '#0A84FF', dangerous: false
-    }));
   }
   loadShipState() {
     try {

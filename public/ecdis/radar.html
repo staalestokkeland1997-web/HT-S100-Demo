@@ -298,11 +298,6 @@
   }
   adoptShip(loadJson("mrd_ship"));
 
-  // Nyeste AIS-bilde radaren har tatt imot (localStorage, storage-hendelse
-  // eller serveren). Holder styr paa savedAt saa et eldre snapshot aldri kan
-  // overskrive et nyere — uansett hvilken av kanalene det kom fra.
-  var fleetAt = 0;
-
   var live = null, liveAt = 0, liveTargets = null, liveTargetsAt = 0;
   try {
     var chan = new BroadcastChannel("meridian-helm");
@@ -310,23 +305,26 @@
       var m = e.data;
       if (!m || m.type !== "state" || !m.ship) return;
       live = m.ship; liveAt = Date.now();
-      // Adopter ECDIS' maalliste ogsaa naar den er tom — radaren skal speile
-      // ECDIS eksakt saa lenge den siden er aapen og sender.
-      if (m.targets) { liveTargets = m.targets; liveTargetsAt = Date.now(); }
+      // ECDIS' maalliste er ogsaa EKTE AIS (den har ingen simulert flaate),
+      // og brukes bare naar radarens egen henting er torr — typisk naar ECDIS
+      // kjorer paa aisstream.io, der gratisnokkelen tillater EN tilkobling og
+      // radaren derfor ikke kan koble seg opp selv. Kun ferske meldinger; noe
+      // dodregnet fra en gammel cache tas aldri inn.
+      if (m.targets && m.targets.length) { liveTargets = m.targets; liveTargetsAt = Date.now(); }
     };
   } catch (e) {}
 
-  // Server-synk: radaren viser samme seilas og AIS-bilde som ECDIS ogsaa naar
-  // ECDIS kjorer paa en annen skjerm/nettleser eller nettopp ble lukket —
-  // /api/ecdis-state polles hvert 5. sekund og nyere snapshots adopteres.
-  // storage-hendelser gir umiddelbar synk fra ECDIS i samme nettleserprofil.
-  // Naar ECDIS er aapen samtidig i samme nettleser overtar BroadcastChannel.
+  // Server-synk: radaren viser samme seilas som ECDIS ogsaa naar ECDIS kjorer
+  // paa en annen skjerm/nettleser eller nettopp ble lukket — /api/ecdis-state
+  // polles hvert 5. sekund og nyere snapshots adopteres. storage-hendelser gir
+  // umiddelbar synk fra ECDIS i samme nettleserprofil. Naar ECDIS er aapen
+  // samtidig i samme nettleser overtar BroadcastChannel. AIS-maalene er ikke
+  // med her: de hentes fra stroemmen direkte.
   function pollServer() {
     fetch("/api/ecdis-state").then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
       if (!st) return;
       if (st.route) adoptRoute(st.route);
       if (st.ship && !(live && Date.now() - liveAt < 4000)) adoptShip(st.ship);
-      if (st.targets && !(liveTargets && Date.now() - liveTargetsAt < 6000)) adoptFleet(st.targets);
     }).catch(function () {});
   }
   pollServer();
@@ -334,7 +332,6 @@
   window.addEventListener("storage", function (e) {
     if (!e || !e.key) return;
     if (e.key === "mrd_ship") adoptShip(loadJson("mrd_ship"));
-    else if (e.key === "mrd_ais") adoptFleet(loadJson("mrd_ais"));
     else if (e.key === "mrd_route") adoptRoute(loadJson("mrd_route"));
   });
 
@@ -364,122 +361,101 @@
     }
   }
 
-  // ================= AIS-maal: SAMME bilde som ECDIS =================
-  // ECDIS lagrer flaaten sin (sim eller live) i mrd_ais hvert 5. sekund.
-  // Radaren leser samme bilde og dodregner det fremover, saa begge skjermene
-  // viser de samme baatene ogsaa naar sidene aapnes etter hverandre. Uten
-  // cache (forste boot) seedes NOYAKTIG samme flaate som ECDIS genererer.
-  var simTargets = [];
-  var cacheMode = "sim";
-  // Leser et mrd_ais-dokument og dodregner baatene frem etter veggklokken
-  // (maks 20 min). Samme leser brukes for localStorage-cachen, storage-
-  // hendelser og serversnapshotet, saa alle tre kanalene gir identisk bilde.
-  function fleetFromDoc(cache) {
-    if (!(cache && cache.savedAt && cache.targets && cache.targets.length && Date.now() - cache.savedAt < 3600e3)) return null;
-    var adv = Math.min((Date.now() - cache.savedAt) / 1000, 1200);
-    var out = [];
-    for (var i = 0; i < cache.targets.length; i++) {
-      var t = cache.targets[i];
-      if (!t || t.lat == null) continue;
-      var cog = t.cog != null ? t.cog : t.hdg || 0;
-      var p = t.sog > 0.2 ? moveLL(t.lat, t.lon, cog, t.sog * adv / 3600) : t;
-      out.push({ name: t.name || "VESSEL", lat: p.lat, lon: p.lon, cog: cog, sog: t.sog || 0, hdg: t.hdg != null ? t.hdg : cog, type: t.type, col: t.col, mmsi: t.mmsi });
-    }
-    if (!out.length) return null;
-    cacheMode = cache.mode || cacheMode;
-    return out;
+  // ================= AIS-maal: KUN EKTE AIS =================
+  // Radaren henter maalene sine direkte fra AIS-broen i side-API-et
+  // (/ais/targets) — samme ekte Kystverket-stroem som ECDIS bruker. Broen
+  // holder EN TCP-oppkobling og deler den ut, saa ECDIS og radar kan staa
+  // aapne samtidig. Det finnes ingen simulert flaate her: naar stroemmen er
+  // nede tegnes ingen ekko, for et tomt skop er sant og oppdiktede skip er
+  // det ikke.
+  var aisTargets = [];
+  var aisAt = 0;                        // naar siste svar kom
+  var aisState = "off";                 // broens tilstand, vist i SRC-feltet
+  var aisFails = 0;
+  var aisBusy = false;
+  function aisBase() { return /^https?:$/.test(location.protocol) ? location.origin : ""; }
+  // Utsnitt rundt eget skip, romslig nok til aa daekke skopet paa lengste
+  // rekkevidde. Broen kapper svaret paa de ferskeste maalene, saa en boks
+  // over hele kysten ville kunne skyve ut nettopp de naere fartoyene.
+  function aisBox() {
+    var padNm = Math.max(24, ((state && state.range) || 6) * 3);
+    var dLat = padNm / 60;
+    var dLon = dLat / Math.max(0.25, Math.cos(own.lat * Math.PI / 180));
+    return [
+      (own.lat - dLat).toFixed(4), (own.lon - dLon).toFixed(4),
+      (own.lat + dLat).toFixed(4), (own.lon + dLon).toFixed(4)
+    ].join(",");
   }
-  function fleetFromCache() { return fleetFromDoc(loadJson("mrd_ais")); }
-  // Adopterer et NYERE bilde enn det radaren allerede har. Brukes av
-  // storage-hendelser (samme nettleser) og /api/ecdis-state (annen skjerm
-  // eller nettleser), saa radaren viser ECDIS' baater ogsaa naar sidene ikke
-  // er aapne samtidig. Speiles en aapen ECDIS direkte, eier BroadcastChannel
-  // bildet og adopsjonen hoppes over av kallstedene.
-  function adoptFleet(doc) {
-    if (!doc || !doc.savedAt || doc.savedAt <= fleetAt) return false;
-    var fleet = fleetFromDoc(doc);
-    if (!fleet) return false;
-    fleetAt = doc.savedAt;
-    simTargets = fleet;
-    return true;
+  function shipTypeName(c) {
+    if (c == null) return "Vessel";
+    if (c >= 60 && c <= 69) return "Passenger";
+    if (c >= 70 && c <= 79) return "Cargo";
+    if (c >= 80 && c <= 89) return "Tanker";
+    if (c >= 40 && c <= 49) return "HSC";
+    if (c === 30) return "Fishing";
+    if (c === 35) return "Military";
+    if (c === 36) return "Sailing";
+    if (c === 37) return "Pleasure";
+    if (c === 50) return "Pilot";
+    if (c === 51) return "SAR";
+    if (c === 52) return "Tug";
+    return "Vessel";
   }
-  (function seedTargets() {
-    var cached = loadJson("mrd_ais");
-    simTargets = fleetFromDoc(cached) || [];
-    if (simTargets.length) fleetAt = cached.savedAt;
-    if (!simTargets.length) {
-      // Samme startflaate som ECDIS' initShip() — navn, posisjon, kurs, fart, type, farge.
-      var FLEET = [
-        [60.18, 5.00, "NORDIC STAR", 245, 12.5, "Cargo", "#0A84FF"], [60.05, 5.05, "BERGEN PEARL", 30, 22, "HSC", "#34C759"],
-        [59.80, 4.78, "GAS PIONEER", 150, 11, "Tanker", "#FF9F0A"], [59.40, 5.10, "HAVFISK", 95, 5.5, "Fishing", "#BF5AF2"],
-        [60.33, 4.85, "FJORD PILOT", 200, 14, "Pilot", "#FF375F"], [59.55, 4.62, "STENA LINK", 75, 18, "Ro-Ro", "#30B0C7"]
-      ];
-      for (var f = 0; f < FLEET.length; f++) {
-        simTargets.push({ lat: FLEET[f][0], lon: FLEET[f][1], name: FLEET[f][2], cog: FLEET[f][3], hdg: FLEET[f][3], sog: FLEET[f][4], type: FLEET[f][5], col: FLEET[f][6] });
-      }
-    }
-  })();
-  // Ren dodregning langs COG — samme fremskriving som ECDIS gjor for baatene
-  // sine, saa bildet holder seg likt naar man bytter mellom sidene.
-  var fleetAcc = 0;
+  var AIS_COLS = ["#0A84FF", "#34C759", "#FF9F0A", "#BF5AF2", "#FF375F", "#30B0C7", "#FFD60A"];
+  function aisColor(mmsi) { return AIS_COLS[Math.abs(mmsi | 0) % AIS_COLS.length]; }
+  function pollAis() {
+    var base = aisBase();
+    if (!base || aisBusy) return;
+    aisBusy = true;
+    fetch(base + "/ais/targets?bbox=" + aisBox(), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (snap) {
+        var out = [], src = snap.targets || [];
+        for (var i = 0; i < src.length; i++) {
+          var m = src[i];
+          if (m.lat == null || m.lon == null) continue;
+          var cog = m.cog != null ? m.cog : (m.hdg || 0);
+          out.push({
+            mmsi: m.mmsi, lat: m.lat, lon: m.lon,
+            sog: m.sog || 0, cog: cog, hdg: m.hdg != null ? m.hdg : cog,
+            name: m.name || ("MMSI " + m.mmsi),
+            type: m.shipType != null ? shipTypeName(m.shipType) : "Vessel",
+            col: aisColor(m.mmsi)
+          });
+        }
+        aisTargets = out;
+        aisAt = Date.now();
+        aisState = snap.state || "connected";
+        if (aisFails >= 4) addAlarm("AIS FEED RESTORED", "info");
+        aisFails = 0;
+      })
+      .catch(function () {
+        aisState = "error";
+        if (++aisFails === 4) addAlarm("AIS FEED UNAVAILABLE — NO TARGETS", "warn");
+      })
+      .then(function () { aisBusy = false; });
+  }
+  pollAis();
+  setInterval(pollAis, 3000);
+
+  // Mellom svarene dodregnes maalene langs egen COG, slik en radar glatter
+  // bevegelsen mellom AIS-meldinger. Neste svar setter posisjonen tilbake til
+  // det fartoyet faktisk rapporterer — kursen deres roeres aldri.
   function targetsTick(dt) {
-    for (var i = 0; i < simTargets.length; i++) {
-      var t = simTargets[i];
-      t.hdg = t.cog;
+    var list = targets();
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
       if (!t.sog) continue;
       var step = moveLL(t.lat, t.lon, t.cog, t.sog * dt / 3600);
       t.lat = step.lat; t.lon = step.lon;
     }
-    // Flaaten folger eget skip (samme oppforsel som ECDIS): baater som er
-    // sakket > 30 nm akterut respawnes 8-18 nm foran baugen med kryssende
-    // kurs, saa skopet alltid har trafikk ogsaa paa lange transitter.
-    if (liveTargets && Date.now() - liveTargetsAt < 6000) return;
-    fleetAcc += dt;
-    if (fleetAcc < 5) return;
-    fleetAcc = 0;
-    for (var j = 0; j < simTargets.length; j++) {
-      var s2 = simTargets[j];
-      if (distNm(s2, own) <= 30) continue;
-      var p = moveLL(own.lat, own.lon, (own.cog || 0) + (Math.random() * 120 - 60), 8 + Math.random() * 10);
-      s2.lat = p.lat; s2.lon = p.lon;
-      s2.cog = s2.hdg = ((own.cog || 0) + 100 + Math.random() * 160) % 360;
-    }
   }
+  function relayFresh() { return !!(liveTargets && liveTargets.length && Date.now() - liveTargetsAt < 6000); }
   function targets() {
-    if (liveTargets && Date.now() - liveTargetsAt < 6000) return liveTargets;
-    return simTargets;
+    if (aisTargets.length) return aisTargets;
+    return relayFresh() ? liveTargets : [];
   }
-  // Naar direktespeilingen av en aapen ECDIS opphorer (siden ble lukket),
-  // re-seedes flaaten fra cachen ECDIS nettopp skrev ved lukking, saa
-  // overgangen er somlos og medlemslisten fersk.
-  var liveWasFresh = false;
-  setInterval(function () {
-    var fresh = !!(liveTargets && Date.now() - liveTargetsAt < 6000);
-    if (liveWasFresh && !fresh) {
-      var doc = loadJson("mrd_ais");
-      var fleet = fleetFromDoc(doc);
-      if (fleet) { simTargets = fleet; fleetAt = doc.savedAt; }
-    }
-    liveWasFresh = fresh;
-  }, 1000);
-  // Radaren skriver ogsaa bildet tilbake til mrd_ais (men ikke mens en aapen
-  // ECDIS speiles direkte — da skriver ECDIS selv), slik at neste side som
-  // aapnes fortsetter med de samme baatene der de faktisk var.
-  function persistFleet() {
-    if (liveTargets && Date.now() - liveTargetsAt < 6000) return;
-    if (!simTargets.length) return;
-    fleetAt = Date.now();
-    try {
-      localStorage.setItem("mrd_ais", JSON.stringify({
-        savedAt: fleetAt, mode: cacheMode,
-        targets: simTargets.slice(0, 40).map(function (t) {
-          return { lat: t.lat, lon: t.lon, cog: t.cog || 0, sog: t.sog || 0, hdg: t.hdg != null ? t.hdg : t.cog, name: t.name || "", type: t.type, col: t.col, mmsi: t.mmsi };
-        })
-      }));
-    } catch (e) {}
-  }
-  setInterval(persistFleet, 5000);
-  window.addEventListener("pagehide", persistFleet);
+  function aisLive() { return targets().length > 0 && (aisTargets.length ? Date.now() - aisAt < 15000 : true); }
 
   // ================= Avledede live-data for venstre datakolonne =================
   // Alt foelger demoens aand: ROT maales av faktisk kursendring, loggen
@@ -1290,7 +1266,8 @@
       { l: "SOG", v: own.sog.toFixed(1) + " KN" },
       { l: "COG", v: fmt3(own.cog) },
       { l: "POS", v: fmtPos(own.lat, own.lon), small: true },
-      { l: "SRC", v: (live && Date.now() - liveAt < 4000) ? "ECDIS LIVE" : (Date.now() - snapAt < 15000 ? "ECDIS SYNC" : "SIM · GYRO OK") }
+      { l: "SRC", v: (live && Date.now() - liveAt < 4000) ? "ECDIS LIVE" : (Date.now() - snapAt < 15000 ? "ECDIS SYNC" : "GYRO OK") },
+      { l: "AIS", v: aisLive() ? (aisTargets.length ? "LIVE · " + aisTargets.length + " TGT" : "ECDIS · " + liveTargets.length + " TGT") : (aisState === "error" ? "NO FEED" : "WAIT") }
     ], 212);
 
     var cur = state.cursor;
@@ -1633,7 +1610,8 @@
     get own() { return own; },
     targets: targets,
     get snapAt() { return snapAt; },
-    get fleetAt() { return fleetAt; },
+    get aisAt() { return aisAt; },
+    get aisState() { return aisState; },
     state: state
   };
 })();

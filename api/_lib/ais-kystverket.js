@@ -215,7 +215,7 @@ function decode(bits, len) {
   }
 
   // Navigasjonsinnretninger. Kystverkets eget AIS-nett sender ekte AtoN
-  // (lykter, staker, raconer) - langt mer interessant enn simulerte merker.
+  // (lykter, staker, raconer).
   if (type === 21) {
     if (len < 272) return null;
     const lon = coord(sbits(bits, 164, 28), 0x6791ac0);
@@ -298,8 +298,8 @@ class KystverketAis {
   }
 
   // Venter paa at stroemmen faktisk leverer. Uten den ville forste poll etter
-  // en kaldstart svare med tom liste, og klienten ville falle tilbake til
-  // simulert AIS selv om Kystverket er tilgjengelig.
+  // en kaldstart svare med tom liste, og klienten ville tegnet et tomt kart
+  // selv om Kystverket er tilgjengelig.
   ready(waitMs) {
     if (this.targets.size > 0) return Promise.resolve(true);
     // Er stroemmen alt kjent doed, svar med en gang. Klienten poller hvert
