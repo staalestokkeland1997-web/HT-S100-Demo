@@ -1324,7 +1324,6 @@ class Component extends DCLogic {
     if (!cfg.aisKey) { try { const old = localStorage.getItem('mrd_ais_key'); if (old) { cfg.aisKey = old; localStorage.setItem('mrd_sources', JSON.stringify(cfg)); localStorage.removeItem('mrd_ais_key'); } } catch (e) {} }
     this.srcCfg = cfg;
     this._aisKeyInput = cfg.aisKey || '';
-    this._aisSrcSaved = cfg.aisSrc || '';
     this._proxyInput = cfg.proxyUrl || '';
     this.proxyUrl = cfg.proxyUrl || '';
     this.srcStatus = { chart: 'wait', met: 'wait', tide: 'wait' };
@@ -1332,7 +1331,7 @@ class Component extends DCLogic {
   // Persist the COMMITTED proxy value, not the raw input field — otherwise a
   // half-typed proxy URL gets silently persisted whenever the AIS socket
   // opens, changing request routing on the next reload without a Save.
-  saveSrcCfg() { try { const stored = (this.srcCfg && this.srcCfg.proxyUrl) || ''; this.srcCfg = { ...(this.srcCfg || {}), aisKey: this._aisKeyInput || '', aisSrc: this.state.aisSrc || 'kystverket', proxyUrl: this._proxySaved ? (this._proxyInput || '').trim() : stored }; this._proxySaved = false; localStorage.setItem('mrd_sources', JSON.stringify(this.srcCfg)); } catch (e) {} }
+  saveSrcCfg() { try { const stored = (this.srcCfg && this.srcCfg.proxyUrl) || ''; this.srcCfg = { ...(this.srcCfg || {}), aisKey: this._aisKeyInput || '', proxyUrl: this._proxySaved ? (this._proxyInput || '').trim() : stored }; delete this.srcCfg.aisSrc; this._proxySaved = false; localStorage.setItem('mrd_sources', JSON.stringify(this.srcCfg)); } catch (e) {} }
   metBase() { return ((this.srcCfg && this.srcCfg.metBase) || 'https://api.met.no').replace(/\/$/, ''); }
   tideBase() { return ((this.srcCfg && this.srcCfg.tideBase) || 'https://vannstand.kartverket.no').replace(/\/$/, ''); }
   detectProxy() {
@@ -1481,16 +1480,17 @@ class Component extends DCLogic {
   async bootAisSource() {
     const cfg = window.__kioskAis || {};
     const kvOn = !cfg.kystverket || cfg.kystverket.enabled !== false;
-    let want = this._aisSrcSaved || '';
-    if (want === 'sim') want = '';
-    if (!want) {
-      const wanted = cfg.source || 'auto';
-      if (wanted === 'auto' || wanted === 'sim') {
-        // Prov Kystverket forst - den trenger ingen nokkel og taaler flere
-        // faner. Svarer den ikke innen noen sekunder, fall til aisstream.
-        want = (kvOn && await this.probeKystverket(6000)) ? 'kystverket'
-             : (this._aisKeyInput ? 'aisstream' : 'kystverket');
-      } else want = wanted;
+    // Lagret kildevalg brukes IKKE ved boot: en gammel lagret verdi laaste
+    // appen til feil kilde ('sim' for, 'aisstream' etter en fallback) og
+    // Kystverket ble aldri provd igjen. Boot velger alltid ut fra hva som
+    // faktisk svarer NAA; bare server-configen kan pinne en kilde.
+    let want = cfg.source || 'auto';
+    if (want === 'sim') want = 'auto';
+    if (want === 'auto') {
+      // Prov Kystverket forst - den trenger ingen nokkel og taaler flere
+      // faner. Svarer den ikke innen noen sekunder, fall til aisstream.
+      want = (kvOn && await this.probeKystverket(6000)) ? 'kystverket'
+           : (this._aisKeyInput ? 'aisstream' : 'kystverket');
     }
     if (want === 'kystverket' && !kvOn) want = 'aisstream';
     this.setAisSource(want, true);
@@ -1584,6 +1584,23 @@ class Component extends DCLogic {
     } finally { this._aisKvBusy = false; }
   }
 
+  // Motsatt vei: aisstream er "connected", men har ikke levert ETT fartoy paa
+  // 45 s — dekningen er tynn i norske fjorder. Svarer Kystverket-broen naa,
+  // bytt dit. Kjorres bare naar kilden ble valgt automatisk.
+  async aisRecoverToKv() {
+    if (this._kvRecovering || this._aisSrcPinned || this.state.aisSrc !== 'aisstream') return;
+    const cfg = window.__kioskAis || {};
+    if (cfg.kystverket && cfg.kystverket.enabled === false) return;
+    this._kvRecovering = true;
+    try {
+      const st = await this.probeKystverket(4000);
+      if (!st || this.state.aisSrc !== 'aisstream') return;
+      if (Object.values(this.aisLive || {}).some(t => t.lat != null)) return;
+      this.addAlarm('info', 'Live AIS - aisstream.io has delivered no vessels here. Switching to Kystverket (' + st.targets + ' vessels cached).');
+      this.setAisSource('kystverket', true);
+    } finally { this._kvRecovering = false; }
+  }
+
   // Broen svarer, men Kystverket-stroemmen leverer ingenting (typisk: utgaaende
   // TCP mot 5631 er stengt i kjoremiljoet). Da byttes det til aisstream.io hvis
   // det finnes en nokkel — fortsatt EKTE AIS, bare en annen leverandor. Har
@@ -1614,7 +1631,12 @@ class Component extends DCLogic {
       ws.onclose = () => { if (this.aisKey && this.state.aisStatus !== 'key error') { this.setState({ aisStatus: 'reconnecting' }); clearTimeout(this._aisReWS); this._aisReWS = setTimeout(() => this.connectAis(this.aisKey), 4000); } };
       this.setState({ aisStatus: 'connecting', aisMode: 'live' });
       clearInterval(this._aisWatch);
-      this._aisWatch = setInterval(() => { if (this.aisKey && this.state.aisStatus === 'connected' && Date.now() - (this._aisLastMsg || 0) > 90000) { try { this.aisWs && this.aisWs.close(); } catch (e) {} } }, 30000);
+      this._aisStreamStart = Date.now();
+      this._aisWatch = setInterval(() => {
+        if (!this.aisKey) return;
+        if (this.state.aisStatus === 'connected' && Date.now() - (this._aisLastMsg || 0) > 90000) { try { this.aisWs && this.aisWs.close(); } catch (e) {} }
+        if (this.state.aisStatus === 'connected' && Date.now() - (this._aisStreamStart || 0) > 45000 && !Object.values(this.aisLive || {}).some(t => t.lat != null)) this.aisRecoverToKv();
+      }, 30000);
     } catch (e) { this.setState({ aisStatus: 'error' }); }
   }
   disconnectAis() { const kv = this._aisKvOn; this.stopKystverket(); clearTimeout(this._aisReWS); clearInterval(this._aisWatch); const k = this.aisKey; this.aisKey = null; if (this.aisWs) { try { this.aisWs.onclose = null; this.aisWs.close(); } catch (e) {} this.aisWs = null; } if (k || kv) { this.aisLive = null; this.setState({ aisMode: 'off', aisStatus: 'off' }); } }

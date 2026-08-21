@@ -5,7 +5,9 @@
   "rewrites": [
     { "source": "/", "destination": "/app.html" },
     { "source": "/proxy", "destination": "/api/proxy" },
-    { "source": "/ais/:path*", "destination": "/api/ais/:path*" },
+    { "source": "/ais/:path*", "destination": "/api/ais?sub=:path*" },
+    { "source": "/api/ais/:path*", "destination": "/api/ais?sub=:path*" },
+    { "source": "/api/admin/:path*", "destination": "/api/admin?sub=:path*" },
     { "source": "/favicon.ico", "destination": "/assets/logo.svg" }
   ],
   "headers": [
