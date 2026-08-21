@@ -23,8 +23,10 @@
     xhr.open("GET", "/api/config", false);
     xhr.send(null);
     if (xhr.status === 200) {
-      var keys = (JSON.parse(xhr.responseText) || {}).apiKeys || {};
+      var cfg = JSON.parse(xhr.responseText) || {};
+      var keys = cfg.apiKeys || {};
       window.__kioskKeys = keys;
+      window.__kioskAis = cfg.ais || null;
       if (keys.aisstream) {
         var sources = {};
         try { sources = JSON.parse(localStorage.getItem("mrd_sources") || "{}") || {}; } catch (e) {}
@@ -74,7 +76,7 @@
     <canvas ref="{{ canvasRef }}" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;"></canvas>
   </div>
 
-  <div style="position:absolute;left:50%;bottom:5px;transform:translateX(-50%);z-index:4;font-size:9px;color:var(--attr,rgba(70,80,90,.8));background:var(--attrbg,rgba(255,255,255,.55));padding:2px 9px;border-radius:7px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none;">© Kartverket charts · OpenSeaMap · EMODnet Bathymetry</div>
+  <div style="position:absolute;left:50%;bottom:5px;transform:translateX(-50%);z-index:4;font-size:9px;color:var(--attr,rgba(70,80,90,.8));background:var(--attrbg,rgba(255,255,255,.55));padding:2px 9px;border-radius:7px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none;">© Kartverket charts · OpenSeaMap · EMODnet Bathymetry · build 0821-3</div>
 
   <sc-if value="{{ showIntro }}" hint-placeholder-val="{{ false }}">
     <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;{{ glass }}padding:10px 18px;border-radius:15px;font-size:11.5px;font-weight:600;color:var(--ink,#1c1c1e);white-space:nowrap;pointer-events:none;">Drag to pan · Pinch or scroll to zoom · <b style="color:var(--accent,#0A84FF);">Plan route</b> + tap the chart to build a route</div>
@@ -180,11 +182,28 @@
                 <span style="{{ aisStatusStyle }}">{{ aisStatusLabel }}</span>
               </button>
               <sc-if value="{{ aisKeyOpen }}" hint-placeholder-val="{{ false }}">
-                <div style="display:flex;gap:6px;margin-top:9px;">
-                  <input type="password" placeholder="aisstream.io API key" defaultValue="{{ aisKeyVal }}" onInput="{{ onAisKeyInput }}" style="flex:1;min-width:0;background:var(--seg,rgba(118,118,128,.14));border:0.5px solid var(--hair,rgba(60,60,67,.15));border-radius:9px;padding:7px 10px;font-size:11px;color:var(--ink,#1c1c1e);font-family:inherit;outline:none;"/>
-                  <button onClick="{{ onAisConnect }}" style="{{ aisBtnStyle }}">{{ aisBtnLabel }}</button>
+                <div style="display:flex;gap:3px;background:var(--seg,rgba(118,118,128,.12));border-radius:10px;padding:3px;margin-top:9px;">
+                  <button onClick="{{ onAisSrcSim }}" style="{{ aisSegSim }}">Simulated</button>
+                  <button onClick="{{ onAisSrcKv }}" style="{{ aisSegKv }}">Kystverket</button>
+                  <button onClick="{{ onAisSrcStream }}" style="{{ aisSegStream }}">aisstream</button>
                 </div>
-                <div style="font-size:9.5px;color:var(--muted,#8e8e93);margin-top:5px;line-height:1.4;">Free key at aisstream.io → live vessels in the chart area. Without a key, AIS is simulated.</div>
+                <div style="font-size:9.5px;color:var(--muted,#8e8e93);margin-top:7px;line-height:1.45;">{{ aisSrcHelp }}</div>
+                <sc-if value="{{ aisSrcIsStream }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;gap:6px;margin-top:9px;">
+                    <input type="password" placeholder="aisstream.io API key" defaultValue="{{ aisKeyVal }}" onInput="{{ onAisKeyInput }}" style="flex:1;min-width:0;background:var(--seg,rgba(118,118,128,.14));border:0.5px solid var(--hair,rgba(60,60,67,.15));border-radius:9px;padding:7px 10px;font-size:11px;color:var(--ink,#1c1c1e);font-family:inherit;outline:none;"/>
+                    <button onClick="{{ onAisConnect }}" style="{{ aisBtnStyle }}">{{ aisBtnLabel }}</button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ aisSrcIsKv }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:9px;background:var(--seg,rgba(118,118,128,.1));border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:5px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                      <span style="font-size:10px;font-weight:700;color:var(--ink,#1c1c1e);">{{ aisKvState }}</span>
+                      <span style="font-size:9.5px;color:var(--muted,#8e8e93);font-variant-numeric:tabular-nums;">{{ aisKvCount }}</span>
+                    </div>
+                    <div style="font-size:9.5px;color:var(--muted,#8e8e93);font-variant-numeric:tabular-nums;">{{ aisKvHost }}</div>
+                    <button onClick="{{ onAisKvTest }}" style="{{ aisKvBtnStyle }}">{{ aisKvBtnLabel }}</button>
+                  </div>
+                </sc-if>
               </sc-if>
             </div>
             <div style="display:flex;align-items:center;justify-content:space-between;border-top:0.5px solid var(--hair,rgba(60,60,67,.12));padding-top:11px;">
@@ -672,7 +691,7 @@ class Component extends DCLogic {
     sensorFail: { gnss: false, gyro: false }, replay: { on: false, playing: false, pos: 1 }, routeChkVer: 0, predMin: 5, hazardWarn: true, voyOpen: false, cpaLimit: 0.5, tcpaLimit: 12,
     layers: { s101: true, s102: false, s104: true, s111: true, s124: true, s129: true, ais: true, route: true, wind: false, waves: false, radar: true, trails: true, lights: true, temp: false, clouds: true, density: false, precip: false, traffic: false },
     alarms: [], aisSummary: [], routeVer: 0, pick: null, metVer: 0,
-    wxOpen: false, tideOpen: false, gyroOpen: false, conningOpen: false, shipUnlocked: false, autoMin: false, autoOpen: false, followShip: false, aisKeyOpen: false, aisMode: 'sim', aisStatus: 'off', gpsStatus: 'off', proxyOpen: false, srcVer: 0,
+    wxOpen: false, tideOpen: false, gyroOpen: false, conningOpen: false, shipUnlocked: false, autoMin: false, autoOpen: false, followShip: false, aisKeyOpen: false, aisMode: 'sim', aisStatus: 'off', aisSrc: 'sim', aisKvInfo: null, gpsStatus: 'off', proxyOpen: false, srcVer: 0,
     showIntro: (() => { try { return !localStorage.getItem('mrd_seen'); } catch (e) { return true; } })(),
   };
   ros = {}; ownShip = { lat: 60.06, lon: 5.00, hdg: 18, cog: 18, sog: 0, len: 180, beam: 28, rudder: 0 }; channel = 0.2; route = null; activeLeg = 1; met = {}; tiles = (typeof window !== 'undefined' ? (window.__mrdTiles = window.__mrdTiles || {}) : {}); tileLoading = (typeof window !== 'undefined' ? (window.__mrdTileLoading = window.__mrdTileLoading || {}) : {});
@@ -717,6 +736,7 @@ class Component extends DCLogic {
     this.loadTrack();
     this.loadRoute();
     window.__ecdis = this;
+    this.loadAisState();
     this.loadShipState();
     this._persistT = setInterval(() => { if (!document.hidden) this.saveShipState(); }, 5000);
     this._pagehideH = () => this.saveShipState(true);
@@ -724,7 +744,7 @@ class Component extends DCLogic {
     this.initHelm();
     this.aisLive = null; this.gpsMode = false;
     this.loadSrcCfg();
-    if (this._aisKeyInput) this._aisBootT = setTimeout(() => this.connectAis(this._aisKeyInput), 400);
+    this._aisBootT = setTimeout(() => this.bootAisSource(), 400);
     this.detectProxy();
     // Kiosk attract mode: on an unattended booth display, start the sample
     // voyage a few seconds after boot so the screen shows a live passage
@@ -806,23 +826,218 @@ class Component extends DCLogic {
   }
   tempAt(lat, lon) { const m = this.met; const base = (m && m.airTemp != null) ? m.airTemp : 12; const B = this.bbox; const u = (lon - B.lonMin) / (B.lonMax - B.lonMin), v = (lat - B.latMin) / (B.latMax - B.latMin); const grad = (0.5 - v) * 3.2; const n = (this.fbm(u * 2.3 + 1, v * 2.3 + 3) - 0.5) * 3.6; return base + grad + n; }
   tempColor(t) { const st = [[-6, [36, 84, 196]], [2, [58, 150, 224]], [8, [80, 200, 150]], [14, [238, 212, 92]], [19, [240, 150, 58]], [25, [228, 66, 58]]]; if (t <= st[0][0]) return st[0][1]; if (t >= st[st.length - 1][0]) return st[st.length - 1][1]; for (let k = 1; k < st.length; k++) { if (t <= st[k][0]) { const a = st[k - 1], b = st[k]; const f = (t - a[0]) / (b[0] - a[0]); return [Math.round(a[1][0] + (b[1][0] - a[1][0]) * f), Math.round(a[1][1] + (b[1][1] - a[1][1]) * f), Math.round(a[1][2] + (b[1][2] - a[1][2]) * f)]; } } return st[st.length - 1][1]; }
-  buildTempField() { const B = this.bbox; const mx = (lon) => (lon + 180) / 360, my = (lat) => 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI); const mxMin = mx(B.lonMin), mxMax = mx(B.lonMax), myTop = my(B.latMax), myBot = my(B.latMin); const RW = 200, RH = Math.round(RW * (myBot - myTop) / (mxMax - mxMin)); if (!this.tempC) this.tempC = document.createElement('canvas'); this.tempC.width = RW; this.tempC.height = RH; const cx = this.tempC.getContext('2d'), img = cx.createImageData(RW, RH), d = img.data; for (let j = 0; j < RH; j++) { const myv = myTop + (j / RH) * (myBot - myTop); const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * myv))) * 180 / Math.PI; for (let i = 0; i < RW; i++) { const lon = (mxMin + (i / RW) * (mxMax - mxMin)) * 360 - 180; const c = this.tempColor(this.tempAt(lat, lon)); const o = (j * RW + i) * 4; d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 98; } } cx.putImageData(img, 0, 0); this.tempMerc = { mxMin, mxMax, myTop, myBot }; }
+  buildTempField() { const B = this.bbox; const mx = (lon) => (lon + 180) / 360, my = (lat) => 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI); const mxMin = mx(B.lonMin), mxMax = mx(B.lonMax), myTop = my(B.latMax), myBot = my(B.latMin); const RW = 270, RH = Math.round(RW * (myBot - myTop) / (mxMax - mxMin)); if (!this.tempC) this.tempC = document.createElement('canvas'); this.tempC.width = RW; this.tempC.height = RH; const cx = this.tempC.getContext('2d'), img = cx.createImageData(RW, RH), d = img.data; for (let j = 0; j < RH; j++) { const myv = myTop + (j / RH) * (myBot - myTop); const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * myv))) * 180 / Math.PI; for (let i = 0; i < RW; i++) { const lon = (mxMin + (i / RW) * (mxMax - mxMin)) * 360 - 180; const c = this.tempColor(this.tempAt(lat, lon)); const o = (j * RW + i) * 4; d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 98; } } cx.putImageData(img, 0, 0); this.tempMerc = { mxMin, mxMax, myTop, myBot }; }
   precipColor(mm) { return this.rampRGB([[0.1, [156, 226, 250]], [0.6, [120, 205, 248]], [2, [58, 168, 242]], [5, [28, 120, 230]], [10, [26, 52, 180]], [15, [92, 28, 156]], [25, [150, 12, 120]]], mm); }
   precipAt(lat, lon) { const m = this.met; let base = (m && m.precip != null) ? m.precip : 0; if (base <= 0 && m && m.symbol && /rain|shower|sleet|snow|thunder|drizzle/.test(m.symbol)) base = /heavy/.test(m.symbol) ? 6.5 : /light/.test(m.symbol) ? 0.7 : 2.4; const B = this.bbox, u = (lon - B.lonMin) / (B.lonMax - B.lonMin), v = (lat - B.latMin) / (B.latMax - B.latMin), t = this.simTime / 3600; const n = this.fbm(u * 2.8 + t * 0.05, v * 2.8 - t * 0.035); const cell = Math.max(0, n - 0.46) / 0.54; const scale = base > 0 ? (0.5 + base * 0.85) : 0.9; return cell * cell * 9 * scale; }
-  buildPrecipField() { const B = this.bbox; const mx = (lon) => (lon + 180) / 360, my = (lat) => 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI); const mxMin = mx(B.lonMin), mxMax = mx(B.lonMax), myTop = my(B.latMax), myBot = my(B.latMin); const RW = 200, RH = Math.round(RW * (myBot - myTop) / (mxMax - mxMin)); if (!this.precipC) this.precipC = document.createElement('canvas'); this.precipC.width = RW; this.precipC.height = RH; const cx = this.precipC.getContext('2d'), img = cx.createImageData(RW, RH), d = img.data; for (let j = 0; j < RH; j++) { const myv = myTop + (j / RH) * (myBot - myTop); const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * myv))) * 180 / Math.PI; for (let i = 0; i < RW; i++) { const lon = (mxMin + (i / RW) * (mxMax - mxMin)) * 360 - 180; const o = (j * RW + i) * 4; const mm = this.precipAt(lat, lon); if (mm < 0.12) { d[o + 3] = 0; continue; } const c = this.precipColor(mm).split(',').map(Number); d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = Math.min(220, Math.round(55 + mm * 24)); } } cx.putImageData(img, 0, 0); this.precipMerc = { mxMin, mxMax, myTop, myBot }; }
+  buildPrecipField() { const B = this.bbox; const mx = (lon) => (lon + 180) / 360, my = (lat) => 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI); const mxMin = mx(B.lonMin), mxMax = mx(B.lonMax), myTop = my(B.latMax), myBot = my(B.latMin); const RW = 280, RH = Math.round(RW * (myBot - myTop) / (mxMax - mxMin)); if (!this.precipC) this.precipC = document.createElement('canvas'); this.precipC.width = RW; this.precipC.height = RH; const cx = this.precipC.getContext('2d'), img = cx.createImageData(RW, RH), d = img.data; for (let j = 0; j < RH; j++) { const myv = myTop + (j / RH) * (myBot - myTop); const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * myv))) * 180 / Math.PI; for (let i = 0; i < RW; i++) { const lon = (mxMin + (i / RW) * (mxMax - mxMin)) * 360 - 180; const o = (j * RW + i) * 4; const mm = this.precipAt(lat, lon); if (mm < 0.06) { d[o + 3] = 0; continue; } const e = Math.min(1, (mm - 0.06) / 0.5), ee = e * e * (3 - 2 * e); const c = this.precipColor(mm).split(',').map(Number); d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = Math.min(210, Math.round((46 + mm * 22) * ee)); } } cx.putImageData(img, 0, 0); this.softenField(this.precipC, 3.5); this.precipMerc = { mxMin, mxMax, myTop, myBot }; }
   initClouds() { this.clouds = []; const B = this.bbox; for (let i = 0; i < 34; i++) { const lat = B.latMin + Math.random() * (B.latMax - B.latMin), lon = B.lonMin + Math.random() * (B.lonMax - B.lonMin); const puffs = []; const np = 3 + (Math.random() * 3 | 0); for (let k = 0; k < np; k++) puffs.push({ dx: (Math.random() - 0.5) * 3.4, dy: (Math.random() - 0.5) * 1.9, r: 1.6 + Math.random() * 2.7 }); this.clouds.push({ lat, lon, a: 0.13 + Math.random() * 0.15, puffs }); } }
   stepClouds(dt) { if (!this.state.layers.clouds || !this.clouds) return; const B = this.bbox; for (const c of this.clouds) { const w = this.windAt(c.lat, c.lon); const nd = this.moveLL(c.lat, c.lon, w.ang * 180 / Math.PI, w.spd * dt * 0.02); c.lat = nd.lat; c.lon = nd.lon; if (c.lon > B.lonMax) c.lon = B.lonMin; if (c.lon < B.lonMin) c.lon = B.lonMax; if (c.lat > B.latMax) c.lat = B.latMin; if (c.lat < B.latMin) c.lat = B.latMax; } }
   arrow(ctx, x, y, dir, len, col, lw) { const ex = Math.sin(dir), ey = -Math.cos(dir); const hx = x + ex * len / 2, hy = y + ey * len / 2, tx = x - ex * len / 2, ty = y - ey * len / 2; ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); const ah = Math.max(3, len * 0.34); const a1 = dir + 2.42, a2 = dir - 2.42; ctx.lineTo(hx + Math.sin(a1) * ah, hy - Math.cos(a1) * ah); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.sin(a2) * ah, hy - Math.cos(a2) * ah); ctx.stroke(); }
-  drawCurrentArrows(ctx) { const B = this.bbox, step = 72; ctx.save(); for (let gy = step / 2; gy < this.H; gy += step) for (let gx = step / 2; gx < this.W; gx += step) { const w = this.s2ll(gx, gy); if (w[0] < B.latMin || w[0] > B.latMax || w[1] < B.lonMin || w[1] > B.lonMax) continue; if (this.landAt && this.landAt(w[0], w[1])) continue; const c = this.currentAt(w[0], w[1]); const dir = c.ang + this.view.bearing; const len = 9 + Math.min(20, c.spd * 7); this.arrow(ctx, gx, gy, dir, len, 'rgba(' + this.curColor(c.spd) + ',0.92)', 1.7); } ctx.restore(); }
-  drawWindArrows(ctx) { const step = 80; ctx.save(); for (let gy = step / 2; gy < this.H; gy += step) for (let gx = step / 2; gx < this.W; gx += step) { const w = this.s2ll(gx, gy); const wi = this.windAt(w[0], w[1]); const dir = wi.ang + this.view.bearing; const len = 10 + Math.min(22, wi.spd * 1.1); this.arrow(ctx, gx, gy, dir, len, 'rgba(' + this.windColor(wi.spd) + ',0.9)', 1.7); } ctx.restore(); }
+  // Tekst med halo, saa etiketter er lesbare bade paa hvitt sjokart, moerkt
+  // nattkart og flyfoto uten at hver etikett trenger sin egen boks.
+  haloText(ctx, txt, x, y, font, col, halo) {
+    ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = halo;
+    ctx.strokeText(txt, x, y); ctx.fillStyle = col; ctx.fillText(txt, x, y);
+  }
+
+  // Meteorologisk vindfjaer - samme symbol som paa vaerkart og i ekte ECDIS:
+  // halv fjaer = 5 knop, hel = 10, vimpel = 50. Fjaeren peker dit vinden
+  // kommer FRA, slik konvensjonen er. Dette er det som gjor at laget kan
+  // leses av med tall og ikke bare anes som en fargeflekk.
+  windBarb(ctx, x, y, fromDir, kt, col, halo) {
+    const a = fromDir + this.view.bearing;
+    const ux = Math.sin(a), uy = -Math.cos(a);          // mot der vinden kommer fra
+    const px = -uy, py = ux;                            // paa tvers, for fjaerene
+    const L = 40;                                       // staken maa vaere klart
+    const BARB = 13;                                    // lengre enn fjaerene
+    const draw = (w, style, fill) => {
+      ctx.lineWidth = w; ctx.strokeStyle = style; ctx.fillStyle = fill || style;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + ux * L, y + uy * L); ctx.stroke();
+      let rest = Math.round(kt / 5) * 5;
+      if (rest < 5) { ctx.beginPath(); ctx.arc(x, y, 3.4, 0, 7); ctx.stroke(); return; }
+      let d = L;
+      const step = 7.6;
+      // Vimpel = 50 kt.
+      while (rest >= 50) {
+        ctx.beginPath();
+        ctx.moveTo(x + ux * d, y + uy * d);
+        ctx.lineTo(x + ux * (d - 9) + px * BARB, y + uy * (d - 9) + py * BARB);
+        ctx.lineTo(x + ux * (d - 9), y + uy * (d - 9));
+        ctx.closePath(); ctx.fill();
+        d -= 12; rest -= 50;
+      }
+      // Hel fjaer = 10 kt, feid bakover mot halen slik konvensjonen er.
+      while (rest >= 10) {
+        ctx.beginPath();
+        ctx.moveTo(x + ux * d, y + uy * d);
+        ctx.lineTo(x + ux * (d - 6.5) + px * BARB, y + uy * (d - 6.5) + py * BARB);
+        ctx.stroke();
+        d -= step; rest -= 10;
+      }
+      // Halv fjaer = 5 kt, aldri helt ytterst paa staken.
+      if (rest >= 5) {
+        if (d > L - 1) d -= step;
+        ctx.beginPath();
+        ctx.moveTo(x + ux * d, y + uy * d);
+        ctx.lineTo(x + ux * (d - 3.5) + px * (BARB * 0.55), y + uy * (d - 3.5) + py * (BARB * 0.55));
+        ctx.stroke();
+      }
+    };
+    draw(2.9, halo, halo);
+    draw(1.9, col);
+  }
+
+  // Hvem eier den fargede flaten denne rammen. Nedbor og temperatur er
+  // flatelag i sin natur; strom gaar foran vind fordi den er den
+  // navigasjonskritiske av de to.
+  fieldOwner() {
+    const L = this.state.layers;
+    if (L.precip) return 'precip';
+    if (L.temp) return 'temp';
+    if (L.s111) return 'cur';
+    if (L.wind) return 'wind';
+    return null;
+  }
+
+  // Felles rutenett for vindfjaer og stromspiler. To ting gjor forskjellen
+  // mellom "datalag" og "tapet": punktene maa staa GLISENT, og annenhver rad
+  // forskyves en halv rute saa oyet ikke leser et regelmessig gitter.
+  // I tillegg hoppes punkter under panelene over - symboler bak glasset er
+  // bare stoy.
+  vectorGrid(step, cb, phase) {
+    const padL = 92, padT = 74, padB = 96, padR = 24;
+    // `phase` forskyver hele rutenettet en halv rute. Vind og strom bruker
+    // hver sin fase, ellers hadde fjaer og piler landet oppaa hverandre og
+    // begge blitt uleselige naar begge lagene staar paa.
+    const ph = phase ? 0.5 : 0;
+    let row = 0;
+    for (let gy = padT + step * (0.5 + ph * 0.43); gy < this.H - padB; gy += step * 0.86, row++) {
+      const off = ((row % 2) ? step / 2 : 0) + ph * step * 0.5;
+      for (let gx = padL + step * 0.5 + off; gx < this.W - padR; gx += step) {
+        cb(gx, gy);
+      }
+    }
+  }
+
+  drawWindBarbs(ctx, P) {
+    const onField = this.fieldOwner() === 'wind';
+    const light = onField || this.state.palette !== 'day';
+    const col = light ? 'rgba(255,255,255,.95)' : 'rgba(26,40,56,.88)';
+    const halo = light ? 'rgba(10,22,36,.34)' : 'rgba(255,255,255,.8)';
+    const ink = 'rgba(18,30,44,.95)';
+    const inkHalo = 'rgba(255,255,255,.85)';
+    const step = Math.max(190, Math.min(310, this.W / 5.5));
+    ctx.save();
+    this.vectorGrid(step, (gx, gy) => {
+      const w = this.s2ll(gx, gy);
+      const wi = this.windAt(w[0], w[1]);
+      const kt = wi.spd * 1.94384;
+      this.windBarb(ctx, gx, gy, wi.ang + Math.PI, kt, col, halo);
+      // Farten i klartekst ved siden av fjaeren. Fjaeren gir bildet, tallet
+      // gir presisjonen - begge deler, slik vaerkart har gjort det i 100 aar.
+      const bx = -Math.sin(wi.ang + Math.PI + this.view.bearing), by = Math.cos(wi.ang + Math.PI + this.view.bearing);
+      this.haloText(ctx, wi.spd.toFixed(0), gx + bx * 13, gy + by * 13, '800 9.5px Inter, sans-serif', ink, inkHalo);
+    });
+    ctx.restore();
+  }
+
+  // Stromsett: pil med fart paategnet. Lengde og farge folger farten, slik
+  // tidevannspiler gjor i Navionics og TimeZero. Piler paa land droppes.
+  drawCurrentArrows(ctx, P) {
+    const B = this.bbox;
+    const dark = this.state.palette !== 'day';
+    const halo = dark ? 'rgba(8,12,18,.62)' : 'rgba(255,255,255,.82)';
+    const ink = dark ? 'rgba(232,240,248,.95)' : 'rgba(20,36,52,.9)';
+    const step = Math.max(140, Math.min(230, this.W / 8));
+    ctx.save();
+    this.vectorGrid(step, (gx, gy) => {
+      const w = this.s2ll(gx, gy);
+      if (w[0] < B.latMin || w[0] > B.latMax || w[1] < B.lonMin || w[1] > B.lonMax) return;
+      if (this.landAt && this.landAt(w[0], w[1])) return;
+      const c = this.currentAt(w[0], w[1]);
+      // Under en drivende knop tiendedel er stroemmen uten praktisk betydning.
+      // Pilene der ble bare stoy paa skjermen - og et felt av like "0.1"-tall
+      // fikk laget til aa se ut som en feil.
+      if (c.spd < 0.04) return;
+      const dir = c.ang + this.view.bearing;
+      // Tydelig sprik mellom stille og stri stroem, ellers ser alt likt ut.
+      const len = 14 + Math.min(38, Math.pow(c.spd, 0.75) * 22);
+      this.taperArrow(ctx, gx, gy, dir, len, 'rgb(' + this.curColor(c.spd) + ')', halo);
+      if (c.spd >= 0.3) {
+        const ex = Math.sin(dir), ey = -Math.cos(dir);
+        this.haloText(ctx, c.spd.toFixed(1), gx - ex * (len / 2 + 12), gy - ey * (len / 2 + 12),
+          '700 9.5px Inter, sans-serif', ink, halo);
+      }
+    }, true);
+    ctx.restore();
+  }
+
+  // Pil som smalner mot spissen. Tegnes to ganger: forst tykk halo, saa selve
+  // pila - det er det som gjor den lesbar mot bade lyst sjokart og flyfoto.
+  taperArrow(ctx, x, y, dir, len, col, halo) {
+    const ex = Math.sin(dir), ey = -Math.cos(dir);
+    const hx = x + ex * len / 2, hy = y + ey * len / 2;
+    const tx = x - ex * len / 2, ty = y - ey * len / 2;
+    const head = Math.max(5, len * 0.3);
+    const a1 = dir + 2.5, a2 = dir - 2.5;
+    const path = () => {
+      ctx.beginPath();
+      ctx.moveTo(tx, ty); ctx.lineTo(hx, hy);
+      ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.sin(a1) * head, hy - Math.cos(a1) * head);
+      ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.sin(a2) * head, hy - Math.cos(a2) * head);
+    };
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = halo; ctx.lineWidth = 4.2; path(); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = 2; path(); ctx.stroke();
+  }
+
   buildSeaTint() { const B = this.bbox; const mx = (lon) => (lon + 180) / 360, my = (lat) => 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI); const mxMin = mx(B.lonMin), mxMax = mx(B.lonMax), myTop = my(B.latMax), myBot = my(B.latMin); const RW = 180, RH = Math.round(RW * (myBot - myTop) / (mxMax - mxMin)); if (!this.seaTintC) this.seaTintC = document.createElement('canvas'); this.seaTintC.width = RW; this.seaTintC.height = RH; const cx = this.seaTintC.getContext('2d'), img = cx.createImageData(RW, RH), d = img.data; for (let j = 0; j < RH; j++) { const myv = myTop + (j / RH) * (myBot - myTop); const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * myv))) * 180 / Math.PI; for (let i = 0; i < RW; i++) { const lon = (mxMin + (i / RW) * (mxMax - mxMin)) * 360 - 180; const o = (j * RW + i) * 4; if (this.landAt(lat, lon)) { d[o + 3] = 0; } else { d[o] = 40; d[o + 1] = 120; d[o + 2] = 224; d[o + 3] = 255; } } } cx.putImageData(img, 0, 0); this.seaTintMerc = { mxMin, mxMax, myTop, myBot }; }
   drawWaterLevel(ctx) { if (!this.seaTintC) return; const tn = this.tideNow(); const lvl = tn ? tn.v : 0; const alpha = Math.max(0.05, Math.min(0.34, 0.17 + lvl * 0.11)); const m = this.seaTintMerc, S = 256 * Math.pow(2, this.view.zoom); ctx.save(); ctx.globalAlpha = alpha; ctx.translate(this.W / 2, this.H / 2); ctx.rotate(this.view.bearing); ctx.imageSmoothingEnabled = true; ctx.drawImage(this.seaTintC, m.mxMin * S - this._cw[0], m.myTop * S - this._cw[1], (m.mxMax - m.mxMin) * S, (m.myBot - m.myTop) * S); ctx.globalAlpha = 1; ctx.restore(); }
-  buildSpeedField(kind) { const B = this.bbox; const mx = (lon) => (lon + 180) / 360, my = (lat) => 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI); const mxMin = mx(B.lonMin), mxMax = mx(B.lonMax), myTop = my(B.latMax), myBot = my(B.latMin); const RW = 230, RH = Math.round(RW * (myBot - myTop) / (mxMax - mxMin)); const key = kind === 'wind' ? 'windFieldC' : 'curFieldC'; if (!this[key]) this[key] = document.createElement('canvas'); const cv = this[key]; cv.width = RW; cv.height = RH; const cx = cv.getContext('2d'), img = cx.createImageData(RW, RH), d = img.data; for (let j = 0; j < RH; j++) { const myv = myTop + (j / RH) * (myBot - myTop); const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * myv))) * 180 / Math.PI; for (let i = 0; i < RW; i++) { const lon = (mxMin + (i / RW) * (mxMax - mxMin)) * 360 - 180; const o = (j * RW + i) * 4; if (kind === 'wind') { const w = this.windAt(lat, lon); const c = this.windColor(w.spd).split(',').map(Number); const a = Math.max(0, Math.min(1, (w.spd - 1) / 22)); d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = Math.round(34 + a * 120); } else { if (this.landAt(lat, lon)) { d[o + 3] = 0; continue; } const cc = this.currentAt(lat, lon); const c = this.curColor(cc.spd).split(',').map(Number); const a = Math.max(0, Math.min(1, cc.spd / 3.2)); d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = Math.round(18 + a * 122); } } } cx.putImageData(img, 0, 0); this[kind === 'wind' ? 'windFieldMerc' : 'curFieldMerc'] = { mxMin, mxMax, myTop, myBot }; }
+  buildSpeedField(kind) { const B = this.bbox; const mx = (lon) => (lon + 180) / 360, my = (lat) => 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI); const mxMin = mx(B.lonMin), mxMax = mx(B.lonMax), myTop = my(B.latMax), myBot = my(B.latMin); const RW = 320, RH = Math.round(RW * (myBot - myTop) / (mxMax - mxMin)); const key = kind === 'wind' ? 'windFieldC' : 'curFieldC'; if (!this[key]) this[key] = document.createElement('canvas'); const cv = this[key]; cv.width = RW; cv.height = RH; const cx = cv.getContext('2d'), img = cx.createImageData(RW, RH), d = img.data; for (let j = 0; j < RH; j++) { const myv = myTop + (j / RH) * (myBot - myTop); const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * myv))) * 180 / Math.PI; for (let i = 0; i < RW; i++) { const lon = (mxMin + (i / RW) * (mxMax - mxMin)) * 360 - 180; const o = (j * RW + i) * 4; if (kind === 'wind') { const w = this.windAt(lat, lon); const c = this.windColor(w.spd).split(',').map(Number); const a = Math.max(0, Math.min(1, (w.spd - 0.5) / 24)); d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = Math.round(120 + a * 118); } else { if (this.landAt(lat, lon)) { d[o + 3] = 0; continue; } const cc = this.currentAt(lat, lon); const c = this.curColor(cc.spd).split(',').map(Number); const a = Math.max(0, Math.min(1, cc.spd / 3.2)); d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = Math.round(96 + a * 140); } } } cx.putImageData(img, 0, 0); this.softenField(cv, 3); this[kind === 'wind' ? 'windFieldMerc' : 'curFieldMerc'] = { mxMin, mxMax, myTop, myBot }; }
+  // Feltene bygges i lav opplosning og blaases opp over hele skjermen. Uten
+  // utjevning gir det synlige firkanter og trappetrinn i overgangene. Ett lett
+  // slor PAA det lille lerretet - for oppskaleringen - er bade billig og langt
+  // penere enn aa slore den ferdig oppblaaste flaten.
+  softenField(cv, px) {
+    if (!cv || !cv.width || !cv.height) return;
+    const tmp = this._softC || (this._softC = document.createElement('canvas'));
+    tmp.width = cv.width; tmp.height = cv.height;
+    const tc = tmp.getContext('2d');
+    tc.clearRect(0, 0, tmp.width, tmp.height);
+    tc.drawImage(cv, 0, 0);
+    const c = cv.getContext('2d');
+    c.clearRect(0, 0, cv.width, cv.height);
+    c.save(); c.filter = 'blur(' + px + 'px)';
+    c.drawImage(tmp, 0, 0);
+    c.restore(); c.filter = 'none';
+  }
+
+  // Partikkelspor som myk kurve. Rette linjestykker mellom historikkpunktene
+  // ga et synlig kantete sikksakk; her tegnes hvert ledd som en kvadratisk
+  // kurve mellom nabomidtpunktene, med punktet selv som kontrollpunkt. Hvert
+  // ledd beholder egen bredde og alfa, saa streken fortsatt tynnes ut bakover.
+  smoothTrail(ctx, hist, style) {
+    const n = hist.length;
+    if (n < 3) return;
+    const pt = new Array(n);
+    for (let i = 0; i < n; i++) pt[i] = this.ll2s(hist[i].lat, hist[i].lon);
+    for (let i = 1; i < n - 1; i++) {
+      const a = pt[i - 1], b = pt[i], c = pt[i + 1];
+      style(i / (n - 1));
+      ctx.beginPath();
+      ctx.moveTo((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+      ctx.quadraticCurveTo(b[0], b[1], (b[0] + c[0]) / 2, (b[1] + c[1]) / 2);
+      ctx.stroke();
+    }
+  }
+
   drawField(ctx, cv, merc, gAlpha) { if (!cv || !merc) return; const S = 256 * Math.pow(2, this.view.zoom); ctx.save(); ctx.globalAlpha = gAlpha; ctx.translate(this.W / 2, this.H / 2); ctx.rotate(this.view.bearing); ctx.imageSmoothingEnabled = true; ctx.drawImage(cv, merc.mxMin * S - this._cw[0], merc.myTop * S - this._cw[1], (merc.mxMax - merc.mxMin) * S, (merc.myBot - merc.myTop) * S); ctx.globalAlpha = 1; ctx.restore(); }
   stepDensity() { if (!this.densGrid) { this.densW = 96; this.densH = Math.round(this.densW * (this.bbox.latMax - this.bbox.latMin) / ((this.bbox.lonMax - this.bbox.lonMin) * this.cosMid)); this.densGrid = new Float32Array(this.densW * this.densH); } const W = this.densW, H = this.densH, g = this.densGrid, B = this.bbox; for (let i = 0; i < g.length; i++) g[i] *= 0.94; for (const t of this.aisArr()) { const gx = (t.lon - B.lonMin) / (B.lonMax - B.lonMin) * (W - 1), gy = (B.latMax - t.lat) / (B.latMax - B.latMin) * (H - 1); const x0 = Math.round(gx), y0 = Math.round(gy); for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = x0 + dx, y = y0 + dy; if (x < 0 || y < 0 || x >= W || y >= H) continue; g[y * W + x] += (dx === 0 && dy === 0) ? 1 : 0.4; } } this._densMax = 0; for (let i = 0; i < g.length; i++) if (g[i] > this._densMax) this._densMax = g[i]; }
   drawDensity(ctx) { if (!this.densGrid) return; const W = this.densW, H = this.densH, g = this.densGrid; const mx = Math.max(6, this._densMax || 6); if (!this.densC) this.densC = document.createElement('canvas'); this.densC.width = W; this.densC.height = H; const cc = this.densC.getContext('2d'), img = cc.createImageData(W, H), d = img.data; const ramp = [[0, [20, 90, 200]], [0.3, [30, 200, 200]], [0.55, [120, 220, 110]], [0.78, [245, 215, 90]], [1, [240, 70, 60]]]; for (let i = 0; i < g.length; i++) { const v = Math.min(1, Math.pow(g[i] / mx, 0.6)); if (v < 0.05) { d[i * 4 + 3] = 0; continue; } const rgb = this.rampRGB(ramp, v).split(',').map(Number); d[i * 4] = rgb[0]; d[i * 4 + 1] = rgb[1]; d[i * 4 + 2] = rgb[2]; d[i * 4 + 3] = Math.round(45 + v * 150); } cc.putImageData(img, 0, 0); const B = this.bbox; const tl = this.ll2s(B.latMax, B.lonMin), tr = this.ll2s(B.latMax, B.lonMax), bl = this.ll2s(B.latMin, B.lonMin); const ax = tr[0] - tl[0], ay = tr[1] - tl[1], bx = bl[0] - tl[0], by = bl[1] - tl[1]; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.transform(ax / W, ay / W, bx / H, by / H, tl[0], tl[1]); ctx.imageSmoothingEnabled = true; ctx.globalAlpha = 0.82; ctx.drawImage(this.densC, 0, 0, W, H); ctx.restore(); }
   drawTempField(ctx) { if (!this.tempC) return; const m = this.tempMerc, S = 256 * Math.pow(2, this.view.zoom); ctx.save(); ctx.translate(this.W / 2, this.H / 2); ctx.rotate(this.view.bearing); ctx.imageSmoothingEnabled = true; ctx.drawImage(this.tempC, m.mxMin * S - this._cw[0], m.myTop * S - this._cw[1], (m.mxMax - m.mxMin) * S, (m.myBot - m.myTop) * S); ctx.restore(); }
-  drawClouds(ctx) { const m = this.met; const frac = (m && m.cloudFrac != null) ? m.cloudFrac / 100 : 0.5; if (frac <= 0.03 || !this.clouds) return; const day = this.state.palette === 'day'; const top = day ? '255,255,255' : '205,216,230'; const shade = day ? '186,198,212' : '120,132,150'; const t = performance.now() / 1000; ctx.save(); for (const c of this.clouds) { if (!this.inView(c.lat, c.lon, 280)) continue; const dens = 0.55 + 0.45 * this.fbm(c.lon * 1.5 + t * 0.02, c.lat * 1.5); for (const p of c.puffs) { const pe = this.moveLL(c.lat, c.lon, 90, p.dx); const pp = this.moveLL(pe.lat, pe.lon, 0, p.dy); const [x, y] = this.ll2s(pp.lat, pp.lon); const rp = this.nmToPx(p.r); if (rp < 3) continue; const aa = c.a * frac * dens; const gs = ctx.createRadialGradient(x, y + rp * 0.28, 0, x, y + rp * 0.28, rp * 1.05); gs.addColorStop(0, 'rgba(' + shade + ',' + (aa * 0.5).toFixed(3) + ')'); gs.addColorStop(1, 'rgba(' + shade + ',0)'); ctx.fillStyle = gs; ctx.beginPath(); ctx.arc(x, y + rp * 0.28, rp * 1.05, 0, 7); ctx.fill(); const gt = ctx.createRadialGradient(x, y - rp * 0.32, 0, x, y - rp * 0.32, rp); gt.addColorStop(0, 'rgba(' + top + ',' + aa.toFixed(3) + ')'); gt.addColorStop(0.6, 'rgba(' + top + ',' + (aa * 0.4).toFixed(3) + ')'); gt.addColorStop(1, 'rgba(' + top + ',0)'); ctx.fillStyle = gt; ctx.beginPath(); ctx.arc(x, y - rp * 0.32, rp, 0, 7); ctx.fill(); } } ctx.restore(); }
+  drawClouds(ctx) { const m = this.met; const frac = (m && m.cloudFrac != null) ? m.cloudFrac / 100 : 0.5; if (frac <= 0.03 || !this.clouds) return; const day = this.state.palette === 'day'; const top = day ? '255,255,255' : '205,216,230'; const shade = day ? '186,198,212' : '120,132,150'; const t = performance.now() / 1000; ctx.save(); for (const c of this.clouds) { if (!this.inView(c.lat, c.lon, 280)) continue; const dens = 0.55 + 0.45 * this.fbm(c.lon * 1.5 + t * 0.02, c.lat * 1.5); for (const p of c.puffs) { const pe = this.moveLL(c.lat, c.lon, 90, p.dx); const pp = this.moveLL(pe.lat, pe.lon, 0, p.dy); const [x, y] = this.ll2s(pp.lat, pp.lon); const rp = this.nmToPx(p.r); if (rp < 3) continue; const aa = c.a * frac * dens * 0.55; const gs = ctx.createRadialGradient(x, y + rp * 0.28, 0, x, y + rp * 0.28, rp * 1.05); gs.addColorStop(0, 'rgba(' + shade + ',' + (aa * 0.5).toFixed(3) + ')'); gs.addColorStop(1, 'rgba(' + shade + ',0)'); ctx.fillStyle = gs; ctx.beginPath(); ctx.arc(x, y + rp * 0.28, rp * 1.05, 0, 7); ctx.fill(); const gt = ctx.createRadialGradient(x, y - rp * 0.32, 0, x, y - rp * 0.32, rp); gt.addColorStop(0, 'rgba(' + top + ',' + aa.toFixed(3) + ')'); gt.addColorStop(0.6, 'rgba(' + top + ',' + (aa * 0.4).toFixed(3) + ')'); gt.addColorStop(1, 'rgba(' + top + ',0)'); ctx.fillStyle = gt; ctx.beginPath(); ctx.arc(x, y - rp * 0.32, rp, 0, 7); ctx.fill(); } } ctx.restore(); }
 
   initShip() {
     this.ownShip = { lat: 60.06, lon: 5.00, hdg: 18, cog: 18, sog: 0, len: 180, beam: 28, rudder: 0 };
@@ -887,28 +1102,54 @@ class Component extends DCLogic {
   // strict (default): a sample on an UNLOADED chart tile (chartLandAt === null) counts as NOT clear, so a route is only ever accepted once its whole corridor's chart data is really loaded — this prevents committing a route computed on half-loaded tiles (undecoded cells look like water and yield phantom routes through land). lax: treat unloaded as water (best-effort, used only on the final give-up attempt).
   routeClear(R, lax) { if (!R || R.length < 2) return false; for (let i = 1; i < R.length; i++) { const a = R[i - 1], b = R[i]; const n = Math.max(2, Math.ceil(this.distNm(a, b) / 0.04)); for (let s = 0; s <= n; s++) { const f = s / n, la = a.lat + (b.lat - a.lat) * f, lo = a.lon + (b.lon - a.lon) * f; const cl = this.chartLandAt(la, lo, 12); if (cl === true) return false; if (cl == null && !lax) return false; } } return true; }
   _doPlan(dest, quiet) {
-    try {
+    // Tidsskivet planlegging: en planRoute-kandidat per makrotask i stedet for
+    // hele kaskaden i ett jafs, saa kartet kan panoreres/zoomes og alle knapper
+    // virker mens ruten beregnes. Nye kall mens en kaskade kjorer koalesceres
+    // (siste vinner) i stedet for aa stables oppaa hverandre.
+    if (this._planBusy) { this._planAgain = { dest, quiet }; return; }
+    this._planBusy = true;
+    if (!this._planWorking) { this._planWorking = true; this.setState({ routeVer: this.state.routeVer + 1 }); }
     const o = this.ownShip; const draught = this.draughtV || 7;
     const tries = [...new Set([Math.max(this.state.safetyC, draught + 1.5), draught, this.state.shallowC, 1, 0.5].filter(v => v > 0))].sort((a, b) => b - a);
-    let path = null, used = null;
-    // (cellDivisor, paddingMultiplier, dilationCells) combos. Finer grids + a few cells of land-dilation keep the route mid-channel so straight legs can't clip headlands (clean routes in open/deep fjords); the dil=0 + wider-box combos fall back for narrow channels and long winding sounds. STRICT routeClear validates every candidate against loaded chart data.
+    // (cellDivisor, paddingMultiplier, dilationCells) combos. Finer grids + a few cells of land-dilation keep the route mid-channel so straight legs can't clip headlands (clean routes in open/deep fjords); the dil=0 + wider-box combos fall back for narrow channels and long winding sounds. STRICT routeClear validates every candidate against loaded chart data; lax (unloaded tiles as water) only on the final give-up attempts.
     const combos = [[560, 1, 2], [560, 1, 0], [400, 2.0, 1], [300, 3.2, 0]];
-    for (const [dv, pk, dl] of combos) { for (const clr of tries) { const p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, clr, false, dv, pk, dl); if (p && this.routeClear(p)) { path = p; used = clr; break; } } if (path) break; }
-    // fallback: ignore AIS discs (a vessel may be sitting in the only channel)
-    if (!path) { for (const [dv, pk, dl] of combos) { for (const clr of tries) { const p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, clr, true, dv, pk, dl); if (p && this.routeClear(p)) { path = p; used = clr; break; } } if (path) break; } }
-    // final give-up attempt only: accept a best-effort route validated laxly (unloaded tiles treated as water) so a tile that never loads can't block an otherwise-good route forever.
-    if (!path && !quiet) { for (const [dv, pk, dl] of combos) { for (const clr of tries) { const p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, clr, true, dv, pk, dl); if (p && this.routeClear(p, true)) { path = p; used = clr; break; } } if (path) break; } }
-    if (!path) {
-      // quiet === true means data may still be loading and a retry is scheduled — don't flash a failure yet, just show a working status.
-      if (quiet) { if (!this._planWorking) { this._planWorking = true; this.setState({ routeVer: this.state.routeVer + 1 }); } return; }
-      this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false; this.addAlarm('warning', 'No safe route found to that point — it is blocked by land/shoals. Pick a point in navigable water.'); this.setState({ routeVer: this.state.routeVer + 1 }); return;
-    }
-    // A route that passed STRICT routeClear is validated against loaded chart data along its whole length, so it is safe to commit immediately (no separate tile-readiness gate needed).
-    this._planWorking = false;
-    this.route = path; this.activeLeg = 1; this.routeCheck = null; this.autoNav = false; this.routePending = true; this._routeClr = used;
-    this.helm = Object.assign(this.helm || {}, { active: false, ap: false });
-    this.setState({ simRunning: false, routeVer: this.state.routeVer + 1, tool: 'pan', autoOpen: true });
-    } catch (e) {}
+    const jobs = [];
+    for (const noAis of [false, true]) for (const [dv, pk, dl] of combos) for (const clr of tries) jobs.push({ dv, pk, dl, clr, noAis, lax: false });
+    if (!quiet) for (const [dv, pk, dl] of combos) for (const clr of tries) jobs.push({ dv, pk, dl, clr, noAis: true, lax: true });
+    let i = 0;
+    const chain = () => {
+      const again = this._planAgain; this._planAgain = null;
+      if (again && !this.routePending) setTimeout(() => this._doPlan(again.dest, again.quiet), 30);
+    };
+    const finish = (path, used) => {
+      this._planBusy = false;
+      if (path) {
+        // A route that passed STRICT routeClear is validated against loaded chart data along its whole length, so it is safe to commit immediately.
+        this._planWorking = false;
+        this.route = path; this.activeLeg = 1; this.routeCheck = null; this.autoNav = false; this.routePending = true; this._routeClr = used;
+        this.helm = Object.assign(this.helm || {}, { active: false, ap: false });
+        this.setState({ simRunning: false, routeVer: this.state.routeVer + 1, tool: 'pan', autoOpen: true });
+      } else if (!quiet) {
+        this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false;
+        this.addAlarm('warning', 'No safe route found to that point — it is blocked by land/shoals. Pick a point in navigable water.');
+        this.setState({ routeVer: this.state.routeVer + 1 });
+      }
+      // quiet with no hit: _planWorking stays set so the panel keeps showing "Computing route…" while the retry loop continues.
+      chain();
+    };
+    const step = () => {
+      if (this._planDest !== dest || this.routePending) { this._planBusy = false; chain(); return; }
+      const t0 = performance.now();
+      while (i < jobs.length && performance.now() - t0 < 26) {
+        const j = jobs[i++];
+        let p = null;
+        try { p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, j.clr, j.noAis, j.dv, j.pk, j.dl); } catch (e) {}
+        if (p && this.routeClear(p, j.lax)) { finish(p, j.clr); return; }
+      }
+      if (i >= jobs.length) { finish(null); return; }
+      setTimeout(step, 30);
+    };
+    setTimeout(step, 0);
   }
   routeStats() { const R = this.route; if (!R || R.length < 2) return null; const o = this.ownShip; let rem = this.distNm(o, R[Math.min(this.activeLeg, R.length - 1)]); for (let i = this.activeLeg + 1; i < R.length; i++) rem += this.distNm(R[i - 1], R[i]); const total = R.reduce((a, p, i) => i ? a + this.distNm(R[i - 1], p) : 0, 0); const spd = (this.autoNav && o.sog > 0.3) ? o.sog : 14; return { rem, total, legs: R.length - 1, eta: rem / Math.max(6, spd) * 60 }; }
   startAutoNav() { if (!this.route) return; this.routePending = false; this.autoNav = true; this.helm = Object.assign(this.helm || {}, { active: false, ap: false }); this.saveRoute(); this.setState({ simRunning: true, routeVer: this.state.routeVer + 1 }); const st = this.routeStats(); this.addAlarm('info', 'Autonomous voyage started — ' + (st ? st.legs + ' legs · ' + st.total.toFixed(1) + ' nm · ≥ ' + (this._routeClr || this.state.safetyC).toFixed(0) + ' m UKC · ETA ~' + Math.round(st.eta) + ' min.' : 'steering to destination.')); }
@@ -1007,7 +1248,31 @@ class Component extends DCLogic {
   }
 
   initParticles() { const dpr = this.dpr || (window.devicePixelRatio || 1); const area = (this.canvas && this.canvas.clientWidth) ? this.canvas.clientWidth * this.canvas.clientHeight : 1280 * 800; const scale = Math.max(0.4, Math.min(1, area / (1280 * 800))); const lowPower = (navigator.hardwareConcurrency || 4) <= 4 || dpr > 2 || Math.min(screen.width, screen.height) < 700; const curN = Math.round((lowPower ? 550 : 850) * scale); const windN = Math.round((lowPower ? 450 : 750) * scale); this.particles = []; for (let i = 0; i < curN; i++) this.particles.push(this.spawnP(true)); this.windParticles = []; for (let i = 0; i < windN; i++) this.windParticles.push(this.spawnP(true)); }
-  spawnP(init) { const B = this.bbox; const lat = B.latMin + Math.random() * (B.latMax - B.latMin), lon = B.lonMin + Math.random() * (B.lonMax - B.lonMin); return { lat, lon, plat: lat, plon: lon, hist: [], life: init ? Math.random() * 90 : 90 + Math.random() * 40 }; }
+  // Partiklene ble tidligere spredt over HELE datamraadet - som er mange
+  // ganger storre enn kartutsnittet. Resultatet var at bare noen faa promille
+  // av dem noen gang var synlige, og vindstrekene forsvant helt. Naa spres de
+  // i det utsnittet som faktisk vises, saa tettheten blir den samme uansett
+  // hvor langt man har zoomet inn.
+  partBox() {
+    const S = 256 * Math.pow(2, this.view.zoom);
+    const r = Math.hypot((this.W || 1200) / 2, (this.H || 800) / 2) * 1.15;
+    const dLon = r * 360 / S;
+    const dLat = dLon * Math.cos(this.view.lat * Math.PI / 180);
+    const B = this.bbox;
+    return {
+      latMin: Math.max(B.latMin, this.view.lat - dLat),
+      latMax: Math.min(B.latMax, this.view.lat + dLat),
+      lonMin: Math.max(B.lonMin, this.view.lon - dLon),
+      lonMax: Math.min(B.lonMax, this.view.lon + dLon)
+    };
+  }
+
+  spawnP(init, box) {
+    const B = box || this.partBox();
+    const lat = B.latMin + Math.random() * (B.latMax - B.latMin);
+    const lon = B.lonMin + Math.random() * (B.lonMax - B.lonMin);
+    return { lat, lon, plat: lat, plon: lon, hist: [], life: init ? Math.random() * 90 : 90 + Math.random() * 40 };
+  }
   currentAt(lat, lon) {
     const g = this.curGrid;
     if (g && g.ready) {
@@ -1020,23 +1285,44 @@ class Component extends DCLogic {
     const B = this.bbox; const u = (lon - B.lonMin) / (B.lonMax - B.lonMin), v = (lat - B.latMin) / (B.latMax - B.latMin); const phase = Math.sin(this.simTime / 22350 * Math.PI * 2); const ang = this.fbm(u * 2.2, v * 2.4) * Math.PI * 2 + phase * 0.6; const spd = (0.25 + this.fbm(u * 3 + 4, v * 3 + 2) * 1.5) * (0.5 + 0.8 * Math.abs(phase)); return { ang, spd };
   }
   windAt(lat, lon) { const m = this.met; const fromDir = (m && m.windDir != null) ? m.windDir : 225; const baseSpd = (m && m.windSpd != null) ? m.windSpd : 7; const B = this.bbox; const u = (lon - B.lonMin) / (B.lonMax - B.lonMin), v = (lat - B.latMin) / (B.latMax - B.latMin); const t = this.simTime / 3600; const swirl = (this.fbm(u * 1.8 + t * 0.04, v * 1.8) - 0.5) * 0.9; const ang = ((fromDir + 180) % 360) * Math.PI / 180 + swirl; const spd = Math.max(1.5, baseSpd * (0.65 + 0.7 * this.fbm(u * 3 + 7, v * 3 + 1))); return { ang, spd }; }
-  rampRGB(st, v) { const last = st[st.length - 1]; if (v <= st[0][0]) { const c = st[0][1]; return c[0] + ',' + c[1] + ',' + c[2]; } if (v >= last[0]) return last[1][0] + ',' + last[1][1] + ',' + last[1][2]; for (let k = 1; k < st.length; k++) { if (v <= st[k][0]) { const a = st[k - 1], b = st[k], f = (v - a[0]) / (b[0] - a[0]); return Math.round(a[1][0] + (b[1][0] - a[1][0]) * f) + ',' + Math.round(a[1][1] + (b[1][1] - a[1][1]) * f) + ',' + Math.round(a[1][2] + (b[1][2] - a[1][2]) * f); } } const c = last[1]; return c[0] + ',' + c[1] + ',' + c[2]; }
-  windColor(s) { return this.rampRGB([[0, [130, 205, 255]], [5, [80, 210, 185]], [9, [120, 222, 120]], [13, [236, 220, 95]], [18, [245, 150, 55]], [24, [240, 80, 70]], [32, [212, 70, 180]]], s); }
-  curColor(s) { return this.rampRGB([[0, [40, 125, 215]], [0.8, [45, 185, 215]], [1.6, [70, 215, 185]], [2.6, [150, 226, 120]], [3.6, [246, 222, 110]]], s); }
-  stepWind(dt) { if (!this.state.layers.wind) return; const B = this.bbox; for (const p of this.windParticles) { p.plat = p.lat; p.plon = p.lon; const w = this.windAt(p.lat, p.lon); p.spd = w.spd; const nd = this.moveLL(p.lat, p.lon, w.ang * 180 / Math.PI, w.spd * dt * 0.06); p.lat = nd.lat; p.lon = nd.lon; (p.hist || (p.hist = [])).push({ lat: p.lat, lon: p.lon }); if (p.hist.length > 6) p.hist.shift(); p.life -= dt * 11; if (p.life <= 0 || p.lat < B.latMin || p.lat > B.latMax || p.lon < B.lonMin || p.lon > B.lonMax) Object.assign(p, this.spawnP(false)); } }
-  // ---- data-source (provider) configuration -------------------------------
-  // Per-provider settings live in localStorage `mrd_sources`:
-  //   { aisKey, proxyUrl, metBase, tideBase }
-  // metBase/tideBase let the user point at an alternative endpoint (e.g. a
-  // commercial mirror or own gateway); proxyUrl routes CORS-blocked feeds
-  // (Kartverket tide, and MET/yr with a proper User-Agent) through a proxy —
-  // auto-detected at /proxy when the demo is served by the bundled server.js.
+  rampRGB(st, v) { const last = st[st.length - 1]; if (v <= st[0][0]) { const c = st[0][1]; return c[0] + ',' + c[1] + ',' + c[2]; } if (v >= last[0]) return last[1][0] + ',' + last[1][1] + ',' + last[1][2]; for (let k = 1; k < st.length; k++) { if (v <= st[k][0]) { const a = st[k - 1], b = st[k], f0 = (v - a[0]) / (b[0] - a[0]), f = f0 * f0 * (3 - 2 * f0); return Math.round(a[1][0] + (b[1][0] - a[1][0]) * f) + ',' + Math.round(a[1][1] + (b[1][1] - a[1][1]) * f) + ',' + Math.round(a[1][2] + (b[1][2] - a[1][2]) * f); } } const c = last[1]; return c[0] + ',' + c[1] + ',' + c[2]; }
+  // Vind i m/s. Rolig vaer skal vaere nesten fargelost saa kartet slipper
+  // gjennom; farge kommer forst naar det begynner aa blaase.
+  windColor(s) { return this.rampRGB([[0, [186, 219, 140]], [5.4, [140, 210, 150]], [8, [92, 198, 175]], [10.8, [64, 182, 200]], [13.9, [54, 148, 208]], [17.2, [62, 108, 196]], [20.8, [86, 76, 174]], [24.5, [106, 54, 142]], [28.5, [92, 38, 104]], [32.6, [58, 22, 64]]], s); }
+  // Strom i knop. Samme tanke: stillestaaende vann er nesten usynlig, sterk
+  // strom er tydelig - det er den navigatoren maa se.
+  curColor(s) { return this.rampRGB([[0, [150, 186, 208]], [0.6, [96, 168, 206]], [1.2, [70, 176, 178]], [2.0, [126, 190, 128]], [2.8, [214, 180, 92]], [3.6, [220, 118, 74]]], s); }
+  stepWind(dt) {
+    if (!this.state.layers.wind) return;
+    const B = this.partBox();
+    // Piksler per nautisk mil regnes rett ut av zoom. nmToPx() ville vaert
+    // mer naerliggende, men den bruker projeksjonstilstand som forst settes i
+    // draw() - og partiklene stepper FOER draw. Paa forste bilde ville den
+    // kastet og tatt hele animasjonslokka med seg.
+    const S = 256 * Math.pow(2, this.view.zoom);
+    const pxPerNm = Math.max(0.001, S / (21600 * Math.cos(this.view.lat * Math.PI / 180)));
+    for (const p of this.windParticles) {
+      p.plat = p.lat; p.plon = p.lon;
+      const w = this.windAt(p.lat, p.lon);
+      p.spd = w.spd;
+      // Sterkere vind gir raskere og dermed lengre strek - farten leses like
+      // mye av strekens lengde som av fargen under.
+      const nm = ((34 + w.spd * 11) / pxPerNm) * dt;
+      const nd = this.moveLL(p.lat, p.lon, w.ang * 180 / Math.PI, nm);
+      p.lat = nd.lat; p.lon = nd.lon;
+      (p.hist || (p.hist = [])).push({ lat: p.lat, lon: p.lon });
+      if (p.hist.length > 26) p.hist.shift();
+      p.life -= dt * 11;
+      if (p.life <= 0 || p.lat < B.latMin || p.lat > B.latMax || p.lon < B.lonMin || p.lon > B.lonMax) Object.assign(p, this.spawnP(false, B));
+    }
+  }
   loadSrcCfg() {
     let cfg = {};
     try { cfg = JSON.parse(localStorage.getItem('mrd_sources') || 'null') || {}; } catch (e) {}
     if (!cfg.aisKey) { try { const old = localStorage.getItem('mrd_ais_key'); if (old) { cfg.aisKey = old; localStorage.setItem('mrd_sources', JSON.stringify(cfg)); localStorage.removeItem('mrd_ais_key'); } } catch (e) {} }
     this.srcCfg = cfg;
     this._aisKeyInput = cfg.aisKey || '';
+    this._aisSrcSaved = cfg.aisSrc || '';
     this._proxyInput = cfg.proxyUrl || '';
     this.proxyUrl = cfg.proxyUrl || '';
     this.srcStatus = { chart: 'wait', met: 'wait', tide: 'wait' };
@@ -1044,7 +1330,7 @@ class Component extends DCLogic {
   // Persist the COMMITTED proxy value, not the raw input field — otherwise a
   // half-typed proxy URL gets silently persisted whenever the AIS socket
   // opens, changing request routing on the next reload without a Save.
-  saveSrcCfg() { try { const stored = (this.srcCfg && this.srcCfg.proxyUrl) || ''; this.srcCfg = { ...(this.srcCfg || {}), aisKey: this._aisKeyInput || '', proxyUrl: this._proxySaved ? (this._proxyInput || '').trim() : stored }; this._proxySaved = false; localStorage.setItem('mrd_sources', JSON.stringify(this.srcCfg)); } catch (e) {} }
+  saveSrcCfg() { try { const stored = (this.srcCfg && this.srcCfg.proxyUrl) || ''; this.srcCfg = { ...(this.srcCfg || {}), aisKey: this._aisKeyInput || '', aisSrc: this.state.aisSrc || 'sim', proxyUrl: this._proxySaved ? (this._proxyInput || '').trim() : stored }; this._proxySaved = false; localStorage.setItem('mrd_sources', JSON.stringify(this.srcCfg)); } catch (e) {} }
   metBase() { return ((this.srcCfg && this.srcCfg.metBase) || 'https://api.met.no').replace(/\/$/, ''); }
   tideBase() { return ((this.srcCfg && this.srcCfg.tideBase) || 'https://vannstand.kartverket.no').replace(/\/$/, ''); }
   detectProxy() {
@@ -1136,12 +1422,172 @@ class Component extends DCLogic {
   tideNow() { const T = this.tide; if (!T || !T.pts.length) return null; const p = T.pts, now = Date.now(); if (now <= p[0].t) return { v: p[0].v, rate: 1 }; for (let i = 1; i < p.length; i++) { if (now <= p[i].t) { const f = (now - p[i - 1].t) / (p[i].t - p[i - 1].t || 1); return { v: p[i - 1].v + (p[i].v - p[i - 1].v) * f, rate: p[i].v - p[i - 1].v }; } } return { v: p[p.length - 1].v, rate: -1 }; }
   tideExtremes() { const p = (this.tide && this.tide.pts) || [], ex = []; for (let i = 1; i < p.length - 1; i++) { if (p[i].v > p[i - 1].v && p[i].v >= p[i + 1].v) ex.push({ type: 'high', t: p[i].t, v: p[i].v }); else if (p[i].v < p[i - 1].v && p[i].v <= p[i + 1].v) ex.push({ type: 'low', t: p[i].t, v: p[i].v }); } return ex; }
 
-  aisArr() { return this.state.aisMode === 'live' && this.aisLive ? Object.values(this.aisLive).filter(t => t.lat != null) : this.ais; }
+  aisArr() {
+    // Varmstart + lokal blanding: i live-modus vises sim-/sist kjente flaate
+    // helt til det faktisk finnes ekte trafikk I NAEROMRAADET. Live-boksen
+    // dekker hele norskekysten, saa de forste ekte fartoyene kan ligge
+    // hundrevis av nm unna — byttet radaren/kartet til ren live for tidlig,
+    // saa demoen "dod" ut rundt eget skip. Til det er minst 3 ekte fartoy
+    // innen 60 nm vises derfor sim-flaaten sammen med de ekte som er kommet.
+    if (this.state.aisMode === 'live' && this.aisLive) {
+      const v = Object.values(this.aisLive).filter(t => t.lat != null);
+      if (v.length) {
+        const o = this.ownShip;
+        let near = 0;
+        for (const t of v) if (this.distNm(o, t) < 25) { near++; if (near >= 3) break; }
+        if (near >= 3) { this._aisView = 'live'; return v; }
+        this._aisView = 'blend';
+        return this.ais.concat(v);
+      }
+    }
+    this._aisView = 'sim';
+    return this.ais;
+  }
   aisColor(id) { const c = ['#0A84FF', '#34C759', '#FF9F0A', '#BF5AF2', '#FF375F', '#30B0C7', '#FFD60A']; return c[Math.abs(id | 0) % c.length]; }
   shipTypeName(c) { if (c == null) return 'Vessel'; if (c >= 60 && c <= 69) return 'Passenger'; if (c >= 70 && c <= 79) return 'Cargo'; if (c >= 80 && c <= 89) return 'Tanker'; if (c >= 40 && c <= 49) return 'HSC'; if (c === 30) return 'Fishing'; if (c === 35) return 'Military'; if (c === 36) return 'Sailing'; if (c === 37) return 'Pleasure'; if (c === 50) return 'Pilot'; if (c === 51) return 'SAR'; if (c === 52) return 'Tug'; return 'Vessel'; }
+  // -------------------------------------------------------------------
+  // AIS-kilder: simulert, Kystverket (aapne data) eller aisstream.io
+  // -------------------------------------------------------------------
+  // Kystverket kringkaster raa NMEA over TCP, som nettleseren ikke naar. Det
+  // er kiosk-serveren som holder oppkoblingen og deler den ut - derfor kan
+  // ECDIS og radar staa aapne samtidig, i motsetning til aisstream der en
+  // gratisnokkel bare tillater EN tilkobling.
+  aisBase() { return /^https?:$/.test(location.protocol) ? location.origin : ''; }
+
+  // Sjekker om broen faktisk har kontakt med Kystverket. Den lokale serveren
+  // svarer selv om port 5631 er sperret i brannmuren, saa det holder ikke aa
+  // se at endepunktet finnes - vi maa se at det kommer data.
+  async probeKystverket(waitMs) {
+    const base = this.aisBase();
+    if (!base) return false;
+    const until = Date.now() + (waitMs || 0);
+    for (;;) {
+      let st = null;
+      try {
+        const r = await fetch(base + '/ais/status', { cache: 'no-store' });
+        if (r.ok) st = await r.json();
+      } catch (e) { return false; }
+      if (!st) return false;
+      if (st.connected || st.targets > 0) return st;
+      if (Date.now() >= until) return false;
+      await new Promise(r => setTimeout(r, 900));
+    }
+  }
+
+  async bootAisSource() {
+    const cfg = window.__kioskAis || {};
+    const kvOn = !cfg.kystverket || cfg.kystverket.enabled !== false;
+    let want = this._aisSrcSaved || '';
+    if (!want) {
+      const wanted = cfg.source || 'auto';
+      if (wanted === 'auto') {
+        // Prov Kystverket forst - den trenger ingen nokkel og taaler flere
+        // faner. Svarer den ikke innen noen sekunder, fall til aisstream.
+        want = (kvOn && await this.probeKystverket(6000)) ? 'kystverket'
+             : (this._aisKeyInput ? 'aisstream' : 'sim');
+      } else want = wanted;
+    }
+    if (want === 'kystverket' && !kvOn) want = this._aisKeyInput ? 'aisstream' : 'sim';
+    this.setAisSource(want, true);
+  }
+
+  setAisSource(src, quiet) {
+    if (!['sim', 'kystverket', 'aisstream'].includes(src)) src = 'sim';
+    this.disconnectAis();
+    this.setState({ aisSrc: src, aisKvInfo: null });
+    this.saveSrcCfg();
+    if (src === 'kystverket') this.connectAisKystverket(quiet);
+    else if (src === 'aisstream') {
+      if (!this._aisKeyInput && !quiet) this.addAlarm('warning', 'Live AIS - aisstream.io requires an API key. Enter it in the source panel, or use Kystverket, which is open without a key.');
+      this.connectAis(this._aisKeyInput);
+    } else this.setState({ aisMode: 'sim', aisStatus: 'off' });
+  }
+
+  connectAisKystverket(quiet) {
+    const base = this.aisBase();
+    if (!base) {
+      if (!quiet) this.addAlarm('warning', 'Live AIS - the Kystverket source needs ECDIS served over http(s) from the kiosk site, not opened as a local file.');
+      this.setState({ aisSrc: 'sim', aisMode: 'sim', aisStatus: 'off' });
+      return;
+    }
+    this.aisLive = {};
+    this._aisKvOn = true;
+    this._aisKvFails = 0;
+    this.setState({ aisStatus: 'connecting', aisMode: 'live' });
+    const tick = () => { if (this._aisKvOn) this.pollKystverket(base); };
+    tick();
+    this._aisKvTimer = setInterval(tick, 3000);
+  }
+
+  async pollKystverket(base) {
+    if (this._aisKvBusy) return;
+    this._aisKvBusy = true;
+    const B = this.aisBox || this.bbox;
+    const bbox = [B.latMin, B.lonMin, B.latMax, B.lonMax].map(n => n.toFixed(4)).join(',');
+    try {
+      const r = await fetch(base + '/ais/targets?bbox=' + bbox, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const snap = await r.json();
+      if (!this._aisKvOn) return;
+      this._aisKvFails = 0;
+      // Serveren eier maalcachen, saa bildet bygges pa nytt hver runde. Da
+      // forsvinner fartoy som har gaatt ut av utsnittet av seg selv.
+      const live = {};
+      for (const m of (snap.targets || [])) {
+        if (m.lat == null || m.lon == null) continue;
+        const t = {
+          mmsi: m.mmsi, lat: m.lat, lon: m.lon,
+          sog: m.sog || 0, cog: m.cog || 0,
+          hdg: m.hdg != null ? m.hdg : (m.cog || 0),
+          col: this.aisColor(m.mmsi),
+          name: m.name || ('MMSI ' + m.mmsi),
+          type: m.shipType != null ? this.shipTypeName(m.shipType) : 'Vessel',
+          last: Date.now() - (m.ageMs || 0)
+        };
+        if (m.navStatus != null) t.navStatus = m.navStatus;
+        if (m.callsign) t.callsign = m.callsign;
+        if (m.imo) t.imo = m.imo;
+        if (m.dest) t.dest = m.dest;
+        if (m.draught) t.draught = m.draught;
+        if (m.dim) t.dim = m.dim;
+        live[m.mmsi] = t;
+      }
+      this.aisLive = live;
+      this._aisLastMsg = Date.now();
+      const connected = snap.state === 'connected';
+      this.setState({
+        aisStatus: connected ? 'connected' : (snap.state === 'reconnecting' ? 'reconnecting' : 'connecting'),
+        aisMode: 'live',
+        aisKvInfo: { shown: snap.shown || 0, total: snap.total || 0, state: snap.state, truncated: !!snap.truncated }
+      });
+    } catch (e) {
+      if (!this._aisKvOn) return;
+      if (++this._aisKvFails === 4) {
+        this.addAlarm('warning', 'Live AIS - cannot reach the Kystverket bridge in the site API. Check that outbound TCP to ' + ((window.__kioskAis && window.__kioskAis.kystverket && window.__kioskAis.kystverket.host) || '153.44.253.27') + ':' + ((window.__kioskAis && window.__kioskAis.kystverket && window.__kioskAis.kystverket.port) || 5631) + ' is open.');
+        this.setState({ aisStatus: 'error' });
+      }
+    } finally { this._aisKvBusy = false; }
+  }
+
+  stopKystverket() {
+    this._aisKvOn = false;
+    clearInterval(this._aisKvTimer);
+    this._aisKvTimer = null;
+  }
+
   connectAis(key) {
     this.disconnectAis(); key = (key || '').trim(); if (!key) { this.setState({ aisMode: 'sim', aisStatus: 'off' }); return; }
     this.aisKey = key; this.aisLive = {}; const B = this.aisBox || this.bbox;
+    // Varmstart fra siste lagrede AIS-bilde: skjermen er befolket med sist
+    // kjente (ekte) fartoy umiddelbart, dodregnet frem. Ekte meldinger tar
+    // over per MMSI; fartoy som ikke lenger sender prunes av 5-min-regelen.
+    try {
+      const c = this.loadAisCache();
+      if (c && c.mode === 'live') for (const t of c.targets) {
+        if (t.mmsi == null || t.lat == null) continue;
+        this.aisLive[t.mmsi] = { mmsi: t.mmsi, name: t.name || ('MMSI ' + t.mmsi), type: t.type || 'Vessel', col: t.col || this.aisColor(t.mmsi), lat: t.lat, lon: t.lon, cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0, last: Date.now() - 60000 };
+      }
+    } catch (e) {}
     try {
       const ws = new WebSocket('wss://stream.aisstream.io/v0/stream'); this.aisWs = ws;
       ws.onopen = () => { ws.send(JSON.stringify({ APIKey: key, BoundingBoxes: [[[B.latMin, B.lonMin], [B.latMax, B.lonMax]]], FilterMessageTypes: ['PositionReport', 'ShipStaticData'] })); this._aisKeyInput = key; this.saveSrcCfg(); this.setState({ aisStatus: 'connected', aisMode: 'live' }); };
@@ -1153,7 +1599,7 @@ class Component extends DCLogic {
       this._aisWatch = setInterval(() => { if (this.aisKey && this.state.aisStatus === 'connected' && Date.now() - (this._aisLastMsg || 0) > 90000) { try { this.aisWs && this.aisWs.close(); } catch (e) {} } }, 30000);
     } catch (e) { this.setState({ aisStatus: 'error' }); }
   }
-  disconnectAis() { clearTimeout(this._aisReWS); clearInterval(this._aisWatch); const k = this.aisKey; this.aisKey = null; if (this.aisWs) { try { this.aisWs.onclose = null; this.aisWs.close(); } catch (e) {} this.aisWs = null; } if (k) { this.aisLive = null; this.setState({ aisMode: 'sim', aisStatus: 'off' }); } }
+  disconnectAis() { const kv = this._aisKvOn; this.stopKystverket(); clearTimeout(this._aisReWS); clearInterval(this._aisWatch); const k = this.aisKey; this.aisKey = null; if (this.aisWs) { try { this.aisWs.onclose = null; this.aisWs.close(); } catch (e) {} this.aisWs = null; } if (k || kv) { this.aisLive = null; this.setState({ aisMode: 'sim', aisStatus: 'off' }); } }
   startGps() { if (!navigator.geolocation) { this.setState({ gpsStatus: 'unavailable' }); return; } this.setState({ gpsStatus: 'acquiring' }); this.gpsId = navigator.geolocation.watchPosition((p) => { const c = p.coords; this.ownShip.lat = c.latitude; this.ownShip.lon = c.longitude; if (c.speed != null && !isNaN(c.speed)) this.ownShip.sog = c.speed * 1.94384; if (c.heading != null && !isNaN(c.heading)) { this.ownShip.hdg = c.heading; this.ownShip.cog = c.heading; } if (!this.gpsMode) { this.gpsMode = true; this.view.lat = c.latitude; this.view.lon = c.longitude; } this.setState({ gpsStatus: 'fix' }); }, () => { this.gpsMode = false; this.setState({ gpsStatus: 'denied' }); }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 12000 }); }
   stopGps() { if (this.gpsId != null && navigator.geolocation) navigator.geolocation.clearWatch(this.gpsId); this.gpsId = null; this.gpsMode = false; this.setState({ gpsStatus: 'off' }); }
   wxIconFor(c) { c = c || ''; if (c.includes('clearsky')) return '☀'; if (c.includes('fair')) return '🌤'; if (c.includes('partlycloudy')) return '⛅'; if (c.includes('thunder')) return '⛈'; if (c.includes('sleet')) return '🌨'; if (c.includes('snow')) return '❄'; if (c.includes('rain') || c.includes('showers')) return '🌧'; if (c.includes('fog')) return '🌫'; if (c.includes('cloudy')) return '☁'; return '·'; }
@@ -1226,7 +1672,7 @@ class Component extends DCLogic {
   postShipState(force) {
     if (!this.helmCh) return; const o = this.ownShip; const _tn = this.tideNow(); const _tv = _tn ? _tn.v : 0; const _ld = (this.liveDepthOk && this.liveDepth != null) ? this.liveDepth : Math.max(0, this.depthAt(o.lat, o.lon)); const dep = Math.max(0, _ld + _tv); const mw = this.met || {};
     const _al = (this.state.alarms || []).filter(a => !a.ack)[0]; const alarm = _al ? { level: _al.level, text: _al.text, time: _al.time } : null;
-    try { this.helmCh.postMessage({ type: 'state', sid: this.SID, t: Date.now(), ship: { lat: o.lat, lon: o.lon, hdg: o.hdg, cog: o.cog, sog: o.sog, rot: (this._rot || 0), rudder: (o.rudder || 0), depth: dep, ukc: dep - this.draughtV, active: !!(this.helm && this.helm.active), ordered: this.helm ? this.helm.orderedSpeed : 0, telegraph: this.helm ? this.helm.telegraph : 'Stop', ap: !!(this.helm && this.helm.ap), apHeading: this.helm ? this.helm.apHeading : 0, windSpd: mw.windSpd, windDir: mw.windDir, sim: this.state.simSpeed, alarm: alarm, autoNav: !!this.autoNav }, targets: (this.aisArr() || []).slice(0, 40).map(t => ({ lat: t.lat, lon: t.lon, cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0, name: t.name || '' })) }); } catch (e) {}
+    try { this.helmCh.postMessage({ type: 'state', sid: this.SID, t: Date.now(), ship: { lat: o.lat, lon: o.lon, hdg: o.hdg, cog: o.cog, sog: o.sog, rot: (this._rot || 0), rudder: (o.rudder || 0), depth: dep, ukc: dep - this.draughtV, active: !!(this.helm && this.helm.active), ordered: this.helm ? this.helm.orderedSpeed : 0, telegraph: this.helm ? this.helm.telegraph : 'Stop', ap: !!(this.helm && this.helm.ap), apHeading: this.helm ? this.helm.apHeading : 0, windSpd: mw.windSpd, windDir: mw.windDir, sim: this.state.simSpeed, alarm: alarm, autoNav: !!this.autoNav }, targets: (this.aisArr() || []).filter(t => t.lat != null).sort((a, b) => this.distNm(o, a) - this.distNm(o, b)).slice(0, 40).map(t => ({ lat: t.lat, lon: t.lon, cog: (t.cog != null ? t.cog : t.hdg) || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0, name: t.name || '', type: t.type || 'Vessel', col: t.col, mmsi: t.mmsi })) }); } catch (e) {}
   }
   // Shared ship dynamics — rudder, turn rate, engine inertia, thrusters. Used by
   // BOTH manual helm (Helm Console) AND the autonomous controller, so there is a
@@ -1448,10 +1894,12 @@ class Component extends DCLogic {
     // faster, so a wall-clock cadence would let ships close half a mile
     // between give-way decisions.
     this._trafAcc = (this._trafAcc || 0) + sdt;
-    if (!live && this._trafAcc > 15) {
+    // Kjorres for SIM-flaaten ogsaa i blandet live-visning — men aldri paa
+    // ekte fartoy (deres kurs skal ikke muteres av demolgikken).
+    if (this._aisView !== 'live' && this._trafAcc > 15) {
       this._trafAcc = 0;
       const cpaLim = (s.cpaLimit || 0.5), tcpaLim = (s.tcpaLimit || 12);
-      for (const t of arr) {
+      for (const t of this.ais) {
         if (t._baseHdg == null) t._baseHdg = t.hdg;
         const cp = this.cpa(o, t);
         if (cp.tcpa > 0 && cp.tcpa < tcpaLim * 1.15 && cp.cpa < cpaLim * 1.6) t._avoid = Math.min(60, (t._avoid || 0) + 20);
@@ -1464,6 +1912,27 @@ class Component extends DCLogic {
       }
     }
     for (const t of arr) { if (t.sog) { const adv = live ? dt : sdt; const nd = this.moveLL(t.lat, t.lon, (t.cog != null ? t.cog : t.hdg), t.sog / 3600 * adv); t.lat = nd.lat; t.lon = nd.lon; } if (!live) { if (t.lon < B.lonMin) t.lon = B.lonMax - .02; if (t.lon > B.lonMax) t.lon = B.lonMin + .02; if (t.lat < B.latMin) t.lat = B.latMax - .02; if (t.lat > B.latMax) t.lat = B.latMin + .02; } }
+    // Sim-flaaten FOLGER eget skip: en baat som er sakket > 30 nm akterut
+    // (typisk etter "Set route to destination" langt av gaarde) respawnes
+    // 8-18 nm foran skipet med kryssende kurs — i farbart vann (dybdesjekk).
+    // Slik har demoen alltid trafikk rundt skipet uansett hvor det seiler,
+    // og radaren arver det samme bildet via mrd_ais.
+    this._fleetAcc = (this._fleetAcc || 0) + sdt;
+    if (this._fleetAcc > 5) {
+      this._fleetAcc = 0;
+      for (const t of this.ais) {
+        if (this.distNm(t, o) <= 30) continue;
+        let p = null;
+        for (let tr = 0; tr < 6 && !p; tr++) {
+          const cand = this.moveLL(o.lat, o.lon, (o.cog || 0) + (Math.random() * 120 - 60), 8 + Math.random() * 10);
+          if (this.depthAt(cand.lat, cand.lon) > 5) p = cand;
+        }
+        if (!p) continue;
+        t.lat = p.lat; t.lon = p.lon;
+        t.cog = t.hdg = t._baseHdg = ((o.cog || 0) + 100 + Math.random() * 160) % 360;
+        t._avoid = 0; t._trail = [];
+      }
+    }
     if (s.layers.trails) { for (const t of arr) { if (!t._trail) t._trail = []; const last = t._trail[t._trail.length - 1]; if (!last || this.distNm(last, t) > 0.02) { t._trail.push({ lat: t.lat, lon: t.lon }); if (t._trail.length > 50) t._trail.shift(); } } }
     if (live && this.aisLive) { const now = Date.now(); for (const k in this.aisLive) if (now - (this.aisLive[k].last || 0) > 300000) delete this.aisLive[k]; }
     if (performance.now() - (this._lastAlarmWall || 0) > 1500) { this._lastAlarmWall = performance.now(); this.checkAlarms(); }
@@ -1502,8 +1971,29 @@ class Component extends DCLogic {
     else if (this._ftE < 0.017 && this.dpr < cap) { this.dpr = Math.min(cap, this.dpr + 0.25); this.resize(); if (this.dpr >= cap) this._perfLow = false; }
   }
   _frameBody = (ts) => { if (!this._last) this._last = ts; let dt = (ts - this._last) / 1000; this._last = ts; this.adaptPerf(dt, ts); if (dt > 0.1) dt = 0.1; if (this.canvas && (!this.W || this.canvas.width !== Math.round(this.canvas.clientWidth * this.dpr))) this.resize(); const tr = this.state.orient === 'head' ? -this.ownShip.hdg * Math.PI / 180 : this.state.orient === 'course' ? -this.ownShip.cog * Math.PI / 180 : 0; let dr = ((tr - this.view.bearing + Math.PI * 3) % (Math.PI * 2)) - Math.PI; this.view.bearing += dr * Math.min(1, dt * 6); this.tick(dt); this.stepParticles(dt); this.stepWind(dt); this.stepClouds(dt); if (this.state.layers.density && ts - (this._lastDens || 0) > 900) { this._lastDens = ts; this.stepDensity(); } this.draw(); this.pumpTiles(); this.updateReadouts(ts); };
-  stepParticles(dt) { if (!this.state.layers.s111) return; const B = this.bbox; for (const p of this.particles) { p.plat = p.lat; p.plon = p.lon; const c = this.currentAt(p.lat, p.lon); p.spd = c.spd; const nd = this.moveLL(p.lat, p.lon, c.ang * 180 / Math.PI, c.spd * dt * 6); p.lat = nd.lat; p.lon = nd.lon; (p.hist || (p.hist = [])).push({ lat: p.lat, lon: p.lon }); if (p.hist.length > 6) p.hist.shift(); p.life -= dt * 14; if (p.life <= 0 || p.lat < B.latMin || p.lat > B.latMax || p.lon < B.lonMin || p.lon > B.lonMax) Object.assign(p, this.spawnP(false)); } }
-
+  stepParticles(dt) {
+    if (!this.state.layers.s111) return;
+    const B = this.partBox();
+    // Piksler per nautisk mil regnes rett ut av zoom. nmToPx() ville vaert
+    // mer naerliggende, men den bruker projeksjonstilstand som forst settes i
+    // draw() - og partiklene stepper FOER draw. Paa forste bilde ville den
+    // kastet og tatt hele animasjonslokka med seg.
+    const S = 256 * Math.pow(2, this.view.zoom);
+    const pxPerNm = Math.max(0.001, S / (21600 * Math.cos(this.view.lat * Math.PI / 180)));
+    for (const p of this.particles) {
+      p.plat = p.lat; p.plon = p.lon;
+      const c = this.currentAt(p.lat, p.lon);
+      p.spd = c.spd;
+      // Stroem gaar saktere enn vind, og skal ogsaa se saktere ut.
+      const nm = ((16 + c.spd * 26) / pxPerNm) * dt;
+      const nd = this.moveLL(p.lat, p.lon, c.ang * 180 / Math.PI, nm);
+      p.lat = nd.lat; p.lon = nd.lon;
+      (p.hist || (p.hist = [])).push({ lat: p.lat, lon: p.lon });
+      if (p.hist.length > 20) p.hist.shift();
+      p.life -= dt * 14;
+      if (p.life <= 0 || p.lat < B.latMin || p.lat > B.latMax || p.lon < B.lonMin || p.lon > B.lonMax) Object.assign(p, this.spawnP(false, B));
+    }
+  }
   draw() {
     const ctx = this.ctx; if (!ctx || !this.W) return; const s = this.state, P = this.PAL[s.palette]; const wide = this.view.zoom < 7.5;
     this._cos = Math.cos(this.view.bearing); this._sin = Math.sin(this.view.bearing); this._cw = this.project(this.view.lat, this.view.lon, this.view.zoom);
@@ -1521,14 +2011,23 @@ class Component extends DCLogic {
     ctx.restore();
     if (P.scrim && s.base !== 'flyfoto') { ctx.fillStyle = P.scrim; ctx.fillRect(0, 0, this.W, this.H); }
     if (s.layers.s129 && !wide && this.safeC) { const m = this.safeMerc, S = 256 * Math.pow(2, this.view.zoom); ctx.save(); ctx.translate(this.W / 2, this.H / 2); ctx.rotate(this.view.bearing); ctx.imageSmoothingEnabled = true; ctx.drawImage(this.safeC, m.mxMin * S - this._cw[0], m.myTop * S - this._cw[1], (m.mxMax - m.mxMin) * S, (m.myBot - m.myTop) * S); ctx.restore(); }
-    if (s.layers.temp && !wide) this.drawTempField(ctx);
+    // Bare ETT skalarfelt males som farget flate om gangen. Slaas vind, strom,
+    // temperatur og nedbor paa samtidig i den gamle koden, la fire hel-
+    // skjermsraster oppaa hverandre og alt ble en groenn graut der verken
+    // kartet eller dataene kunne leses. Naa eier hoyest prioriterte lag
+    // flaten - de andre vises fortsatt, men som piler, fjaer og partikler.
+    const owner = this.fieldOwner();
+    if (s.layers.temp && !wide && owner === 'temp') this.drawTempField(ctx);
     if (s.layers.s104 && !wide) this.drawWaterLevel(ctx);
-    if (s.layers.s111 && !wide) { this.drawField(ctx, this.curFieldC, this.curFieldMerc, 0.85); this.drawParticles(ctx, P); }
-    if (s.layers.waves && !wide) this.drawWaves(ctx, P);
-    if (s.layers.wind && !wide) { this.drawField(ctx, this.windFieldC, this.windFieldMerc, 0.8); this.drawWind(ctx, P); }
+    if (s.layers.s111 && !wide) { if (owner === 'cur') this.drawField(ctx, this.curFieldC, this.curFieldMerc, 0.62); this.drawParticles(ctx, P); }
+    if (s.layers.waves && !wide) this.drawSwell(ctx, P);
+    if (s.layers.wind && !wide) { if (owner === 'wind') this.drawField(ctx, this.windFieldC, this.windFieldMerc, 0.68); this.drawWind(ctx, P); }
     if (s.layers.clouds && !wide) this.drawClouds(ctx);
-    if (s.layers.precip && !wide) this.drawField(ctx, this.precipC, this.precipMerc, 0.92);
+    if (s.layers.precip && !wide && owner === 'precip') this.drawField(ctx, this.precipC, this.precipMerc, 0.72);
     if (s.layers.density) this.drawDensity(ctx);
+    // Vektorsymbolene legges OVER flatene - ellers drukner de i fargen.
+    if (s.layers.s111 && !wide) this.drawCurrentArrows(ctx, P);
+    if (s.layers.wind && !wide) this.drawWindBarbs(ctx, P);
     if (s.layers.s124) this.drawWarnings(ctx, P);
     if (s.layers.s104) this.drawTideStations(ctx, P);
     if (this.route && s.layers.route) this.drawRoute(ctx);
@@ -1544,7 +2043,129 @@ class Component extends DCLogic {
     if (this.cursor && this.state.tool === 'route') this.drawCursor(ctx);
     if (this.cursor && this.state.tool === 'ebl') this.drawEBL(ctx);
     if (this.mob) this.drawMOB(ctx);
+    this.drawLegend(ctx, P);
     if (this.srcStatus && this.srcStatus.chart === 'error') this.drawTileError(ctx);
+  }
+  // Tegnforklaring nede til venstre for aktive datalag. Rampene samples fra
+  // NOYAKTIG de samme fargefunksjonene som tegner lagene, saa forklaringen
+  // alltid stemmer med kartet, og brikken folger day/dusk/night via P.ui.
+  drawLegend(ctx, P) {
+    const s = this.state, wide = this.view.zoom < 7.5, u = P.ui;
+    const owner = this.fieldOwner();
+
+    // Laget som eier den fargede flaten faar en staaende skala med tallmerker,
+    // slik yr gjor det. En staaende skala er lettere aa lese av enn en liggende
+    // stripe: verdiene staar under hverandre og kan leses uten aa flytte blikket
+    // sidelengs. Rampen samples fra NOYAKTIG samme fargefunksjon som tegner
+    // laget, saa skalaen aldri kan komme i utakt med kartet.
+    const SCALES = {
+      wind:   { title: 'Wind', unit: 'm/s', fn: (v) => this.windColor(v),
+                stops: [32.6, 28.5, 24.5, 20.8, 17.2, 13.9, 10.8, 8, 5.4] },
+      cur:    { title: 'Current', unit: 'kn', fn: (v) => this.curColor(v),
+                stops: [3.6, 3.0, 2.4, 1.8, 1.2, 0.6, 0.2] },
+      temp:   { title: 'Sea temp', unit: '°C', fn: (v) => this.tempColor(v).join(','),
+                stops: [25, 19, 14, 8, 2, -6] },
+      precip: { title: 'Precip', unit: 'mm/h', fn: (v) => this.precipColor(v),
+                stops: [25, 15, 10, 5, 2, 0.6, 0.1] }
+    };
+    const sc = (!wide && owner) ? SCALES[owner] : null;
+
+    // Resten av de aktive lagene staar som korte linjer under skalaen.
+    const rows = [];
+    if (s.layers.s129 && !wide) rows.push({ label: 'UKC', bands: [['rgba(255,59,48,.9)', '<' + s.shallowC], ['rgba(255,149,10,.9)', '<' + s.safetyC], ['rgba(255,214,90,.92)', '<' + s.deepC]] });
+    if (s.layers.s111 && !wide && owner !== 'cur') rows.push({ label: 'Current', note: 'arrows · kn', dot: 'rgb(' + this.curColor(1.6) + ')' });
+    if (s.layers.wind && !wide && owner !== 'wind') rows.push({ label: 'Wind', note: 'barbs · m/s', dot: 'rgb(' + this.windColor(12) + ')' });
+    if (s.layers.temp && !wide && owner !== 'temp') rows.push({ label: 'Sea temp', note: '°C', dot: 'rgb(' + this.tempColor(10).join(',') + ')' });
+    if (s.layers.precip && !wide && owner !== 'precip') rows.push({ label: 'Precip', note: 'mm/h', dot: 'rgb(' + this.precipColor(5) + ')' });
+    if (s.layers.waves && !wide) rows.push({ label: 'Sea state', note: 'Hs ' + ((this.met && this.met.waveH != null) ? this.met.waveH.toFixed(1) : '1.0') + ' m', swell: true });
+    if (s.layers.s102) rows.push({ label: 'Depth', note: 'deep → shallow', dot: 'rgb(100,170,220)' });
+    if (s.layers.density) rows.push({ label: 'Traffic', note: 'low → high', dot: 'rgb(240,150,60)' });
+    if (!sc && !rows.length) return;
+
+    const barW = 11, tickH = 15;
+    const barH = sc ? (sc.stops.length + 1) * tickH : 0;
+    const showBarb = s.layers.wind && !wide;
+    const wPanel = 132, pad = 12;
+    const headH = sc ? 17 : 13;
+    const h = pad * 2 + headH + barH + (rows.length ? rows.length * 15 + 8 : 0) + (showBarb ? 16 : 0);
+    const x = 14, y = this.H - 78 - h;
+
+    ctx.save();
+    ctx.fillStyle = u.glassBg; ctx.strokeStyle = u.hair; ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, wPanel, h, 15); else ctx.rect(x, y, wPanel, h);
+    ctx.fill(); ctx.stroke();
+
+    let cy = y + pad;
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+
+    if (sc) {
+      ctx.font = '800 9px Inter, sans-serif'; ctx.fillStyle = u.ink;
+      ctx.fillText(sc.title, x + pad, cy + 4);
+      ctx.font = '700 8.5px Inter, sans-serif'; ctx.fillStyle = u.muted;
+      ctx.textAlign = 'right'; ctx.fillText(sc.unit, x + wPanel - pad, cy + 4);
+      ctx.textAlign = 'left';
+      cy += headH;
+
+      const top = sc.stops[0], bot = sc.stops[sc.stops.length - 1];
+      const bx = x + pad, by = cy;
+      const g = ctx.createLinearGradient(0, by, 0, by + barH);
+      for (let i = 0; i <= 24; i++) {
+        const v = top + (bot - top) * (i / 24);
+        g.addColorStop(i / 24, 'rgb(' + sc.fn(v) + ')');
+      }
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(bx, by, barW, barH, 4); else ctx.rect(bx, by, barW, barH);
+      ctx.fill();
+      ctx.strokeStyle = u.hair; ctx.lineWidth = 0.5; ctx.stroke();
+
+      ctx.font = '600 8.5px Inter, sans-serif'; ctx.fillStyle = u.ink;
+      sc.stops.forEach((v, i) => {
+        const ty = by + (barH * (i + 0.5)) / (sc.stops.length + 1) + tickH * 0.25;
+        const txt = (i === 0 ? '>' : '') + (Math.abs(v) < 1 ? v.toFixed(1) : String(v));
+        ctx.fillText(txt, bx + barW + 7, ty);
+      });
+      ctx.fillText('<' + bot, bx + barW + 7, by + barH - tickH * 0.4);
+      cy = by + barH + (rows.length ? 8 : 0);
+    }
+
+    for (const r of rows) {
+      if (r.bands) {
+        let sx = x + pad;
+        for (const [col, txt] of r.bands) {
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(sx, cy + 2, 9, 7, 2); else ctx.rect(sx, cy + 2, 9, 7);
+          ctx.fill();
+          ctx.font = '600 7.5px Inter, sans-serif'; ctx.fillStyle = u.muted; ctx.textAlign = 'left';
+          ctx.fillText(txt, sx + 11, cy + 6);
+          sx += 11 + ctx.measureText(txt).width + 6;
+        }
+      } else {
+        if (r.swell) {
+          this.taperArrow(ctx, x + pad + 5, cy + 6, Math.PI / 2, 11, u.ink, 'rgba(0,0,0,0)');
+        } else if (r.dot) {
+          ctx.fillStyle = r.dot;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(x + pad, cy + 2.5, 10, 6, 3); else ctx.rect(x + pad, cy + 2.5, 10, 6);
+          ctx.fill();
+        }
+        ctx.font = '700 8.5px Inter, sans-serif'; ctx.fillStyle = u.ink; ctx.textAlign = 'left';
+        ctx.fillText(r.label, x + pad + 15, cy + 6);
+        ctx.font = '600 8px Inter, sans-serif'; ctx.fillStyle = u.muted; ctx.textAlign = 'right';
+        ctx.fillText(r.note, x + wPanel - pad, cy + 6);
+        ctx.textAlign = 'left';
+      }
+      cy += 15;
+    }
+
+    // Noekkel til vindfjaerene - uten den er symbolet bare en pinne med streker.
+    if (showBarb) {
+      ctx.font = '600 7.5px Inter, sans-serif'; ctx.fillStyle = u.muted; ctx.textAlign = 'left';
+      ctx.fillText('barbs ╱ 5 ╱╱ 10 kt', x + pad, cy + 6);
+    }
+    ctx.restore();
   }
   // On-map notice when the chart tile host is unreachable — without it the
   // demo shows silently blank sea and only the buried provider panel hints why.
@@ -1615,22 +2236,268 @@ class Component extends DCLogic {
   inView(lat, lon, m) { const [x, y] = this.ll2s(lat, lon); return x > -m && x < this.W + m && y > -m && y < this.H + m; }
 
   lighten(rgb, t) { const c = rgb.split(',').map(Number); return Math.round(c[0] + (255 - c[0]) * t) + ',' + Math.round(c[1] + (255 - c[1]) * t) + ',' + Math.round(c[2] + (255 - c[2]) * t); }
-  drawParticles(ctx, P) { const glow = this.state.palette !== 'day' || this.state.base === 'flyfoto'; ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; if (glow) ctx.globalCompositeOperation = 'lighter'; for (const p of this.particles) { const h = p.hist; if (!h || h.length < 2 || !this.inView(p.lat, p.lon, 24)) continue; const base = this.curColor(p.spd || 0.4); const lifeA = Math.max(0, Math.min(1, p.life / 90)); for (let i = 1; i < h.length; i++) { const [x1, y1] = this.ll2s(h[i - 1].lat, h[i - 1].lon); const [x2, y2] = this.ll2s(h[i].lat, h[i].lon); const seg = i / h.length; const col = this.lighten(base, seg * 0.6); const a = lifeA * (0.12 + seg * 0.88) * (glow ? 0.62 : 0.8); ctx.strokeStyle = 'rgba(' + col + ',' + a.toFixed(2) + ')'; ctx.lineWidth = 0.5 + seg * 2.4; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); } } ctx.globalCompositeOperation = 'source-over'; ctx.restore(); }
-  drawWind(ctx, P) { ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; for (const p of this.windParticles) { const h = p.hist; if (!h || h.length < 2 || !this.inView(p.lat, p.lon, 24)) continue; const lifeA = Math.max(0, Math.min(1, p.life / 90)); for (let i = 1; i < h.length; i++) { const [x1, y1] = this.ll2s(h[i - 1].lat, h[i - 1].lon); const [x2, y2] = this.ll2s(h[i].lat, h[i].lon); const seg = i / h.length; const a = lifeA * (0.12 + seg * 0.88); ctx.strokeStyle = 'rgba(255,255,255,' + a.toFixed(2) + ')'; ctx.lineWidth = 0.6 + seg * 2.3; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); } } ctx.restore(); }
+  drawParticles(ctx, P) {
+    const glow = this.state.palette !== 'day' || this.state.base === 'flyfoto';
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (glow) ctx.globalCompositeOperation = 'lighter';
+    for (const p of this.particles) {
+      const h = p.hist;
+      if (!h || h.length < 3 || !this.inView(p.lat, p.lon, 24)) continue;
+      const base = this.curColor(p.spd || 0.4);
+      const lifeA = Math.max(0, Math.min(1, p.life / 90));
+      this.smoothTrail(ctx, h, (seg) => {
+        const col = glow ? this.lighten(base, seg * 0.5) : base;
+        const a = lifeA * (0.05 + seg * seg * 0.62) * (glow ? 0.62 : 0.72);
+        ctx.strokeStyle = 'rgba(' + col + ',' + a.toFixed(3) + ')';
+        ctx.lineWidth = 0.4 + seg * 1.7;
+      });
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.restore();
+  }
+
+  drawWind(ctx, P) {
+    const owns = this.fieldOwner() === 'wind';
+    const light = owns || this.state.palette !== 'day' || this.state.base === 'flyfoto';
+    const base = light ? '255,255,255' : '58,88,116';
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const p of this.windParticles) {
+      const h = p.hist;
+      if (!h || h.length < 3 || !this.inView(p.lat, p.lon, 24)) continue;
+      const lifeA = Math.max(0, Math.min(1, p.life / 90));
+      this.smoothTrail(ctx, h, (seg) => {
+        const a = lifeA * (0.04 + seg * seg * 0.9) * (light ? 1 : 0.62);
+        ctx.strokeStyle = 'rgba(' + base + ',' + a.toFixed(3) + ')';
+        ctx.lineWidth = 0.4 + seg * 1.5;
+      });
+    }
+    ctx.restore();
+  }
+
   drawRadar(ctx, P) { const o = this.ownShip; const [cx, cy] = this.ll2s(o.lat, o.lon); const rings = [0.25, 0.5, 1, 2, 4]; const maxR = this.nmToPx(rings[rings.length - 1]); ctx.save(); ctx.lineCap = 'round'; for (const r of rings) { const rp = this.nmToPx(r); if (rp < 16 || rp > Math.hypot(this.W, this.H)) continue; ctx.globalAlpha = 0.32; ctx.strokeStyle = P.ui.muted; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.arc(cx, cy, rp, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 0.7; ctx.fillStyle = P.ui.muted; ctx.font = '600 8px Inter'; ctx.textAlign = 'center'; ctx.fillText(r + ' nm', cx, cy - rp - 3); } ctx.globalAlpha = 0.4; ctx.strokeStyle = P.ui.muted; ctx.lineWidth = 1; for (let b = 0; b < 360; b += 30) { const aa = b * Math.PI / 180 + this.view.bearing; const r1 = maxR - 7, r2 = maxR; ctx.beginPath(); ctx.moveTo(cx + Math.sin(aa) * r1, cy - Math.cos(aa) * r1); ctx.lineTo(cx + Math.sin(aa) * r2, cy - Math.cos(aa) * r2); ctx.stroke(); } const sweep = (performance.now() / 1000 * 0.9) % (Math.PI * 2); for (let k = 0; k < 28; k++) { const aa = sweep - k * 0.018; ctx.strokeStyle = 'rgba(52,199,89,' + (0.16 * (1 - k / 28)).toFixed(3) + ')'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.sin(aa) * maxR, cy - Math.cos(aa) * maxR); ctx.stroke(); } ctx.globalAlpha = 1; ctx.strokeStyle = 'rgba(52,199,89,0.85)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.sin(sweep) * maxR, cy - Math.cos(sweep) * maxR); ctx.stroke(); ctx.restore(); }
   drawTrails(ctx, P) { ctx.save(); ctx.lineCap = 'round'; for (const t of this.aisArr()) { const tr = t._trail; if (!tr || tr.length < 2) continue; if (!this.inView(t.lat, t.lon, 40)) continue; for (let i = 1; i < tr.length; i++) { const [x1, y1] = this.ll2s(tr[i - 1].lat, tr[i - 1].lon); const [x2, y2] = this.ll2s(tr[i].lat, tr[i].lon); const a = (i / tr.length) * 0.5; ctx.strokeStyle = (t.dangerous ? 'rgba(255,59,48,' : 'rgba(130,150,170,') + a.toFixed(2) + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); } } ctx.restore(); }
-  drawWaves(ctx, P) { const m = this.met; const h = (m && m.waveH != null) ? m.waveH : 1; if (h < 0.15) return; const fromDir = (m && m.windDir != null) ? m.windDir : 225; const ang = ((fromDir + 180) % 360) * Math.PI / 180 + this.view.bearing; const dx = Math.sin(ang), dy = -Math.cos(ang); const px = -dy, py = dx; const t = performance.now() / 1000; const amp = Math.min(1, h / 4); const day = this.state.palette === 'day'; const cx0 = this.W / 2, cy0 = this.H / 2; const diag = Math.hypot(this.W, this.H) / 2 + 50; const spacing = 32 - amp * 9; const flow = (t * (16 + amp * 26)) % spacing; ctx.save(); ctx.lineCap = 'round'; for (let d = -diag; d < diag; d += spacing) { const dd = d + flow; ctx.beginPath(); let pen = false; for (let s = -diag; s < diag; s += 11) { const wob = Math.sin(s * 0.035 + dd * 0.05 + t * 0.6) * 4 * amp; const cx = cx0 + dx * (dd + wob) + px * s; const cy = cy0 + dy * (dd + wob) + py * s; if (cx < -20 || cx > this.W + 20 || cy < -20 || cy > this.H + 20) { pen = false; continue; } const w = this.s2ll(cx, cy); if (this.landAt && this.landAt(w[0], w[1])) { pen = false; continue; } if (!pen) { ctx.moveTo(cx, cy); pen = true; } else ctx.lineTo(cx, cy); } const br = 0.5 + 0.5 * Math.sin(dd * 0.05 - t * 1.2); const a = (0.05 + 0.13 * amp) * (0.4 + 0.6 * br); ctx.strokeStyle = (day ? 'rgba(255,255,255,' : 'rgba(175,212,242,') + a.toFixed(3) + ')'; ctx.lineWidth = 1 + amp * 1.6; ctx.stroke(); } ctx.restore(); }
-  drawShoals(ctx, P) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (this.view.zoom >= 8) for (const sh of this.shoals) { if (!this.inView(sh.lat, sh.lon, 10)) continue; const unsafe = sh.d < this.state.safetyC; const shoalHi = sh.d < this.state.safetyD; const [x, y] = this.ll2s(sh.lat, sh.lon); if (unsafe) { ctx.fillStyle = 'rgba(191,90,242,.15)'; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.fill(); ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.4; ctx.setLineDash([3, 2]); ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke(); ctx.setLineDash([]); } ctx.fillStyle = unsafe ? '#BF5AF2' : P.ui.muted; ctx.font = 'bold 11px Inter'; ctx.fillText('✸', x, y); ctx.font = (shoalHi ? 'bold ' : '600 ') + '9px Inter'; ctx.fillStyle = shoalHi ? '#FF3B30' : P.ui.muted; ctx.fillText(sh.d.toFixed(1), x, y + 12); } ctx.restore(); }
+  // Sjotilstand. Det gamle laget la skraa, bolgete hvite streker over HELE
+  // skjermen - stoy som verken fortalte retning eller hoyde. Naa tegnes
+  // doenningen som glisne boelgekammer paa tvers av forplantningsretningen,
+  // med retningspiler og signifikant boelgehoyde paategnet.
+  drawSwell(ctx, P) {
+    const m = this.met;
+    const h = (m && m.waveH != null) ? m.waveH : 1;
+    if (h < 0.15) return;
+    const fromDir = (m && m.windDir != null) ? m.windDir : 225;
+    const ang = ((fromDir + 180) % 360) * Math.PI / 180 + this.view.bearing;
+    const dx = Math.sin(ang), dy = -Math.cos(ang);
+    const px = -dy, py = dx;
+    const t = performance.now() / 1000;
+    const amp = Math.min(1, h / 5);
+    const dark = this.state.palette !== 'day';
+    const cx0 = this.W / 2, cy0 = this.H / 2;
+    const diag = Math.hypot(this.W, this.H) / 2 + 60;
+    const spacing = 96 - amp * 26;
+    const flow = (t * (14 + amp * 20)) % spacing;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let d = -diag; d < diag; d += spacing) {
+      const dd = d + flow;
+      ctx.beginPath();
+      let pen = false;
+      for (let u = -diag; u < diag; u += 6) {
+        const wob = Math.sin(u * 0.014 + dd * 0.03 + t * 0.5) * 7 * amp;
+        const cx = cx0 + dx * (dd + wob) + px * u;
+        const cy = cy0 + dy * (dd + wob) + py * u;
+        if (cx < -30 || cx > this.W + 30 || cy < -30 || cy > this.H + 30) { pen = false; continue; }
+        const w = this.s2ll(cx, cy);
+        if (this.landAt && this.landAt(w[0], w[1])) { pen = false; continue; }
+        if (!pen) { ctx.moveTo(cx, cy); pen = true; } else ctx.lineTo(cx, cy);
+      }
+      const br = 0.5 + 0.5 * Math.sin(dd * 0.03 - t * 0.9);
+      const a = (0.10 + 0.20 * amp) * (0.45 + 0.55 * br);
+      ctx.strokeStyle = (dark ? 'rgba(186,214,238,' : 'rgba(52,96,134,') + a.toFixed(3) + ')';
+      ctx.lineWidth = 1.1 + amp * 1.4;
+      ctx.stroke();
+    }
+
+    const halo = dark ? 'rgba(8,12,18,.6)' : 'rgba(255,255,255,.8)';
+    const ink = dark ? 'rgba(226,238,250,.95)' : 'rgba(26,54,78,.92)';
+    const col = dark ? 'rgba(150,196,232,.95)' : 'rgba(44,96,142,.9)';
+    // To retningspiler holder. Fire ble bare enda et rutenett oppaa de to
+    // andre - poenget er aa vise hvilken vei sjoen gaar, ikke aa kartlegge den.
+    for (const f of [0.3, 0.7]) {
+      const x = this.W * f, y = this.H * (1 - f) * 0.7 + this.H * 0.15;
+      const w = this.s2ll(x, y);
+      if (this.landAt && this.landAt(w[0], w[1])) continue;
+      this.taperArrow(ctx, x, y, ang, 34 + amp * 18, col, halo);
+      this.haloText(ctx, 'Hs ' + h.toFixed(1) + ' m', x - dx * 30, y - dy * 30,
+        '700 10px Inter, sans-serif', ink, halo);
+    }
+    ctx.restore();
+  }
+  // Grunner: isolert-fare-symbol med hvit halo og dybden i en liten chip —
+  // tallet forsvinner ikke lenger i kartdetaljene, og roedt betyr grunnere
+  // enn egen sikkerhetsdybde.
+  drawShoals(ctx, P) {
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (this.view.zoom >= 8) for (const sh of this.shoals) {
+      if (!this.inView(sh.lat, sh.lon, 10)) continue;
+      const unsafe = sh.d < this.state.safetyC;
+      const shoalHi = sh.d < this.state.safetyD;
+      const [x, y] = this.ll2s(sh.lat, sh.lon);
+      if (unsafe) {
+        ctx.fillStyle = 'rgba(191,90,242,.14)';
+        ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 2.5]);
+        ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.font = 'bold 11px Inter';
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.9)';
+      ctx.strokeText('✸', x, y);
+      ctx.fillStyle = unsafe ? '#BF5AF2' : P.ui.muted;
+      ctx.fillText('✸', x, y);
+      const label = sh.d.toFixed(1);
+      ctx.font = (shoalHi ? '800' : '700') + ' 8.5px Inter';
+      const tw = ctx.measureText(label).width;
+      const rw = tw + 10, rh = 13, rx = x - rw / 2, ry = y + 11;
+      ctx.fillStyle = P.ui.attrbg;
+      ctx.strokeStyle = P.ui.hair; ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, 6.5); else ctx.rect(rx, ry, rw, rh);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = shoalHi ? '#FF3B30' : (unsafe ? '#BF5AF2' : P.ui.ink);
+      ctx.fillText(label, x, ry + rh / 2 + 0.5);
+    }
+    ctx.restore();
+  }
   drawRoute(ctx) { const R = this.route, S = R.map(w => this.ll2s(w.lat, w.lon)); const dl = (this.routeCheck && this.routeCheck.dangerLegs) || []; ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(10,132,255,0.16)'; ctx.lineWidth = Math.max(6, this.nmToPx(this.channel) * 2); ctx.beginPath(); S.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); ctx.lineWidth = 2.2; ctx.setLineDash([8, 5]); for (let i = 1; i < S.length; i++) { ctx.strokeStyle = dl.includes(i) ? '#FF3B30' : this.accent; ctx.beginPath(); ctx.moveTo(S[i - 1][0], S[i - 1][1]); ctx.lineTo(S[i][0], S[i][1]); ctx.stroke(); } ctx.setLineDash([]); if (this._wop) { const [wx, wy] = this.ll2s(this._wop.lat, this._wop.lon); ctx.fillStyle = 'rgba(255,159,10,.3)'; ctx.strokeStyle = '#FF9F0A'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(wx, wy, 6, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#FF9F0A'; ctx.font = '700 8px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('WOP', wx, wy - 12); } S.forEach((p, i) => { const active = i === this.activeLeg; const danger = dl.includes(i) || dl.includes(i + 1); ctx.fillStyle = active ? '#FF9F0A' : (danger ? '#FF3B30' : this.accent); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p[0], p[1], active ? 7 : 5.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(i, p[0], p[1]); }); ctx.restore(); }
   drawEBL(ctx) { const o = this.ownShip; const [ox, oy] = this.ll2s(o.lat, o.lon); const [cx, cy] = this.ll2s(this.cursor.lat, this.cursor.lon); const rng = this.distNm(o, this.cursor); ctx.save(); ctx.strokeStyle = this.accent; ctx.lineWidth = 1.3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(cx, cy); ctx.stroke(); const rp = this.nmToPx(rng); ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.arc(ox, oy, rp, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(cx - 10, cy); ctx.lineTo(cx + 10, cy); ctx.moveTo(cx, cy - 10); ctx.lineTo(cx, cy + 10); ctx.stroke(); ctx.restore(); }
   drawReplay(ctx) { const T = this.track; if (T.length < 2) return; const t0 = T[0].t || 0, t1 = T[T.length - 1].t || 1; const tt = t0 + (this._replayPos || 0) * (t1 - t0); let pt = T[0]; for (let i = 1; i < T.length; i++) { if ((T[i].t || 0) >= tt) { const f = (tt - (T[i - 1].t || 0)) / (((T[i].t || 0) - (T[i - 1].t || 0)) || 1); pt = { lat: T[i - 1].lat + (T[i].lat - T[i - 1].lat) * f, lon: T[i - 1].lon + (T[i].lon - T[i - 1].lon) * f }; break; } pt = T[i]; } const [x, y] = this.ll2s(pt.lat, pt.lon); ctx.save(); ctx.fillStyle = 'rgba(191,90,242,.9)'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(x, y, 6.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = this.PAL[this.state.palette].ui.ink; ctx.font = '700 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const d = new Date(tt); ctx.fillText(String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), x, y - 12); ctx.restore(); }
   drawTrack(ctx) { if (this.track.length < 2) return; ctx.save(); ctx.strokeStyle = this.state.palette === 'night' ? 'rgba(180,200,215,.6)' : 'rgba(30,40,55,.5)'; ctx.lineWidth = 1.4; ctx.setLineDash([2, 3]); ctx.beginPath(); this.track.forEach((w, i) => { const [x, y] = this.ll2s(w.lat, w.lon); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
-  drawWarnings(ctx, P) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; for (const w of this.warnings) { if (!this.inView(w.lat, w.lon, 60)) continue; const [x, y] = this.ll2s(w.lat, w.lon); const rp = this.nmToPx(w.r); ctx.fillStyle = 'rgba(191,90,242,.10)'; ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.fill(); ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.4; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#BF5AF2'; ctx.font = 'bold 13px Inter'; ctx.fillText('⚠', x, y - 0.5); if (this.view.zoom > 8.5) { ctx.font = '600 9px Inter'; ctx.fillStyle = P.ui.ink; ctx.fillText(w.id, x, y + rp + 10); } } ctx.restore(); }
-  drawTideStations(ctx, P) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const phase = Math.sin(this.simTime / 22350 * Math.PI * 2); for (const t of this.tideStations) { if (!this.inView(t.lat, t.lon, 20)) continue; const [x, y] = this.ll2s(t.lat, t.lon); const lvl = (t.base + 1.0 + phase * 1.0); ctx.fillStyle = '#0A84FF'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = 'bold 7px Inter'; ctx.fillText('≈', x, y + 0.5); if (this.view.zoom > 8) { const label = t.name + '  ' + lvl.toFixed(1) + ' m'; ctx.font = '600 9px Inter'; const w = ctx.measureText(label).width; ctx.fillStyle = 'rgba(10,132,255,.92)'; ctx.beginPath(); const rx = x + 9, ry = y - 7, rw = w + 12, rh = 15; if (ctx.roundRect) { ctx.roundRect(rx, ry, rw, rh, 7); ctx.fill(); } else ctx.fillRect(rx, ry, rw, rh); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(label, rx + 6, ry + rh / 2); ctx.textAlign = 'center'; } } ctx.restore(); }
+  // S-124: skravert flate + sakte pulserende ring + senterbadge og en tydelig
+  // tekstchip med baade id OG hva varselet gjelder — mye lettere aa lese enn
+  // en tynn sirkel med et ensomt id-nummer under.
+  drawWarnings(ctx, P) {
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (!this._warnPat) {
+      const pc = document.createElement('canvas'); pc.width = pc.height = 8;
+      const px = pc.getContext('2d');
+      px.strokeStyle = 'rgba(191,90,242,0.30)'; px.lineWidth = 1.4; px.lineCap = 'square';
+      px.beginPath(); px.moveTo(-2, 10); px.lineTo(10, -2); px.moveTo(2, 14); px.lineTo(14, 2); px.stroke();
+      this._warnPat = ctx.createPattern(pc, 'repeat');
+    }
+    const dashOff = -(performance.now() / 90) % 12;
+    for (const w of this.warnings) {
+      if (!this.inView(w.lat, w.lon, 60)) continue;
+      const [x, y] = this.ll2s(w.lat, w.lon);
+      const rp = this.nmToPx(w.r);
+      ctx.fillStyle = 'rgba(191,90,242,.07)';
+      ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.fill();
+      ctx.fillStyle = this._warnPat;
+      ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#BF5AF2'; ctx.lineWidth = 1.6;
+      ctx.setLineDash([7, 5]); ctx.lineDashOffset = dashOff;
+      ctx.beginPath(); ctx.arc(x, y, rp, 0, 7); ctx.stroke();
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+      ctx.fillStyle = '#BF5AF2';
+      ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(x, y, 9.5, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Inter'; ctx.fillText('⚠', x, y - 0.5);
+      if (this.view.zoom > 8.5) {
+        const label = w.id + ' · ' + w.text;
+        ctx.font = '700 9px Inter';
+        const tw = ctx.measureText(label).width;
+        const rx = x - tw / 2 - 8, ry = y + rp + 6, rw = tw + 16, rh = 17;
+        ctx.fillStyle = 'rgba(191,90,242,.94)';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, 8.5); else ctx.rect(rx, ry, rw, rh);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, x, ry + rh / 2 + 0.5);
+      }
+    }
+    ctx.restore();
+  }
+  // S-104: stasjonsbrikke med vannstand OG trend (stigende ▲ / fallende ▼) —
+  // trenden er det en navigator faktisk leter etter, ikke bare tallet.
+  drawTideStations(ctx, P) {
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const ph = this.simTime / 22350 * Math.PI * 2;
+    const phase = Math.sin(ph), rising = Math.cos(ph) > 0;
+    for (const t of this.tideStations) {
+      if (!this.inView(t.lat, t.lon, 20)) continue;
+      const [x, y] = this.ll2s(t.lat, t.lon);
+      const lvl = (t.base + 1.0 + phase * 1.0);
+      ctx.strokeStyle = 'rgba(10,132,255,.38)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, 9.5, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#0A84FF'; ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Inter'; ctx.fillText('≈', x, y + 0.5);
+      if (this.view.zoom > 8) {
+        const arrow = rising ? ' ▲' : ' ▼';
+        const val = lvl.toFixed(1) + ' m' + arrow;
+        ctx.font = '600 9px Inter'; const nw = ctx.measureText(t.name).width;
+        ctx.font = '800 9px Inter'; const vw = ctx.measureText(val).width;
+        const rw = nw + vw + 21, rh = 17, rx = x + 11, ry = y - rh / 2;
+        ctx.fillStyle = 'rgba(10,132,255,.94)';
+        ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, 8.5); else ctx.rect(rx, ry, rw, rh);
+        ctx.fill(); ctx.stroke();
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '600 9px Inter';
+        ctx.fillText(t.name, rx + 7, ry + rh / 2 + 0.5);
+        ctx.fillStyle = rising ? '#BDF5D3' : '#FFE0A6'; ctx.font = '800 9px Inter';
+        ctx.fillText(val, rx + 7 + nw + 7, ry + rh / 2 + 0.5);
+        ctx.textAlign = 'center';
+      }
+    }
+    ctx.restore();
+  }
   aisTypeColor(type) { const t = (type || '').toLowerCase(); if (t.includes('cargo')) return '#2E9E5B'; if (t.includes('tanker')) return '#C0392B'; if (t.includes('passenger') || t.includes('passasjer')) return '#2C6FDB'; if (t.includes('hsc') || t.includes('high')) return '#16A4A4'; if (t.includes('tug') || t.includes('pilot') || t.includes('sar') || t.includes('law') || t.includes('port')) return '#16A4A4'; if (t.includes('fish')) return '#C77D2E'; if (t.includes('sail') || t.includes('pleasure')) return '#9B59B6'; if (t.includes('dredg') || t.includes('military')) return '#C77D2E'; return '#7d8794'; }
   drawAIS(ctx, P) { ctx.save(); const fly = this.state.base === 'flyfoto'; const halo = fly ? 'rgba(0,0,0,.62)' : 'rgba(255,255,255,.92)'; for (const t of this.aisArr()) { if (!this.inView(t.lat, t.lon, 30)) continue; const [x, y] = this.ll2s(t.lat, t.lon); const col = t.dangerous ? '#FF3B30' : this.aisTypeColor(t.type); const sc = this.view.zoom > 11.5 ? 1.3 : (this.view.zoom > 9.5 ? 1.12 : 1); if (t.dangerous) { const dr = Math.max(15, this.nmToPx(this.state.cpaLimit || 0.5)); ctx.fillStyle = 'rgba(255,59,48,.10)'; ctx.beginPath(); ctx.arc(x, y, dr, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(255,59,48,.55)'; ctx.lineWidth = 1.4; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(x, y, dr, 0, 7); ctx.stroke(); ctx.setLineDash([]); } ctx.save(); ctx.translate(x, y); ctx.rotate((t.cog != null ? t.cog : t.hdg) * Math.PI / 180 + this.view.bearing); ctx.lineJoin = 'round'; const shape = () => { ctx.beginPath(); ctx.moveTo(0, -9.5 * sc); ctx.lineTo(6 * sc, 7 * sc); ctx.lineTo(0, 3.5 * sc); ctx.lineTo(-6 * sc, 7 * sc); ctx.closePath(); }; const vlen = Math.max(11, t.sog * 1.6); ctx.strokeStyle = halo; ctx.lineWidth = 3.2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -vlen); ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -vlen); ctx.stroke(); shape(); ctx.lineWidth = 3.4; ctx.strokeStyle = halo; ctx.stroke(); shape(); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke(); ctx.restore(); if (t.dangerous) { ctx.strokeStyle = '#FF3B30'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(x, y, 13 * sc, 0, 7); ctx.stroke(); } if (this.view.zoom > 9.5) { const ln = t.name || ''; ctx.font = '600 9px Inter'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = halo; ctx.strokeText(ln, x + 10 * sc, y - 5); ctx.fillStyle = fly ? '#fff' : P.ui.ink; ctx.fillText(ln, x + 10 * sc, y - 5); } } ctx.restore(); }
   drawWake(ctx) { const T = this.track; if (T.length < 2 || this.ownShip.sog < 1) return; const n = Math.min(22, T.length - 1); ctx.save(); ctx.lineCap = 'round'; for (let i = T.length - n; i < T.length; i++) { const a = T[i - 1], b = T[i]; const [x1, y1] = this.ll2s(a.lat, a.lon); const [x2, y2] = this.ll2s(b.lat, b.lon); const f = (i - (T.length - n)) / n; ctx.strokeStyle = 'rgba(205,232,247,' + (f * 0.34).toFixed(2) + ')'; ctx.lineWidth = 1.5 + f * 5.5; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); } ctx.restore(); }
-  drawLights(ctx, P) { const now = performance.now() / 1000; ctx.save(); ctx.textBaseline = 'middle'; for (const L of (this.lights || [])) { if (!this.inView(L.lat, L.lon, 16)) continue; const [x, y] = this.ll2s(L.lat, L.lon); const ph = now % L.per; const lit = ph < (L.on || 0.5); ctx.fillStyle = '#BF5AF2'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 7); ctx.fill(); ctx.stroke(); if (lit) { const rad = 17; const g = ctx.createRadialGradient(x, y, 0, x, y, rad); const c = L.col === 'R' ? '255,70,70' : L.col === 'G' ? '60,220,120' : '255,240,180'; g.addColorStop(0, 'rgba(' + c + ',.95)'); g.addColorStop(0.5, 'rgba(' + c + ',.45)'); g.addColorStop(1, 'rgba(' + c + ',0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill(); } if (this.view.zoom > 9.2) { ctx.font = '600 8px Inter'; ctx.textAlign = 'left'; ctx.lineWidth = 2.6; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.strokeText(L.label, x + 7, y + 8); ctx.fillStyle = P.ui.muted; ctx.fillText(L.label, x + 7, y + 8); } } ctx.restore(); }
+  // Fyr og lykter: blink-halo som for, men karakteristikk-etiketten ligger naa
+  // i en temafolgende chip med fargeprikk (lysfargen) — lesbar paa alle
+  // basemap, ogsaa flyfoto og night.
+  drawLights(ctx, P) {
+    const now = performance.now() / 1000;
+    ctx.save(); ctx.textBaseline = 'middle';
+    for (const L of (this.lights || [])) {
+      if (!this.inView(L.lat, L.lon, 16)) continue;
+      const [x, y] = this.ll2s(L.lat, L.lon);
+      const ph = now % L.per;
+      const lit = ph < (L.on || 0.5);
+      const c = L.col === 'R' ? '255,70,70' : L.col === 'G' ? '60,220,120' : '255,214,120';
+      ctx.fillStyle = '#BF5AF2'; ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 7); ctx.fill(); ctx.stroke();
+      if (lit) {
+        const rad = 18;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+        g.addColorStop(0, 'rgba(' + c + ',.95)');
+        g.addColorStop(0.5, 'rgba(' + c + ',.42)');
+        g.addColorStop(1, 'rgba(' + c + ',0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+      }
+      if (this.view.zoom > 9.2) {
+        ctx.font = '600 8.5px Inter';
+        const tw = ctx.measureText(L.label).width;
+        const rx = x + 8, ry = y + 5, rw = tw + 19, rh = 15;
+        ctx.fillStyle = P.ui.attrbg;
+        ctx.strokeStyle = P.ui.hair; ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(rx, ry, rw, rh, 7.5); else ctx.rect(rx, ry, rw, rh);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgb(' + c + ')';
+        ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.arc(rx + 8, ry + rh / 2, 2.8, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.textAlign = 'left';
+        ctx.fillStyle = P.ui.ink;
+        ctx.fillText(L.label, rx + 14, ry + rh / 2 + 0.5);
+      }
+    }
+    ctx.restore();
+  }
   drawShip(ctx) { const o = this.ownShip; const [x, y] = this.ll2s(o.lat, o.lon); const dark = this.state.palette !== 'day'; ctx.save(); ctx.translate(x, y); ctx.rotate(o.cog * Math.PI / 180 + this.view.bearing); ctx.setLineDash([5, 4]); ctx.strokeStyle = this.hazardPt ? '#FF3B30' : '#34C759'; ctx.lineWidth = this.hazardPt ? 2.2 : 1.6; ctx.beginPath(); ctx.moveTo(0, 0); const _pm = this.state.predMin || 0; const _vl = _pm ? Math.max(20, this.nmToPx(o.sog * _pm / 60)) : Math.max(26, this.nmToPx(o.sog / 10)); ctx.lineTo(0, -_vl); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); ctx.save(); ctx.translate(x, y); ctx.rotate(o.hdg * Math.PI / 180 + this.view.bearing); const Lpx = this.nmToPx(o.len / 1852); ctx.strokeStyle = dark ? '#fff' : '#0A2540'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -Math.max(34, Lpx * 1.4)); ctx.stroke(); if (Lpx > 13) { const l = Lpx / 2, b = Math.max(2.4, this.nmToPx(o.beam / 1852) / 2); ctx.fillStyle = dark ? 'rgba(255,255,255,.6)' : 'rgba(10,37,64,.55)'; ctx.strokeStyle = dark ? '#fff' : '#0A2540'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(0, -l); ctx.lineTo(b, -l + b * 1.4); ctx.lineTo(b, l); ctx.lineTo(-b, l); ctx.lineTo(-b, -l + b * 1.4); ctx.closePath(); ctx.fill(); ctx.stroke(); } else { ctx.fillStyle = dark ? '#fff' : '#0A2540'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, 7); ctx.fill(); ctx.strokeStyle = this.accent; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 8, 0, 7); ctx.stroke(); } ctx.restore(); }
   drawPredictor(ctx) { const o = this.ownShip; const pm = this.state.predMin || 0; if (!pm || o.sog < 0.3) return; const pp = this.moveLL(o.lat, o.lon, o.cog, o.sog * pm / 60); const [px, py] = this.ll2s(pp.lat, pp.lon); const dark = this.state.palette !== 'day'; ctx.save(); ctx.fillStyle = this.hazardPt ? '#FF3B30' : '#34C759'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(px, py, 4.5, 0, 7); ctx.fill(); ctx.stroke(); ctx.font = '700 9px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 2.6; ctx.strokeStyle = dark ? 'rgba(0,0,0,.5)' : 'rgba(255,255,255,.85)'; ctx.strokeText(pm + ' min', px, py - 10); ctx.fillStyle = dark ? '#fff' : '#0A2540'; ctx.fillText(pm + ' min', px, py - 10); ctx.restore(); }
   drawHazard(ctx) { const h = this.hazardPt; if (!h) return; const o = this.ownShip; const [sx, sy] = this.ll2s(o.lat, o.lon); const [hx, hy] = this.ll2s(h.lat, h.lon); const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 180); ctx.save(); ctx.strokeStyle = 'rgba(255,59,48,' + (0.4 + 0.4 * pulse).toFixed(2) + ')'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = 'rgba(255,59,48,' + (0.22 + 0.3 * pulse).toFixed(2) + ')'; ctx.beginPath(); ctx.arc(hx, hy, 12 + pulse * 3, 0, 7); ctx.fill(); ctx.fillStyle = '#FF3B30'; ctx.font = '700 14px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚠', hx, hy); ctx.font = '700 8px Inter'; ctx.lineWidth = 2.4; ctx.strokeStyle = 'rgba(0,0,0,.5)'; const lbl = (h.land ? 'LAND' : 'SHOAL') + ' ' + h.d.toFixed(1) + ' nm'; ctx.strokeText(lbl, hx, hy + 18); ctx.fillStyle = '#fff'; ctx.fillText(lbl, hx, hy + 18); ctx.restore(); }
@@ -1758,7 +2625,7 @@ class Component extends DCLogic {
     if (t.draught) rows.push(['Draught', t.draught.toFixed(1) + ' m']);
     if (t.dest) rows.push(['Destination', t.dest]);
     if (t.last) rows.push(['Last seen', Math.max(0, Math.round((Date.now() - t.last) / 1000)) + ' s ago']);
-    rows.push(['Source', live ? 'Live AIS · aisstream.io' : 'Simulated AIS class A']);
+    rows.push(['Source', !live ? 'Simulated AIS class A' : this.state.aisSrc === 'kystverket' ? 'Live AIS · Kystverket (NLOD)' : 'Live AIS · aisstream.io']);
     return { title: t.name || (t.mmsi ? 'MMSI ' + t.mmsi : 'Unknown vessel'), cls: 'AIS · ' + (t.type || 'Vessel') + (t.dangerous ? ' · ⚠ DANGER' : ''), rows };
   }
 
@@ -1811,7 +2678,7 @@ class Component extends DCLogic {
       ['traffic', '🚢', 'Ship traffic density', 'EMODnet vessel density · AIS averages', 'rgba(255,149,0,.16)'],
       ['trails', '➰', 'AIS trails', 'Fading target tracks', 'rgba(130,150,170,.2)'],
       ['lights', '💡', 'Navigation lights', 'Charted lights · live blink', 'rgba(255,214,90,.2)'],
-      ['ais', '⬩', 'AIS targets', s.aisMode === 'live' ? 'Live · aisstream.io' : 'Simulated · CPA/TCPA', 'rgba(191,90,242,.16)'],
+      ['ais', '⬩', 'AIS targets', s.aisMode !== 'live' ? 'Simulated · CPA/TCPA' : s.aisSrc === 'kystverket' ? 'Live · Kystverket' : 'Live · aisstream.io', 'rgba(191,90,242,.16)'],
     ];
     const sw = (on) => `width:42px;height:25px;border-radius:13px;background:${on ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;transition:background .18s;`;
     const knob = (on) => `position:absolute;top:2px;left:${on ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`;
@@ -1951,7 +2818,40 @@ class Component extends DCLogic {
       forecastRows: (mw.forecast || []).map(d => ({ day: d.label, icon: this.wxIconFor(d.symbol), hi: d.tMax != null ? Math.round(d.tMax) + '°' : '—', lo: d.tMin != null ? Math.round(d.tMin) + '°' : '—', wind: d.windMax != null ? Math.round(d.windMax) + (d.gustMax != null ? '(' + Math.round(d.gustMax) + ')' : '') + ' m/s' : '—', windDir: d.windDir != null ? this.compass8(d.windDir) : '', precip: d.precip != null ? (d.precip >= 0.1 ? d.precip.toFixed(1) + ' mm' : '—') : '—', precipColor: d.precip >= 0.1 ? '#2C6FDB' : 'var(--muted,#8e8e93)' })),
       hasForecast: !!(mw.forecast && mw.forecast.length),
       aisKeyOpen: s.aisKeyOpen, onToggleAisKey: () => this.setState({ aisKeyOpen: !s.aisKeyOpen }), aisChevron: s.aisKeyOpen ? '▾' : '▸',
-      aisKeyVal: this._aisKeyInput || '', onAisKeyInput: (e) => { this._aisKeyInput = e.target.value; }, onAisConnect: () => { (s.aisMode === 'live') ? this.disconnectAis() : this.connectAis(this._aisKeyInput); },
+      ...(() => {
+        // Kildevelger for AIS. Kystverket er aapne data uten nokkel og deles
+        // av alle faner via kiosk-serveren; aisstream krever nokkel og taaler
+        // bare EN samtidig tilkobling paa gratisnivaa.
+        const src = s.aisSrc || 'sim';
+        const seg = (on) => C(`flex:1;padding:6px 4px;border-radius:8px;border:none;background:${on ? 'var(--segon,#fff)' : 'transparent'};color:${on ? A : 'var(--muted,#8e8e93)'};font-size:10.5px;font-weight:700;cursor:pointer;box-shadow:${on ? '0 1px 3px rgba(0,0,0,.12)' : 'none'};font-family:inherit;`);
+        const kvCfg = (window.__kioskAis && window.__kioskAis.kystverket) || {};
+        const info = s.aisKvInfo;
+        const stateTxt = { connected: 'Connected', connecting: 'Connecting…', reconnecting: 'Reconnecting…', error: 'No contact', off: 'Off' };
+        const help = src === 'kystverket'
+          ? 'Kystverket open AIS (NLOD). No key, and ECDIS + radar can stay open at the same time. Requires that the site API reaches ' + (kvCfg.host || '153.44.253.27') + ':' + (kvCfg.port || 5631) + ' — fishing vessels under 15 m and leisure craft under 45 m are not in the open stream.'
+          : src === 'aisstream'
+          ? 'aisstream.io requires an API key. The free key allows only ONE concurrent connection — with ECDIS and radar open at the same time, one of them is rejected.'
+          : 'Simulated AIS fleet. No network, always something to show on screen.';
+        return {
+          aisSrcIsStream: src === 'aisstream', aisSrcIsKv: src === 'kystverket', aisSrcHelp: help,
+          aisSegSim: seg(src === 'sim'), aisSegKv: seg(src === 'kystverket'), aisSegStream: seg(src === 'aisstream'),
+          onAisSrcSim: () => this.setAisSource('sim'), onAisSrcKv: () => this.setAisSource('kystverket'), onAisSrcStream: () => this.setAisSource('aisstream'),
+          aisKvState: stateTxt[s.aisStatus] || s.aisStatus,
+          aisKvCount: info ? (info.shown + ' on chart · ' + info.total + ' along the coast') : '—',
+          aisKvHost: (kvCfg.host || '153.44.253.27') + ' : ' + (kvCfg.port || 5631),
+          aisKvBtnLabel: this._aisKvTesting ? 'Testing…' : 'Test connection',
+          aisKvBtnStyle: C('padding:6px 10px;border-radius:8px;border:none;background:var(--seg,rgba(118,118,128,.16));color:var(--ink,#1c1c1e);font-weight:700;font-size:10px;cursor:pointer;font-family:inherit;'),
+          onAisKvTest: async () => {
+            this._aisKvTesting = true; this.setState({ srcVer: (this.state.srcVer || 0) + 1 });
+            const st = await this.probeKystverket(9000);
+            this._aisKvTesting = false;
+            if (st) this.addAlarm('info', 'Kystverket AIS - contact OK. ' + st.targets + ' vessels cached, ' + st.msgRate + ' messages/s.');
+            else this.addAlarm('warning', 'Kystverket AIS - no data. Check that the site API can reach ' + (kvCfg.host || '153.44.253.27') + ':' + (kvCfg.port || 5631) + ' and that outbound TCP is not blocked.');
+            this.setState({ srcVer: (this.state.srcVer || 0) + 1 });
+          }
+        };
+      })(),
+      aisKeyVal: this._aisKeyInput || '', onAisKeyInput: (e) => { this._aisKeyInput = e.target.value; }, onAisConnect: () => { (s.aisMode === 'live') ? this.setAisSource('sim') : this.setAisSource('aisstream'); },
       aisBtnLabel: s.aisMode === 'live' ? 'Stop' : 'Connect', aisBtnStyle: C(`padding:7px 12px;border-radius:9px;border:none;background:${s.aisMode === 'live' ? '#FF3B30' : A};color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;`),
       aisStatusLabel: ({ off: 'simulated', connecting: 'connecting…', connected: 'live', reconnecting: 'reconnecting…', error: 'error', 'key error': 'invalid key' }[s.aisStatus] || s.aisStatus), aisStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${s.aisStatus === 'connected' ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${s.aisStatus === 'connected' ? '#34C759' : 'var(--muted,#8e8e93)'};`),
       onToggleGps: () => { (this.gpsMode || s.gpsStatus === 'acquiring') ? this.stopGps() : this.startGps(); }, gpsSwitch: C(`width:42px;height:25px;border-radius:13px;border:none;background:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;cursor:pointer;padding:0;`), gpsKnob: C(`position:absolute;top:2px;left:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`), gpsStatusLabel: ({ off: 'off', acquiring: 'acquiring…', fix: 'position fix', denied: 'permission denied', unavailable: 'unavailable' }[s.gpsStatus] || s.gpsStatus),
@@ -1962,7 +2862,7 @@ class Component extends DCLogic {
       proxyStatusLabel: this.proxyUrl ? 'active' : 'direct', proxyStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${this.proxyUrl ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${this.proxyUrl ? '#34C759' : 'var(--muted,#8e8e93)'};`),
       srcRows: (() => { const st = this.srcStatus || {}; const lab = { ok: 'live', wait: 'waiting…', error: 'error', blocked: 'CORS-blocked · needs proxy' }; const dot = { ok: '#34C759', wait: '#FF9F0A', error: '#FF3B30', blocked: '#FF3B30' };
         const aisK = s.aisMode === 'live' ? (s.aisStatus === 'connected' ? 'ok' : 'wait') : 'sim';
-        return [ { name: 'Kartverket · sea charts', k: st.chart || 'wait' }, { name: 'MET Norway · yr weather', k: st.met || 'wait' }, { name: 'Kartverket · tide levels', k: st.tide || 'wait' }, { name: 'aisstream.io · live AIS', k: aisK } ]
+        return [ { name: 'Kartverket · sea charts', k: st.chart || 'wait' }, { name: 'MET Norway · yr weather', k: st.met || 'wait' }, { name: 'Kartverket · tide levels', k: st.tide || 'wait' }, { name: s.aisSrc === 'kystverket' ? 'Kystverket · open AIS' : s.aisSrc === 'aisstream' ? 'aisstream.io · live AIS' : 'AIS · simulert', k: aisK } ]
           .map(r => ({ name: r.name, dot: r.k === 'sim' ? 'var(--muted,#8e8e93)' : (dot[r.k] || '#FF9F0A'), status: r.k === 'sim' ? 'simulated · add API key' : (lab[r.k] || r.k) })); })(),
     };
   }
@@ -1998,21 +2898,60 @@ class Component extends DCLogic {
         ui: { palette: s.palette, base: s.base, orient: s.orient, displayCat: s.displayCat, layers: s.layers, followShip: s.followShip, rightTab: s.rightTab, rightOpen: s.rightOpen }
       };
       localStorage.setItem('mrd_ship', JSON.stringify(snap));
-      // AIS-bildet lagres sammen med skipet slik at radaren viser SAMME maal
-      // som ECDIS ogsaa naar sidene ikke er aapne samtidig (kiosken bytter
-      // side) eller kjorer paa hver sin skjerm (radaren poller serveren).
-      const tgts = {
-        savedAt: snap.savedAt,
-        targets: (this.aisArr() || []).filter(t => t && t.lat != null).slice(0, 40).map(t => ({
-          name: t.name || '', type: t.type || 'Vessel', lat: t.lat, lon: t.lon,
-          cog: t.cog || 0, sog: t.sog || 0, hdg: (t.hdg != null ? t.hdg : t.cog) || 0
-        }))
-      };
-      localStorage.setItem('mrd_targets', JSON.stringify(tgts));
-      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null, targets: tgts });
+      // The AIS picture is shared with the radar page (and the next boot) via
+      // mrd_ais, and rides along to the server so a radar on another screen or
+      // browser sees the same vessels. Written only when the fleet actually has
+      // content, so an empty live list mid-connect can't wipe a usable picture.
+      let aisDoc = null;
+      try {
+        // Sort by distance from own ship before cutting at 40: the shared cache
+        // (and therefore the radar) must carry the vessels in the VICINITY, not
+        // an arbitrary slice of the whole coast's live traffic.
+        const fleet = (this.aisArr() || []).filter(t => t.lat != null)
+          .sort((a, b) => this.distNm(o, a) - this.distNm(o, b)).slice(0, 40).map(t => ({
+          lat: t.lat, lon: t.lon, cog: (t.cog != null ? t.cog : t.hdg) || 0, sog: t.sog || 0,
+          hdg: (t.hdg != null ? t.hdg : t.cog) || 0, name: t.name || '', type: t.type || 'Vessel',
+          col: t.col, mmsi: t.mmsi
+        }));
+        if (fleet.length) { aisDoc = { savedAt: Date.now(), mode: s.aisMode, targets: fleet }; localStorage.setItem('mrd_ais', JSON.stringify(aisDoc)); }
+      } catch (e) {}
+      this.persistTrack();
+      const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null, targets: aisDoc });
       if (unloading && navigator.sendBeacon) navigator.sendBeacon('/api/ecdis-state', new Blob([doc], { type: 'application/json' }));
       else fetch('/api/ecdis-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: doc, keepalive: !!unloading }).catch(() => {});
     } catch (e) {}
+  }
+  // Siste lagrede AIS-bilde (fra denne eller radarsiden), dodregnet frem
+  // etter veggklokken (maks 20 min) saa posisjonene er plausible.
+  loadAisCache() {
+    try {
+      const raw = localStorage.getItem('mrd_ais'); if (!raw) return null;
+      const c = JSON.parse(raw);
+      if (!c || !c.savedAt || !c.targets || !c.targets.length) return null;
+      const age = (Date.now() - c.savedAt) / 1000;
+      if (age > 3600) return null;
+      const adv = Math.min(age, 1200);
+      const targets = c.targets.filter(t => t && t.lat != null).map(t => {
+        const p = (t.sog > 0.2 && t.cog != null) ? this.moveLL(t.lat, t.lon, t.cog, t.sog * adv / 3600) : t;
+        return Object.assign({}, t, { lat: p.lat, lon: p.lon });
+      });
+      return targets.length ? { mode: c.mode || 'sim', savedAt: c.savedAt, targets } : null;
+    } catch (e) { return null; }
+  }
+  // Erstatter den genererte sim-flaaten med sist viste flaate, saa ECDIS og
+  // radar viser SAMME baater ogsaa naar sidene aapnes etter hverandre.
+  // Fartoy MED mmsi horer til live-laget og varmstartes i connectAis i
+  // stedet — tas de inn her ogsaa, vises de dobbelt i blandet modus.
+  loadAisState() {
+    const c = this.loadAisCache();
+    if (!c) return;
+    const sim = c.targets.filter(t => t.mmsi == null);
+    if (!sim.length) return;
+    this.ais = sim.map(t => ({
+      lat: t.lat, lon: t.lon, name: t.name || 'VESSEL', type: t.type || 'Vessel',
+      hdg: (t.hdg != null ? t.hdg : t.cog) || 0, cog: (t.cog != null ? t.cog : t.hdg) || 0,
+      sog: t.sog || 0, col: t.col || '#0A84FF', dangerous: false
+    }));
   }
   loadShipState() {
     try {

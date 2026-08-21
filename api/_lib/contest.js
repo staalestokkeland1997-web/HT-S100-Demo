@@ -422,7 +422,16 @@ function publicConfig(config) {
     theme: config.theme,
     // API-nokler for innebygde demoer (f.eks. aisstream.io for HT ECDIS).
     // Disse brukes av klienten direkte og er derfor bevisst i public config.
-    apiKeys: config.apiKeys || {}
+    apiKeys: config.apiKeys || {},
+    // AIS-kilder for HT ECDIS. Klienten viser en velger basert paa denne.
+    ais: {
+      source: (config.ais && config.ais.source) || "auto",
+      kystverket: {
+        enabled: !(config.ais && config.ais.enabled === false),
+        host: (config.ais && config.ais.host) || "153.44.253.27",
+        port: (config.ais && Number(config.ais.port)) || 5631
+      }
+    }
   };
 }
 

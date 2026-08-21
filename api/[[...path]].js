@@ -1,11 +1,12 @@
 // Hele kiosk-API-et som EN Vercel serverless-funksjon. Rutingen og svarene er
 // portert fra den gamle lokale server.js slik at frontend-sidene (spill,
 // adminsider, ECDIS/radar) fungerer identisk — bare uten lokal server.
-// /proxy rutes ogsaa hit via en rewrite i vercel.json.
+// /proxy og /ais/* rutes ogsaa hit via rewrites i vercel.json.
 
 const crypto = require("crypto");
 const store = require("./_lib/store");
 const contest = require("./_lib/contest");
+const { KystverketAis } = require("./_lib/ais-kystverket");
 
 const KIOSK_CONFIG = require("../config/kiosk-config.json");
 
@@ -474,6 +475,96 @@ async function handleApi(request, response, url) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Kystverkets aapne AIS-stroem
+// ---------------------------------------------------------------------------
+// Kystverket leverer raa NMEA over TCP, som en nettleser ikke kan snakke med.
+// Funksjonen bor: den holder oppkoblingen og deler den ut til alle faner - det
+// er nettopp der den slaar aisstream.io, der en gratisnokkel bare tillater en
+// samtidig tilkobling og ECDIS + radar derfor slaass om plassen.
+//
+// Sockelen henger paa modulnivaa slik at den overlever mellom kall saa lenge
+// Vercel holder instansen varm; klienten poller hvert 3. sekund, saa den gjor
+// den normalt. Er instansen kald, venter forste kall paa at stroemmen leverer
+// (ready) i stedet for aa svare tomt - et tomt svar ville sendt klienten
+// tilbake til simulert AIS selv om Kystverket er tilgjengelig.
+
+let aisBridge = null;
+
+async function aisConfig() {
+  // Adminsidene kan overstyre kilden, saa den lagrede configen leses forst;
+  // feiler lagringslaget skal AIS-en likevel virke paa de bundlede verdiene.
+  let stored = null;
+  try {
+    stored = await contest.loadConfig();
+  } catch (error) {
+    stored = null;
+  }
+  const a = (stored && stored.ais) || {};
+  const host = process.env.AIS_KYSTVERKET_HOST || a.host || "153.44.253.27";
+  const port = Number(process.env.AIS_KYSTVERKET_PORT || a.port) || 5631;
+  return {
+    enabled: process.env.AIS_KYSTVERKET_ENABLED !== "0" && a.enabled !== false,
+    host,
+    port
+  };
+}
+
+async function getAisBridge() {
+  const cfg = await aisConfig();
+  if (!cfg.enabled) return null;
+  if (aisBridge && (aisBridge.opt.host !== cfg.host || aisBridge.opt.port !== cfg.port)) {
+    aisBridge.stop("konfigurasjon endret");
+    aisBridge = null;
+  }
+  if (!aisBridge) aisBridge = new KystverketAis({ host: cfg.host, port: cfg.port });
+  return aisBridge;
+}
+
+function parseBox(raw) {
+  if (!raw) return null;
+  const p = String(raw).split(",").map(Number);
+  if (p.length !== 4 || p.some((n) => !Number.isFinite(n))) return null;
+  return {
+    latMin: Math.min(p[0], p[2]), lonMin: Math.min(p[1], p[3]),
+    latMax: Math.max(p[0], p[2]), lonMax: Math.max(p[1], p[3])
+  };
+}
+
+async function handleAis(request, response, url) {
+  const cors = { "Access-Control-Allow-Origin": "*" };
+  const bridge = await getAisBridge();
+  const route = url.pathname.replace(/^\/api/, "");
+
+  if (!bridge) {
+    sendJson(response, 503, { error: "The Kystverket source is switched off in config (ais.enabled).", state: "off" });
+    return;
+  }
+
+  if (route === "/ais/status") {
+    bridge.touch();
+    // Klientens probe godtar connected ELLER targets > 0, saa den maa faa
+    // sjansen til aa se en fersk stroem levere for den gir opp kilden.
+    await bridge.ready(4000);
+    response.writeHead(200, { ...cors, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    response.end(JSON.stringify(bridge.status()));
+    return;
+  }
+
+  if (route === "/ais/targets") {
+    bridge.touch();
+    await bridge.ready();
+    const box = parseBox(url.searchParams.get("bbox"));
+    const atons = url.searchParams.get("atons") === "1";
+    const snap = bridge.snapshot(box, atons);
+    response.writeHead(200, { ...cors, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    response.end(JSON.stringify(snap));
+    return;
+  }
+
+  sendJson(response, 404, { error: "Unknown AIS endpoint." });
+}
+
 // CORS-proxy for ECDIS-demoens dataleverandoerer (MET/yr, Kartverket tide,
 // EMODnet, kystlinje). Streng allowlist saa den ikke kan misbrukes som aapent
 // relay; api.met.no krever dessuten en identifiserende User-Agent.
@@ -545,6 +636,12 @@ module.exports = async (request, response) => {
     // Rewriten /proxy -> /api/proxy kan gi begge stiene her avhengig av lag.
     if (url.pathname === "/proxy" || url.pathname === "/api/proxy") {
       await handleProxy(request, response, url.searchParams);
+      return;
+    }
+
+    // Samme for /ais/* -> /api/ais/*.
+    if (url.pathname.startsWith("/ais/") || url.pathname.startsWith("/api/ais/")) {
+      await handleAis(request, response, url);
       return;
     }
 
