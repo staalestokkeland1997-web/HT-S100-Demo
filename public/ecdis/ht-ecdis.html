@@ -76,48 +76,58 @@
     <canvas ref="{{ canvasRef }}" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;"></canvas>
   </div>
 
-  <div style="position:absolute;left:50%;bottom:5px;transform:translateX(-50%);z-index:4;font-size:9px;color:var(--attr,rgba(70,80,90,.8));background:var(--attrbg,rgba(255,255,255,.55));padding:2px 9px;border-radius:7px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none;">© Kartverket charts · OpenSeaMap · EMODnet Bathymetry · build 0821-3</div>
+  <div style="position:absolute;left:50%;bottom:5px;transform:translateX(-50%);z-index:4;font-size:9px;color:var(--attr,rgba(70,80,90,.8));background:var(--attrbg,rgba(255,255,255,.55));padding:2px 9px;border-radius:4px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none;">© Kartverket charts · OpenSeaMap · EMODnet Bathymetry · build 0821-3</div>
 
   <sc-if value="{{ showIntro }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;{{ glass }}padding:10px 18px;border-radius:15px;font-size:11.5px;font-weight:600;color:var(--ink,#1c1c1e);white-space:nowrap;pointer-events:none;">Drag to pan · Pinch or scroll to zoom · <b style="color:var(--accent,#0A84FF);">Plan route</b> + tap the chart to build a route</div>
+    <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;{{ glass }}padding:10px 18px;border-radius:6px;font-size:11.5px;font-weight:600;color:var(--ink,#1c1c1e);white-space:nowrap;pointer-events:none;">Drag to pan · Pinch or scroll to zoom · <b style="color:var(--accent,#0A84FF);">Plan route</b> + tap the chart to build a route</div>
   </sc-if>
 
   <!-- brand -->
-  <div style="position:absolute;left:16px;top:14px;z-index:14;display:flex;align-items:center;gap:12px;{{ glass }}padding:10px 16px;border-radius:17px;">
-    <img src="uploads/HT_Main_Logo_Black_Web.svg" alt="HT" style="height:21px;width:auto;display:block;filter:var(--logoFilter,none);"/>
-    <span style="width:1px;height:22px;background:var(--hair,rgba(60,60,67,.2));"></span>
-    <span style="font-size:10px;letter-spacing:1.2px;color:var(--muted,#8e8e93);font-weight:700;">ECDIS</span>
+  <div style="position:absolute;left:14px;top:12px;z-index:14;display:flex;align-items:center;gap:9px;{{ glass }}padding:6px 12px;border-radius:7px;">
+    <img src="uploads/HT_Main_Logo_Black_Web.svg" alt="HT" style="height:17px;width:auto;display:block;filter:var(--logoFilter,none);"/>
+    <span style="width:1px;height:18px;background:var(--hair,rgba(60,60,67,.2));"></span>
+    <span style="font-size:9px;letter-spacing:1.2px;color:var(--muted,#8e8e93);font-weight:700;">ECDIS</span>
   </div>
 
-  <!-- demo + klokke + skala/cursor: EN kompakt topplinje i stedet for to -->
-  <div style="position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:14;display:flex;align-items:center;gap:7px;">
-    <div style="display:flex;align-items:center;gap:7px;{{ glass }}padding:8px 13px;border-radius:15px;">
-      <span style="width:7px;height:7px;border-radius:50%;background:#FF9F0A;animation:mrdPulse 2s infinite;flex:none;"></span>
-      <span style="font-weight:600;font-size:11px;letter-spacing:.2px;color:var(--ink,#1c1c1e);white-space:nowrap;">DEMO — NOT FOR NAVIGATION</span>
+  <!-- EN sammenhengende instrumentlinje (som datalinjen paa en ekte ECDIS):
+       DEMO-merke | klokke | skala | cursor, adskilt med tynne delelinjer -->
+  <div style="position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:14;display:flex;align-items:stretch;{{ glass }}border-radius:7px;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:6px;padding:5px 11px;">
+      <span style="width:6px;height:6px;border-radius:50%;background:#FF9F0A;animation:mrdPulse 2s infinite;flex:none;"></span>
+      <span style="font-weight:700;font-size:9.5px;letter-spacing:.6px;color:var(--ink,#1c1c1e);white-space:nowrap;">DEMO — NOT FOR NAVIGATION</span>
     </div>
-    <div style="display:flex;flex-direction:column;align-items:center;{{ glass }}padding:5px 13px;border-radius:15px;line-height:1.05;">
-      <span ref="{{ roRef }}" data-ro="utc" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:13.5px;color:var(--ink,#1c1c1e);">09:00:00</span>
-      <span style="font-size:8px;letter-spacing:1px;color:var(--muted,#8e8e93);font-weight:600;">LOCAL · LIVE</span>
+    <span style="width:1px;background:var(--hair,rgba(60,60,67,.16));"></span>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 11px;line-height:1.08;">
+      <span ref="{{ roRef }}" data-ro="utc" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:12.5px;color:var(--ink,#1c1c1e);">09:00:00</span>
+      <span style="font-size:7px;letter-spacing:1px;color:var(--muted,#8e8e93);font-weight:700;">LOCAL · LIVE</span>
     </div>
-    <span ref="{{ roRef }}" data-ro="scale" style="{{ glass }}font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:600;padding:9px 11px;border-radius:13px;color:var(--ink,#1c1c1e);white-space:nowrap;">1:90 000</span>
-    <span ref="{{ roRef }}" data-ro="cursor" style="{{ glass }}font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:600;padding:9px 11px;border-radius:13px;color:var(--muted,#8e8e93);white-space:nowrap;">—</span>
-    <span ref="{{ roRef }}" data-ro="toolbox" style="display:none;background:var(--accent,#0A84FF);color:#fff;font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:700;padding:9px 11px;border-radius:13px;white-space:nowrap;"></span>
+    <span style="width:1px;background:var(--hair,rgba(60,60,67,.16));"></span>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 11px;line-height:1.08;">
+      <span ref="{{ roRef }}" data-ro="scale" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:11px;color:var(--ink,#1c1c1e);white-space:nowrap;">1:90 000</span>
+      <span style="font-size:7px;letter-spacing:1px;color:var(--muted,#8e8e93);font-weight:700;">SCALE</span>
+    </div>
+    <span style="width:1px;background:var(--hair,rgba(60,60,67,.16));"></span>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 11px;line-height:1.08;min-width:104px;">
+      <span ref="{{ roRef }}" data-ro="cursor" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:10.5px;color:var(--ink,#1c1c1e);white-space:nowrap;">—</span>
+      <span style="font-size:7px;letter-spacing:1px;color:var(--muted,#8e8e93);font-weight:700;">CURSOR</span>
+    </div>
+    <span ref="{{ roRef }}" data-ro="toolbox" style="display:none;align-items:center;background:var(--accent,#0A84FF);color:#fff;font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:700;padding:0 11px;white-space:nowrap;"></span>
   </div>
 
   <!-- top-right controls -->
-  <div style="position:absolute;right:16px;top:14px;z-index:14;display:flex;align-items:center;gap:9px;">
-    <div style="display:flex;align-items:center;gap:2px;{{ glass }}padding:4px;border-radius:15px;">
+  <div style="position:absolute;right:14px;top:12px;z-index:14;display:flex;align-items:center;gap:7px;">
+    <div style="display:flex;align-items:center;gap:2px;{{ glass }}padding:4px;border-radius:6px;">
       <button onClick="{{ onToggleFollow }}" title="{{ followTitle }}" style="{{ followStyle }}">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/></svg>
       </button>
-      <button onClick="{{ onCycleOrient }}" title="Orientation" style="display:flex;align-items:center;gap:5px;height:34px;padding:0 9px 0 6px;border:none;background:transparent;color:var(--ink,#1c1c1e);cursor:pointer;border-radius:11px;">
+      <button onClick="{{ onCycleOrient }}" title="Orientation" style="display:flex;align-items:center;gap:5px;height:29px;padding:0 8px 0 5px;border:none;background:transparent;color:var(--ink,#1c1c1e);cursor:pointer;border-radius:4px;">
         <svg width="20" height="20" viewBox="0 0 28 28"><g ref="{{ compassRotRef }}"><path d="M14 3 L17.2 14 L14 11.3 L10.8 14 Z" fill="#FF3B30"/><path d="M14 25 L17.2 14 L14 16.7 L10.8 14 Z" fill="var(--muted,#8e8e93)"/></g></svg>
         <span ref="{{ roRef }}" data-ro="orient" style="font-size:9px;font-weight:700;letter-spacing:.3px;white-space:nowrap;">N-UP</span>
       </button>
-      <button onClick="{{ onZoomOut }}" title="Zoom out" style="width:32px;height:34px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:19px;cursor:pointer;border-radius:11px;">−</button>
-      <button onClick="{{ onZoomIn }}" title="Zoom in" style="width:32px;height:34px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:19px;cursor:pointer;border-radius:11px;">＋</button>
+      <button onClick="{{ onZoomOut }}" title="Zoom out" style="width:30px;height:29px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:17px;cursor:pointer;border-radius:4px;">−</button>
+      <button onClick="{{ onZoomIn }}" title="Zoom in" style="width:30px;height:29px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:17px;cursor:pointer;border-radius:4px;">＋</button>
     </div>
-    <div style="display:flex;gap:2px;{{ glass }}padding:3px;border-radius:15px;">
+    <div style="display:flex;gap:2px;{{ glass }}padding:3px;border-radius:6px;">
       <button onClick="{{ onPalDay }}" title="Day" style="{{ st.palDay }}">☀</button>
       <button onClick="{{ onPalDusk }}" title="Dusk" style="{{ st.palDusk }}">◐</button>
       <button onClick="{{ onPalNight }}" title="Night" style="{{ st.palNight }}">☾</button>
@@ -129,7 +139,7 @@
 
   <!-- UNIFIED RIGHT PANEL -->
   <div style="{{ st.rightPanel }}">
-    <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:11px;padding:2px;margin-bottom:8px;">
+    <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:5px;padding:2px;margin-bottom:8px;">
       <button onClick="{{ onTabChart }}" style="{{ st.tabChart }}">Chart</button>
       <button onClick="{{ onTabRoute }}" style="{{ st.tabRoute }}">Route</button>
       <button onClick="{{ onTabTargets }}" style="{{ st.tabTargets }}">Targets</button>
@@ -147,7 +157,7 @@
           </div>
 
           <div style="font-size:10px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;padding:0 2px 6px;">DATA LAYERS · S-52 DISPLAY</div>
-          <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:10px;padding:2px;margin-bottom:7px;">
+          <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:5px;padding:2px;margin-bottom:7px;">
             <button onClick="{{ onCatBase }}" style="{{ catBase }}">Base</button>
             <button onClick="{{ onCatStd }}" style="{{ catStd }}">Standard</button>
             <button onClick="{{ onCatAll }}" style="{{ catAll }}">All</button>
@@ -156,7 +166,7 @@
             <sc-for list="{{ layerRows }}" as="ly" hint-placeholder-count="7">
               <button onClick="{{ ly.toggle }}" style="{{ ly.style }}">
                 <span style="display:flex;align-items:center;gap:8px;min-width:0;">
-                  <span style="width:23px;height:23px;border-radius:7px;background:{{ ly.tint }};display:flex;align-items:center;justify-content:center;flex:none;font-size:11px;">{{ ly.icon }}</span>
+                  <span style="width:23px;height:23px;border-radius:4px;background:{{ ly.tint }};display:flex;align-items:center;justify-content:center;flex:none;font-size:11px;">{{ ly.icon }}</span>
                   <span style="display:flex;flex-direction:column;line-height:1.12;min-width:0;text-align:left;">
                     <span style="font-weight:600;font-size:12px;color:var(--ink,#1c1c1e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ ly.name }}</span>
                     <span style="font-size:8.5px;color:var(--muted,#8e8e93);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ ly.sub }}</span>
@@ -175,19 +185,19 @@
                 <span style="{{ aisStatusStyle }}">{{ aisStatusLabel }}</span>
               </button>
               <sc-if value="{{ aisKeyOpen }}" hint-placeholder-val="{{ false }}">
-                <div style="display:flex;gap:3px;background:var(--seg,rgba(118,118,128,.12));border-radius:10px;padding:3px;margin-top:9px;">
+                <div style="display:flex;gap:3px;background:var(--seg,rgba(118,118,128,.12));border-radius:5px;padding:3px;margin-top:9px;">
                   <button onClick="{{ onAisSrcKv }}" style="{{ aisSegKv }}">Kystverket</button>
                   <button onClick="{{ onAisSrcStream }}" style="{{ aisSegStream }}">aisstream</button>
                 </div>
                 <div style="font-size:9.5px;color:var(--muted,#8e8e93);margin-top:7px;line-height:1.45;">{{ aisSrcHelp }}</div>
                 <sc-if value="{{ aisSrcIsStream }}" hint-placeholder-val="{{ false }}">
                   <div style="display:flex;gap:6px;margin-top:9px;">
-                    <input type="password" placeholder="aisstream.io API key" defaultValue="{{ aisKeyVal }}" onInput="{{ onAisKeyInput }}" style="flex:1;min-width:0;background:var(--seg,rgba(118,118,128,.14));border:0.5px solid var(--hair,rgba(60,60,67,.15));border-radius:9px;padding:7px 10px;font-size:11px;color:var(--ink,#1c1c1e);font-family:inherit;outline:none;"/>
+                    <input type="password" placeholder="aisstream.io API key" defaultValue="{{ aisKeyVal }}" onInput="{{ onAisKeyInput }}" style="flex:1;min-width:0;background:var(--seg,rgba(118,118,128,.14));border:0.5px solid var(--hair,rgba(60,60,67,.15));border-radius:4px;padding:7px 10px;font-size:11px;color:var(--ink,#1c1c1e);font-family:inherit;outline:none;"/>
                     <button onClick="{{ onAisConnect }}" style="{{ aisBtnStyle }}">{{ aisBtnLabel }}</button>
                   </div>
                 </sc-if>
                 <sc-if value="{{ aisSrcIsKv }}" hint-placeholder-val="{{ false }}">
-                  <div style="margin-top:9px;background:var(--seg,rgba(118,118,128,.1));border-radius:10px;padding:9px 10px;display:flex;flex-direction:column;gap:5px;">
+                  <div style="margin-top:9px;background:var(--seg,rgba(118,118,128,.1));border-radius:5px;padding:9px 10px;display:flex;flex-direction:column;gap:5px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
                       <span style="font-size:10px;font-weight:700;color:var(--ink,#1c1c1e);">{{ aisKvState }}</span>
                       <span style="font-size:9.5px;color:var(--muted,#8e8e93);font-variant-numeric:tabular-nums;">{{ aisKvCount }}</span>
@@ -210,8 +220,8 @@
               </button>
               <sc-if value="{{ proxyOpen }}" hint-placeholder-val="{{ false }}">
                 <div style="display:flex;gap:6px;margin-top:9px;">
-                  <input type="text" placeholder="http://localhost:8000/proxy" defaultValue="{{ proxyVal }}" onInput="{{ onProxyInput }}" style="flex:1;min-width:0;background:var(--seg,rgba(118,118,128,.14));border:0.5px solid var(--hair,rgba(60,60,67,.15));border-radius:9px;padding:7px 10px;font-size:11px;color:var(--ink,#1c1c1e);font-family:inherit;outline:none;"/>
-                  <button onClick="{{ onProxySave }}" style="padding:7px 12px;border-radius:9px;border:none;background:var(--accent,#0A84FF);color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;">Save</button>
+                  <input type="text" placeholder="http://localhost:8000/proxy" defaultValue="{{ proxyVal }}" onInput="{{ onProxyInput }}" style="flex:1;min-width:0;background:var(--seg,rgba(118,118,128,.14));border:0.5px solid var(--hair,rgba(60,60,67,.15));border-radius:4px;padding:7px 10px;font-size:11px;color:var(--ink,#1c1c1e);font-family:inherit;outline:none;"/>
+                  <button onClick="{{ onProxySave }}" style="padding:7px 12px;border-radius:4px;border:none;background:var(--accent,#0A84FF);color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;">Save</button>
                 </div>
                 <div style="font-size:9.5px;color:var(--muted,#8e8e93);margin-top:5px;line-height:1.4;">Routes yr/MET and Kartverket tide requests through a CORS proxy. Auto-detected at <b>/proxy</b> when the demo runs via <b>run-local</b> / server.js. Leave empty for direct calls.</div>
               </sc-if>
@@ -288,7 +298,7 @@
           <div style="{{ cardInner }}padding:10px 13px;margin-bottom:11px;display:flex;align-items:center;gap:10px;">
             <button onClick="{{ onToggleSim }}" title="Start / pause simulation" style="{{ st.playBtn }}">{{ playIcon }}</button>
             <div style="flex:1;min-width:0;line-height:1.25;"><div style="font-size:9.5px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:600;">SIMULATION</div><div style="font-size:12px;font-weight:600;color:var(--ink,#1c1c1e);">{{ simStateLabel }}</div></div>
-            <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:10px;padding:2px;flex:none;">
+            <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:5px;padding:2px;flex:none;">
               <button onClick="{{ onSpeed1 }}" style="{{ st.spd1 }}">1×</button>
               <button onClick="{{ onSpeed8 }}" style="{{ st.spd8 }}">8×</button>
               <button onClick="{{ onSpeed30 }}" style="{{ st.spd30 }}">30×</button>
@@ -302,7 +312,7 @@
           </div>
           <div style="{{ cardInner }}padding:10px 13px;margin-bottom:11px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <div style="min-width:0;"><div style="font-size:9.5px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:600;">WHEEL-OVER POINT</div><div ref="{{ roRef }}" data-ro="wop" style="font-variant-numeric:tabular-nums;font-size:16px;font-weight:700;color:#FF9F0A;">—</div></div>
-            <button onClick="{{ onCheckRoute }}" style="padding:9px 13px;border-radius:10px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--card,rgba(255,255,255,.5));color:var(--ink,#1c1c1e);font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;">Check route</button>
+            <button onClick="{{ onCheckRoute }}" style="padding:9px 13px;border-radius:5px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--card,rgba(255,255,255,.5));color:var(--ink,#1c1c1e);font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;">Check route</button>
           </div>
           <sc-if value="{{ routeCheckMsg }}" hint-placeholder-val="{{ false }}">
             <div style="font-size:11px;line-height:1.4;font-weight:600;color:{{ routeCheckColor }};padding:0 4px 11px;">{{ routeCheckMsg }}</div>
@@ -390,7 +400,7 @@
   </div>
 
   <!-- TOOL DOCK -->
-  <div style="position:absolute;left:16px;top:50%;transform:translateY(-50%);z-index:13;display:flex;flex-direction:column;gap:4px;{{ glass }}padding:5px;border-radius:19px;">
+  <div style="position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:13;display:flex;flex-direction:column;gap:3px;{{ glass }}padding:4px;border-radius:6px;">
     <button onClick="{{ onToolPan }}" title="Pan &amp; pick" style="{{ toolPanStyle }}">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/><path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>
     </button>
@@ -415,7 +425,7 @@
   </div>
 
   <!-- VOYAGE DOCK (live only) -->
-  <div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:14;display:flex;align-items:center;gap:4px;{{ glass }}padding:8px 10px;border-radius:22px;">
+  <div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:14;display:flex;align-items:center;gap:4px;{{ glass }}padding:8px 10px;border-radius:8px;">
     <div style="display:flex;align-items:center;gap:7px;padding:0 14px 0 8px;border-right:0.5px solid var(--hair,rgba(60,60,67,.15));">
       <span style="width:8px;height:8px;border-radius:50%;background:#34C759;box-shadow:0 0 7px #34C759;animation:mrdPulse 2s infinite;flex:none;"></span>
       <span style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--ink,#1c1c1e);">LIVE</span>
@@ -465,20 +475,20 @@
   </div>
 
   <sc-if value="{{ voyOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;bottom:86px;transform:translateX(-50%);z-index:16;width:304px;{{ glass }}border-radius:18px;padding:14px 16px;">
+    <div style="position:absolute;left:50%;bottom:86px;transform:translateX(-50%);z-index:16;width:304px;{{ glass }}border-radius:8px;padding:14px 16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;"><span style="font-weight:700;font-size:13px;color:var(--ink,#1c1c1e);">Voyage &amp; conning</span><button onClick="{{ onToggleVoy }}" style="background:var(--seg,rgba(118,118,128,.16));border:none;color:var(--muted,#8e8e93);cursor:pointer;font-size:13px;width:24px;height:24px;border-radius:50%;">✕</button></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 14px;">
         <sc-for list="{{ voyRows }}" as="r" hint-placeholder-count="6"><div style="display:flex;justify-content:space-between;gap:8px;font-size:11.5px;padding:5px 0;border-top:0.5px solid var(--hair,rgba(60,60,67,.1));"><span style="color:var(--muted,#8e8e93);">{{ r.k }}</span><span style="font-variant-numeric:tabular-nums;color:var(--ink,#1c1c1e);font-weight:600;text-align:right;">{{ r.v }}</span></div></sc-for>
       </div>
       <div style="font-size:10px;letter-spacing:.4px;color:var(--muted,#8e8e93);font-weight:700;margin:12px 0 6px;">PREDIKTOR-PIL · FORUT-POSISJON</div>
-      <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:9px;padding:2px;"><button onClick="{{ onPredOff }}" style="{{ predOffS }}">Av</button><button onClick="{{ onPred3 }}" style="{{ pred3S }}">3 min</button><button onClick="{{ onPred5 }}" style="{{ pred5S }}">5 min</button><button onClick="{{ onPred10 }}" style="{{ pred10S }}">10 min</button></div>
+      <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:4px;padding:2px;"><button onClick="{{ onPredOff }}" style="{{ predOffS }}">Av</button><button onClick="{{ onPred3 }}" style="{{ pred3S }}">3 min</button><button onClick="{{ onPred5 }}" style="{{ pred5S }}">5 min</button><button onClick="{{ onPred10 }}" style="{{ pred10S }}">10 min</button></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;"><div style="line-height:1.2;"><div style="font-size:12px;font-weight:600;color:var(--ink,#1c1c1e);">Hazard ahead</div><div style="font-size:9.5px;color:var(--muted,#8e8e93);">Rocks / land on the current course</div></div><button onClick="{{ onToggleHazard }}" style="{{ hazardSwitch }}"><span style="{{ hazardKnob }}"></span></button></div>
     </div>
   </sc-if>
 
   <!-- GYRO POPOVER -->
   <sc-if value="{{ gyroOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;bottom:86px;transform:translateX(-50%);z-index:16;width:300px;{{ glass }}border-radius:18px;padding:14px 16px;">
+    <div style="position:absolute;left:50%;bottom:86px;transform:translateX(-50%);z-index:16;width:300px;{{ glass }}border-radius:8px;padding:14px 16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div style="display:flex;align-items:center;gap:11px;">
           <span style="font-size:22px;line-height:1;color:var(--accent,#0A84FF);">⊕</span>
@@ -510,7 +520,7 @@
 
   <!-- WEATHER POPOVER -->
   <sc-if value="{{ wxOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;bottom:86px;transform:translateX(-50%);z-index:16;width:300px;{{ glass }}border-radius:18px;padding:14px 16px;">
+    <div style="position:absolute;left:50%;bottom:86px;transform:translateX(-50%);z-index:16;width:300px;{{ glass }}border-radius:8px;padding:14px 16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <div style="display:flex;align-items:center;gap:11px;">
           <span style="font-size:30px;line-height:1;">{{ wxBigIcon }}</span>
@@ -529,7 +539,7 @@
         <div style="font-size:10px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;margin:11px 0 5px;">FARESVARSEL · MET</div>
         <div style="display:flex;flex-direction:column;gap:6px;">
           <sc-for list="{{ alertRows }}" as="a" hint-placeholder-count="0">
-            <div style="display:flex;gap:8px;align-items:flex-start;background:var(--card,rgba(255,255,255,.5));border:0.5px solid var(--hair,rgba(60,60,67,.12));border-left:3px solid {{ a.color }};border-radius:9px;padding:7px 9px;">
+            <div style="display:flex;gap:8px;align-items:flex-start;background:var(--card,rgba(255,255,255,.5));border:0.5px solid var(--hair,rgba(60,60,67,.12));border-left:3px solid {{ a.color }};border-radius:4px;padding:7px 9px;">
               <span style="font-size:13px;line-height:1.15;flex:none;">⚠</span>
               <div style="min-width:0;line-height:1.3;">
                 <div style="font-size:11.5px;font-weight:700;color:var(--ink,#1c1c1e);">{{ a.event }}</div>
@@ -559,7 +569,7 @@
 
   <!-- TIDE POPOVER -->
   <sc-if value="{{ tideOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;bottom:86px;transform:translateX(-50%);z-index:16;width:328px;background:var(--glassbg,rgba(255,255,255,.72));backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:0.5px solid var(--glassbd,rgba(255,255,255,.5));box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));border-radius:18px;padding:14px 16px;">
+    <div style="position:absolute;left:50%;bottom:86px;transform:translateX(-50%);z-index:16;width:328px;background:var(--glassbg,rgba(255,255,255,.78));backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:0.5px solid var(--glassbd,rgba(255,255,255,.5));box-shadow:var(--shadow,0 2px 12px rgba(0,40,80,.14));border-radius:8px;padding:14px 16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <div style="display:flex;align-items:center;gap:11px;">
           <span style="font-size:26px;line-height:1;color:var(--accent,#0A84FF);">{{ tideArrowBig }}</span>
@@ -568,7 +578,7 @@
         <button onClick="{{ onToggleTide }}" style="background:var(--seg,rgba(118,118,128,.16));border:none;color:var(--muted,#8e8e93);cursor:pointer;font-size:13px;width:24px;height:24px;border-radius:50%;flex:none;line-height:1;">✕</button>
       </div>
       <sc-if value="{{ tideReady }}" hint-placeholder-val="{{ false }}">
-        <div style="background:var(--card,rgba(255,255,255,.5));border:0.5px solid var(--hair,rgba(60,60,67,.12));border-radius:12px;padding:8px 6px 4px;">
+        <div style="background:var(--card,rgba(255,255,255,.5));border:0.5px solid var(--hair,rgba(60,60,67,.12));border-radius:5px;padding:8px 6px 4px;">
           <svg viewBox="0 0 300 104" style="width:100%;height:auto;display:block;overflow:visible;">
             <line x1="8" y1="{{ tideZeroY }}" x2="292" y2="{{ tideZeroY }}" style="stroke:var(--hair,rgba(60,60,67,.25));stroke-width:1;stroke-dasharray:3 3;"></line>
             <path d="{{ tideArea }}" style="fill:var(--accent,#0A84FF);fill-opacity:0.13;stroke:none;"></path>
@@ -600,7 +610,7 @@
 
   <!-- PICK SHEET -->
   <sc-if value="{{ pick }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:16px;top:66px;width:248px;z-index:15;{{ glass }}border-radius:18px;padding:14px 15px;">
+    <div style="position:absolute;left:16px;top:66px;width:248px;z-index:15;{{ glass }}border-radius:8px;padding:14px 15px;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;">
         <div style="min-width:0;"><div style="font-weight:700;font-size:14px;color:var(--ink,#1c1c1e);">{{ pick.title }}</div><div style="font-size:10.5px;color:var(--muted,#8e8e93);margin-top:1px;">{{ pick.cls }}</div></div>
         <button onClick="{{ onClosePick }}" style="background:var(--seg,rgba(118,118,128,.16));border:none;color:var(--muted,#8e8e93);cursor:pointer;font-size:13px;width:24px;height:24px;border-radius:50%;flex:none;line-height:1;">✕</button>
@@ -617,47 +627,47 @@
 
   <!-- AUTO-ROUTE · idle (window opened, no route yet) -->
   <sc-if value="{{ autoIdleOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:16px;padding:13px 15px;width:330px;">
+    <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:8px;padding:13px 15px;width:330px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;">
         <span style="font-size:19px;line-height:1;">🤖</span>
         <div style="flex:1;line-height:1.25;"><div style="font-weight:700;font-size:13px;color:var(--ink,#1c1c1e);">{{ autoIdleTitle }}</div><div style="font-size:11px;color:var(--muted,#8e8e93);">{{ autoIdleSub }}</div></div>
         <button onClick="{{ onCloseAuto }}" style="background:var(--seg,rgba(118,118,128,.16));border:none;color:var(--muted,#8e8e93);cursor:pointer;font-size:13px;width:24px;height:24px;border-radius:50%;flex:none;">✕</button>
       </div>
       <sc-if value="{{ planWorking }}" hint-placeholder-val="{{ false }}">
-        <div style="display:flex;align-items:center;gap:9px;width:100%;padding:11px;border-radius:11px;background:var(--seg,rgba(118,118,128,.12));box-sizing:border-box;">
+        <div style="display:flex;align-items:center;gap:9px;width:100%;padding:11px;border-radius:5px;background:var(--seg,rgba(118,118,128,.12));box-sizing:border-box;">
           <span style="width:9px;height:9px;border-radius:50%;background:var(--accent,#0A84FF);box-shadow:0 0 7px var(--accent,#0A84FF);animation:mrdPulse 1.1s infinite;flex:none;"></span>
           <span style="font-weight:600;font-size:12px;color:var(--ink,#1c1c1e);">Computing safe route…</span>
         </div>
       </sc-if>
       <sc-if value="{{ planIdle }}" hint-placeholder-val="{{ true }}">
-        <button onClick="{{ onPickNewPoint }}" style="width:100%;padding:11px;border-radius:11px;border:none;background:var(--accent,#0A84FF);color:#fff;font-weight:700;font-size:12px;letter-spacing:.3px;cursor:pointer;font-family:inherit;">{{ pickLabel }}</button>
+        <button onClick="{{ onPickNewPoint }}" style="width:100%;padding:11px;border-radius:5px;border:none;background:var(--accent,#0A84FF);color:#fff;font-weight:700;font-size:12px;letter-spacing:.3px;cursor:pointer;font-family:inherit;">{{ pickLabel }}</button>
       </sc-if>
     </div>
   </sc-if>
 
   <!-- AUTO-ROUTE · confirm before sailing -->
   <sc-if value="{{ routePendingOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:16px;padding:13px 15px;width:340px;">
+    <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:8px;padding:13px 15px;width:340px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;">
         <span style="font-size:19px;line-height:1;">🤖</span>
         <div style="line-height:1.25;flex:1;"><div style="font-weight:700;font-size:13px;color:var(--ink,#1c1c1e);">Proposed autonomous route</div><div ref="{{ roRef }}" data-ro="rpStats" style="font-size:11px;color:var(--muted,#8e8e93);font-variant-numeric:tabular-nums;">—</div></div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button onClick="{{ onStartAuto }}" style="flex:1;padding:11px;border-radius:11px;border:none;background:#34C759;color:#fff;font-weight:700;font-size:12px;letter-spacing:.3px;cursor:pointer;font-family:inherit;">▶ START SEILAS</button>
-        <button onClick="{{ onCancelRoute }}" style="flex:none;padding:11px 16px;border-radius:11px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;">Avbryt</button>
+        <button onClick="{{ onStartAuto }}" style="flex:1;padding:11px;border-radius:5px;border:none;background:#34C759;color:#fff;font-weight:700;font-size:12px;letter-spacing:.3px;cursor:pointer;font-family:inherit;">▶ START SEILAS</button>
+        <button onClick="{{ onCancelRoute }}" style="flex:none;padding:11px 16px;border-radius:5px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;">Avbryt</button>
       </div>
     </div>
   </sc-if>
 
   <!-- AUTO-ROUTE · active voyage panel -->
   <sc-if value="{{ autoNavOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:16px;padding:12px 15px;width:392px;">
+    <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:8px;padding:12px 15px;width:392px;">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;">
         <span style="width:8px;height:8px;border-radius:50%;background:#34C759;box-shadow:0 0 7px #34C759;animation:mrdPulse 2s infinite;flex:none;"></span>
         <span style="font-weight:700;font-size:12px;letter-spacing:.5px;color:var(--ink,#1c1c1e);flex:1;">AUTONOMOUS VOYAGE · TRACK</span>
-        <button onClick="{{ onToggleAutoMin }}" title="Minimise to the toolbar" style="width:28px;height:28px;flex:none;border-radius:9px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);cursor:pointer;font-family:inherit;font-size:15px;line-height:1;">—</button>
-        <button onClick="{{ onPauseAuto }}" style="padding:6px 12px;border-radius:9px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font-weight:700;font-size:10.5px;cursor:pointer;font-family:inherit;">{{ pauseLabel }}</button>
-        <button onClick="{{ onCancelRoute }}" style="padding:6px 12px;border-radius:9px;border:none;background:#FF3B30;color:#fff;font-weight:700;font-size:10.5px;cursor:pointer;font-family:inherit;">Avbryt</button>
+        <button onClick="{{ onToggleAutoMin }}" title="Minimise to the toolbar" style="width:28px;height:28px;flex:none;border-radius:4px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);cursor:pointer;font-family:inherit;font-size:15px;line-height:1;">—</button>
+        <button onClick="{{ onPauseAuto }}" style="padding:6px 12px;border-radius:4px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font-weight:700;font-size:10.5px;cursor:pointer;font-family:inherit;">{{ pauseLabel }}</button>
+        <button onClick="{{ onCancelRoute }}" style="padding:6px 12px;border-radius:4px;border:none;background:#FF3B30;color:#fff;font-weight:700;font-size:10.5px;cursor:pointer;font-family:inherit;">Avbryt</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px 14px;">
         <div style="display:flex;flex-direction:column;"><span style="font-size:8.5px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">WAYPOINT</span><span ref="{{ roRef }}" data-ro="anWp" style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:var(--ink,#1c1c1e);">—</span></div>
@@ -666,7 +676,7 @@
         <div style="display:flex;flex-direction:column;"><span style="font-size:8.5px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">NESTE KURS</span><span ref="{{ roRef }}" data-ro="anBrg" style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:var(--ink,#1c1c1e);">—</span></div>
         <div style="display:flex;flex-direction:column;grid-column:span 2;"><span style="font-size:8.5px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;">XTD · AVVIK FRA LINJE</span><span ref="{{ roRef }}" data-ro="anXtd" style="font-variant-numeric:tabular-nums;font-size:14px;font-weight:700;color:var(--ink,#1c1c1e);">—</span></div>
       </div>
-      <button onClick="{{ onPickNewPoint }}" style="width:100%;margin-top:11px;padding:10px;border-radius:11px;border:none;background:var(--accent,#0A84FF);color:#fff;font-weight:700;font-size:11.5px;letter-spacing:.3px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10Z"/><circle cx="12" cy="11" r="2"/></svg>PICK NEW DESTINATION</button>
+      <button onClick="{{ onPickNewPoint }}" style="width:100%;margin-top:11px;padding:10px;border-radius:5px;border:none;background:var(--accent,#0A84FF);color:#fff;font-weight:700;font-size:11.5px;letter-spacing:.3px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10Z"/><circle cx="12" cy="11" r="2"/></svg>PICK NEW DESTINATION</button>
     </div>
   </sc-if>
 
@@ -2767,7 +2777,7 @@ class Component extends DCLogic {
     const fe = this.ros.fix; if (fe) { fe.textContent = sf.gnss ? 'LOST · DR' : 'DGNSS · 0.7'; fe.style.color = sf.gnss ? '#FF3B30' : 'var(--accent,#0A84FF)'; }
     const gye = this.ros.gyro; if (gye) { gye.textContent = sf.gyro ? 'NO DATA' : o.hdg.toFixed(1) + '°'; gye.style.color = sf.gyro ? '#FF3B30' : 'var(--accent,#0A84FF)'; }
     this.set('log', o.sog.toFixed(1) + ' kn'); this.set('echo', dep.toFixed(1) + ' m');
-    const tb = this.ros.toolbox; if (tb) { if (s.tool === 'ebl' && this.cursor) { const rng = this.distNm(o, this.cursor), brg = this.bearingDeg(o, this.cursor); tb.style.display = ''; tb.textContent = 'EBL ' + brg.toFixed(1) + '°T · VRM ' + rng.toFixed(2) + ' nm'; } else tb.style.display = 'none'; }
+    const tb = this.ros.toolbox; if (tb) { if (s.tool === 'ebl' && this.cursor) { const rng = this.distNm(o, this.cursor), brg = this.bearingDeg(o, this.cursor); tb.style.display = 'flex'; tb.textContent = 'EBL ' + brg.toFixed(1) + '°T · VRM ' + rng.toFixed(2) + ' nm'; } else tb.style.display = 'none'; }
     const rs = this.ros.replaySlider; if (rs && s.replay.on && document.activeElement !== rs) rs.value = Math.round((this._replayPos || 0) * 100);
     const denom = Math.round(156543.03 * this.cosMid / Math.pow(2, this.view.zoom) / 0.00028); this.set('scale', '1:' + denom.toLocaleString('en-US').replace(/,/g, ' '));
     this.set('orient', s.orient === 'north' ? 'N-UP' : s.orient === 'course' ? 'C-UP' : 'H-UP');
@@ -2864,30 +2874,30 @@ class Component extends DCLogic {
   css(str) { const o = {}; (str || '').split(';').forEach(p => { const i = p.indexOf(':'); if (i < 0) return; const k = p.slice(0, i).trim(); if (!k) return; o[k.replace(/-([a-z])/g, (m, c) => c.toUpperCase())] = p.slice(i + 1).trim(); }); return o; }
   renderVals() {
     const s = this.state, P = this.PAL[s.palette], A = this.accent; const C = (x) => this.css(x); const mw = this.met || {};
-    const glass = `background:var(--glassbg,rgba(255,255,255,.72));backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:0.5px solid var(--glassbd,rgba(255,255,255,.5));box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));`;
-    const cardInner = `background:var(--card,rgba(255,255,255,.5));border:0.5px solid var(--hair,rgba(60,60,67,.12));border-radius:14px;`;
-    const seg = (a) => C(`flex:1;padding:7px 6px;border-radius:9px;border:none;background:${a ? 'var(--segon,#fff)' : 'transparent'};color:${a ? A : 'var(--muted,#8e8e93)'};font-size:11px;font-weight:600;cursor:pointer;box-shadow:${a ? '0 1px 3px rgba(0,0,0,.12)' : 'none'};transition:all .15s;font-family:inherit;`);
-    const palB = (a) => C(`width:30px;height:28px;border-radius:12px;border:none;background:${a ? A : 'transparent'};color:${a ? '#fff' : 'var(--muted,#8e8e93)'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;`);
-    const tool = (a) => C(`width:38px;height:38px;border-radius:13px;border:none;background:${a ? A : 'transparent'};color:${a ? '#fff' : 'var(--ink,#1c1c1e)'};font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;`);
+    const glass = `background:var(--glassbg,rgba(255,255,255,.78));backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:0.5px solid var(--glassbd,rgba(255,255,255,.5));box-shadow:var(--shadow,0 2px 12px rgba(0,40,80,.14));`;
+    const cardInner = `background:var(--card,rgba(255,255,255,.5));border:0.5px solid var(--hair,rgba(60,60,67,.12));border-radius:6px;`;
+    const seg = (a) => C(`flex:1;padding:6px 5px;border-radius:3px;border:none;background:${a ? 'var(--segon,#fff)' : 'transparent'};color:${a ? A : 'var(--muted,#8e8e93)'};font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;box-shadow:${a ? '0 1px 3px rgba(0,0,0,.12)' : 'none'};transition:all .15s;font-family:inherit;`);
+    const palB = (a) => C(`width:30px;height:28px;border-radius:5px;border:none;background:${a ? A : 'transparent'};color:${a ? '#fff' : 'var(--muted,#8e8e93)'};font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;`);
+    const tool = (a) => C(`width:33px;height:33px;border-radius:4px;border:none;background:${a ? A : 'transparent'};color:${a ? '#fff' : 'var(--ink,#1c1c1e)'};font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;`);
     const zb = C(`width:40px;height:38px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:19px;cursor:pointer;display:flex;align-items:center;justify-content:center;`);
     const glassBtn = glass;
     if (this.root) this.root.style.setProperty('--segon', P.ui.glassBg.indexOf('255,255,255') > -1 ? '#fff' : 'rgba(255,255,255,.16)');
 
     const st = {
       palDay: palB(s.palette === 'day'), palDusk: palB(s.palette === 'dusk'), palNight: palB(s.palette === 'night'),
-      layersBtn: C(glass + `width:38px;height:38px;border-radius:13px;color:${s.rightOpen ? A : 'var(--ink,#1c1c1e)'};cursor:pointer;display:flex;align-items:center;justify-content:center;`),
+      layersBtn: C(glass + `width:38px;height:38px;border-radius:6px;color:${s.rightOpen ? A : 'var(--ink,#1c1c1e)'};cursor:pointer;display:flex;align-items:center;justify-content:center;`),
       baseSjo: seg(s.base === 'sjokart'), baseTopo: seg(s.base === 'topo'), baseDark: seg(s.base === 'dark'),
       tabChart: seg(s.rightTab === 'chart'), tabRoute: seg(s.rightTab === 'route'), tabTargets: seg(s.rightTab === 'targets'), tabAlarms: seg(s.rightTab === 'alarms'),
       zbtn: zb,
-      rightPanel: C(`position:absolute;right:14px;top:60px;width:290px;max-height:calc(100vh - 80px);z-index:12;${s.rightOpen ? 'display:flex;flex-direction:column;' : 'display:none;'}${glass}border-radius:18px;padding:10px;`),
-      planBtn: C(`flex:1;padding:9px;border-radius:11px;border:none;background:${s.planning ? '#FF3B30' : A};color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;`),
-      demoBtn: C(`flex:1;padding:9px;border-radius:11px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--card,rgba(255,255,255,.5));color:var(--ink,#1c1c1e);font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;`),
-      clearBtn: C(`width:36px;padding:9px 0;border-radius:11px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--card,rgba(255,255,255,.5));color:var(--muted,#8e8e93);font-size:12px;cursor:pointer;`),
+      rightPanel: C(`position:absolute;right:12px;top:52px;width:272px;max-height:calc(100vh - 68px);z-index:12;${s.rightOpen ? 'display:flex;flex-direction:column;' : 'display:none;'}${glass}border-radius:7px;padding:8px;`),
+      planBtn: C(`flex:1;padding:9px;border-radius:5px;border:none;background:${s.planning ? '#FF3B30' : A};color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit;`),
+      demoBtn: C(`flex:1;padding:9px;border-radius:5px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--card,rgba(255,255,255,.5));color:var(--ink,#1c1c1e);font-weight:600;font-size:12px;cursor:pointer;font-family:inherit;`),
+      clearBtn: C(`width:36px;padding:9px 0;border-radius:5px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--card,rgba(255,255,255,.5));color:var(--muted,#8e8e93);font-size:12px;cursor:pointer;`),
       playBtn: C(`width:38px;height:38px;border-radius:50%;border:none;background:${s.simRunning ? '#FF3B30' : A};color:#fff;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;`),
       spd1: seg(s.simSpeed === 1), spd8: seg(s.simSpeed === 8), spd30: seg(s.simSpeed === 30),
-      ackAllBtn: C(`width:100%;padding:9px;border-radius:11px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--card,rgba(255,255,255,.5));color:var(--ink,#1c1c1e);font-weight:600;font-size:12px;cursor:pointer;margin-bottom:11px;font-family:inherit;`),
-      ackBtn: C(`align-self:center;padding:5px 11px;border-radius:8px;border:1px solid ${A};background:transparent;color:${A};font-size:10px;font-weight:700;cursor:pointer;flex:none;`),
-      badge: C(`display:${s.alarms.filter(a => !a.ack).length ? 'inline-flex' : 'none'};align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#FF3B30;color:#fff;font-size:9px;font-weight:700;margin-left:5px;`),
+      ackAllBtn: C(`width:100%;padding:9px;border-radius:5px;border:0.5px solid var(--hair,rgba(60,60,67,.15));background:var(--card,rgba(255,255,255,.5));color:var(--ink,#1c1c1e);font-weight:600;font-size:12px;cursor:pointer;margin-bottom:11px;font-family:inherit;`),
+      ackBtn: C(`align-self:center;padding:5px 11px;border-radius:4px;border:1px solid ${A};background:transparent;color:${A};font-size:10px;font-weight:700;cursor:pointer;flex:none;`),
+      badge: C(`display:${s.alarms.filter(a => !a.ack).length ? 'inline-flex' : 'none'};align-items:center;justify-content:center;min-width:15px;height:15px;padding:0 4px;border-radius:4px;background:#FF3B30;color:#fff;font-size:9px;font-weight:700;margin-left:5px;`),
       wxChip: C(`display:flex;align-items:center;gap:8px;padding:0 14px;flex:none;white-space:nowrap;border:none;background:transparent;border-right:0.5px solid var(--hair,rgba(60,60,67,.15));cursor:pointer;font-family:inherit;`),
       tideChip: C(`display:flex;align-items:center;gap:8px;padding:0 14px;flex:none;white-space:nowrap;border:none;background:transparent;border-right:0.5px solid var(--hair,rgba(60,60,67,.15));cursor:pointer;font-family:inherit;`),
       gyroChip: C(`display:flex;align-items:center;gap:8px;padding:0 14px;flex:none;white-space:nowrap;border:none;background:transparent;border-right:0.5px solid var(--hair,rgba(60,60,67,.15));cursor:pointer;font-family:inherit;`),
@@ -2912,10 +2922,10 @@ class Component extends DCLogic {
       ['lights', '💡', 'Navigation lights', 'Charted lights · live blink', 'rgba(255,214,90,.2)'],
       ['ais', '⬩', 'AIS targets', s.aisMode !== 'live' ? 'No live feed' : s.aisSrc === 'aisstream' ? 'Live · aisstream.io' : 'Live · Kystverket', 'rgba(191,90,242,.16)'],
     ];
-    const sw = (on) => `width:42px;height:25px;border-radius:13px;background:${on ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;transition:background .18s;`;
-    const knob = (on) => `position:absolute;top:2px;left:${on ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`;
-    const layerRows = layerDefs.map(([k, icon, name, sub, tint]) => { const locked = this.BASE_LOCK.includes(k); return ({ icon, name, sub, tint, lock: locked ? '🔒' : '', toggle: () => this.toggleLayer(k), style: C(`display:flex;align-items:center;justify-content:space-between;padding:4px 6px;border-radius:11px;border:none;background:transparent;cursor:${locked ? 'default' : 'pointer'};width:100%;`), switch: C(sw(s.layers[k]) + (locked ? 'opacity:.5;' : '')), knob: C(knob(s.layers[k])) }); });
-    const segCat = (a) => C(`flex:1;padding:6px 4px;border-radius:8px;border:none;background:${a ? 'var(--segon,#fff)' : 'transparent'};color:${a ? A : 'var(--muted,#8e8e93)'};font-size:10.5px;font-weight:700;cursor:pointer;box-shadow:${a ? '0 1px 3px rgba(0,0,0,.12)' : 'none'};font-family:inherit;`);
+    const sw = (on) => `width:36px;height:20px;border-radius:4px;background:${on ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;transition:background .18s;`;
+    const knob = (on) => `position:absolute;top:2px;left:${on ? 18 : 2}px;width:16px;height:16px;border-radius:3px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`;
+    const layerRows = layerDefs.map(([k, icon, name, sub, tint]) => { const locked = this.BASE_LOCK.includes(k); return ({ icon, name, sub, tint, lock: locked ? '🔒' : '', toggle: () => this.toggleLayer(k), style: C(`display:flex;align-items:center;justify-content:space-between;padding:4px 6px;border-radius:5px;border:none;background:transparent;cursor:${locked ? 'default' : 'pointer'};width:100%;`), switch: C(sw(s.layers[k]) + (locked ? 'opacity:.5;' : '')), knob: C(knob(s.layers[k])) }); });
+    const segCat = (a) => C(`flex:1;padding:6px 4px;border-radius:4px;border:none;background:${a ? 'var(--segon,#fff)' : 'transparent'};color:${a ? A : 'var(--muted,#8e8e93)'};font-size:10.5px;font-weight:700;cursor:pointer;box-shadow:${a ? '0 1px 3px rgba(0,0,0,.12)' : 'none'};font-family:inherit;`);
 
     const tools = [['pan', '✋', 'Pan & pick'], ['route', '🛟', 'Plan route — tap chart'], ['autoroute', '🤖', 'Auto-route — tap a destination, depth-safe route is built & steered'], ['pick', 'ⓘ', 'Object info'], ['ebl', '⌖', 'EBL / VRM — bearing & range'], ['mob', '⚑', 'Man overboard'] ];
     const toolRows = tools.map(([k, icon, title]) => ({ icon, title, action: () => (k === 'mob' ? this.dropMOB() : this.setTool(k)), style: tool(s.tool === k && k !== 'mob') }));
@@ -2927,7 +2937,7 @@ class Component extends DCLogic {
     const sensorRows = [ { name: 'GNSS position', ro: 'gnss' }, { name: 'Fix quality', ro: 'fix' }, { name: 'Gyro heading', ro: 'gyro' }, { name: 'Speed log', ro: 'log' }, { name: 'Echo sounder', ro: 'echo' } ];
     const aisRows = (s.aisSummary || []).map(t => ({ name: t.name, type: t.type, color: t.col, rng: t.rng, brg: t.brg, cpa: t.cpa, tcpa: t.tcpa, cpaStyle: C(t.dangerous ? 'color:#FF3B30;font-weight:700;' : ''), style: C(cardInner + `padding:9px 11px;${t.dangerous ? 'border-color:#FF3B30;background:rgba(255,59,48,.07);' : ''}`) }));
     const ac = (lvl) => lvl === 'alarm' ? '#FF3B30' : lvl === 'warning' ? '#FF9F0A' : '#0A84FF';
-    const alarmRows = s.alarms.map(a => { const c = ac(a.level); return { id: a.id, level: a.level.toUpperCase(), text: a.text, time: a.time, unacked: !a.ack, dot: c, ack: () => this.ackAlarm(a.id), style: C(cardInner + `display:flex;gap:9px;padding:10px 11px;${a.ack ? 'opacity:.55;' : 'border-color:' + c + ';'}`), tag: C(`font-size:8.5px;font-weight:800;letter-spacing:.4px;padding:1px 6px;border-radius:6px;background:${c};color:#fff;`) }; });
+    const alarmRows = s.alarms.map(a => { const c = ac(a.level); return { id: a.id, level: a.level.toUpperCase(), text: a.text, time: a.time, unacked: !a.ack, dot: c, ack: () => this.ackAlarm(a.id), style: C(cardInner + `display:flex;gap:9px;padding:10px 11px;${a.ack ? 'opacity:.55;' : 'border-color:' + c + ';'}`), tag: C(`font-size:8.5px;font-weight:800;letter-spacing:.4px;padding:1px 6px;border-radius:3px;background:${c};color:#fff;`) }; });
 
     const plan = s.planning;
     // ---- tide ----
@@ -2982,7 +2992,7 @@ class Component extends DCLogic {
       onToggleLeft: () => this.setState({ rightOpen: s.rightOpen && s.rightTab === 'chart' ? false : true, rightTab: 'chart' }),
       onTabChart: () => this.setState({ rightTab: 'chart' }),
       onBaseSjo: () => this.setState({ base: 'sjokart' }), onBaseTopo: () => this.setState({ base: 'topo' }), onBaseDark: () => this.setState({ base: 'dark' }), onBaseFly: () => this.setState({ base: 'flyfoto' }),
-      baseRows: [['sjokart', 'Nautical'], ['ocean', 'Ocean'], ['flyfoto', 'Aerial'], ['topo', 'Topo'], ['dark', 'Dark']].filter(([k]) => (k !== 'flyfoto' && k !== 'ocean') || (window.__kioskKeys || {}).arcgis).map(([k, name]) => ({ name, select: () => this.setState({ base: k }), style: C(`padding:8px 13px;border-radius:11px;border:1px solid ${s.base === k ? A : 'var(--hair,rgba(60,60,67,.14))'};background:${s.base === k ? A : 'var(--card,rgba(255,255,255,.5))'};color:${s.base === k ? '#fff' : 'var(--ink,#1c1c1e)'};font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;`) })),
+      baseRows: [['sjokart', 'Nautical'], ['ocean', 'Ocean'], ['flyfoto', 'Aerial'], ['topo', 'Topo'], ['dark', 'Dark']].filter(([k]) => (k !== 'flyfoto' && k !== 'ocean') || (window.__kioskKeys || {}).arcgis).map(([k, name]) => ({ name, select: () => this.setState({ base: k }), style: C(`padding:8px 13px;border-radius:5px;border:1px solid ${s.base === k ? A : 'var(--hair,rgba(60,60,67,.14))'};background:${s.base === k ? A : 'var(--card,rgba(255,255,255,.5))'};color:${s.base === k ? '#fff' : 'var(--ink,#1c1c1e)'};font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;`) })),
       onShallow: (e) => this.setSafety('shallowC', +e.target.value), onSafety: (e) => this.setSafety('safetyC', +e.target.value), onDeep: (e) => this.setSafety('deepC', +e.target.value),
       onSafetyDepth: (e) => this.setSafety('safetyD', +e.target.value),
       onCatBase: () => this.setDisplayCat('base'), onCatStd: () => this.setDisplayCat('standard'), onCatAll: () => this.setDisplayCat('all'),
@@ -3002,20 +3012,20 @@ class Component extends DCLogic {
       onToolPan: () => this.setTool('pan'), onToolRoute: () => this.setTool('route'), onToolAuto: () => { if (this.autoNav && s.autoMin) { this.setState({ autoMin: false }); } else { this.setState({ autoMin: false }); this.setTool('autoroute'); } }, onToolPick: () => this.setTool('pick'), onToolEbl: () => this.setTool('ebl'), onToolMob: () => this.dropMOB(),
       onToggleShipLock: () => { const u = !this.state.shipUnlocked; this.setState({ shipUnlocked: u, tool: 'pan' }); this.addAlarm('info', u ? 'Own-ship drag UNLOCKED — drag the ship symbol to reposition. Re-locks after one move.' : 'Own-ship drag locked.'); },
       shipUnlocked: !!s.shipUnlocked, shipLocked: !s.shipUnlocked, shipLockTitle: s.shipUnlocked ? 'Ship movable — click to lock' : 'Reposition own-ship (unlock to drag)',
-      shipLockStyle: C('width:38px;height:38px;border-radius:13px;border:none;background:' + (s.shipUnlocked ? '#FF9F0A' : 'transparent') + ';color:' + (s.shipUnlocked ? '#fff' : 'var(--ink,#1c1c1e)') + ';cursor:pointer;display:flex;align-items:center;justify-content:center;'),
+      shipLockStyle: C('width:38px;height:38px;border-radius:6px;border:none;background:' + (s.shipUnlocked ? '#FF9F0A' : 'transparent') + ';color:' + (s.shipUnlocked ? '#fff' : 'var(--ink,#1c1c1e)') + ';cursor:pointer;display:flex;align-items:center;justify-content:center;'),
       toolPanStyle: tool(s.tool === 'pan'), toolRouteStyle: tool(s.tool === 'route'), toolAutoStyle: tool(s.tool === 'autoroute' || !!this.autoNav), toolPickStyle: tool(s.tool === 'pick'), toolEblStyle: tool(s.tool === 'ebl'),
-      toolMobStyle: C(`width:38px;height:38px;border-radius:13px;border:none;background:transparent;color:#FF3B30;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;`),
+      toolMobStyle: C(`width:38px;height:38px;border-radius:6px;border:none;background:transparent;color:#FF3B30;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;`),
       routeCheckMsg: (() => { const rc = this.routeCheck; if (!rc || !rc.ran) return ''; return rc.ok ? '✓ Route clear — no safety-contour crossings or warning areas' : ('⚠ ' + rc.dangerLegs.length + ' leg(s) cross the safety contour' + (rc.minD != null ? ' (min ' + rc.minD.toFixed(1) + ' m)' : '') + (rc.warnings.length ? ' · ' + rc.warnings.length + ' warning area(s)' : '')); })(),
       routeCheckColor: (() => { const rc = this.routeCheck; if (!rc || !rc.ran) return '#8e8e93'; return rc.ok ? '#34C759' : '#FF3B30'; })(),
       onFailGnss: () => this.failSensor('gnss'), onFailGyro: () => this.failSensor('gyro'),
-      failGnssStyle: C(`padding:5px 9px;border-radius:8px;border:0.5px solid ${s.sensorFail.gnss ? '#FF3B30' : 'var(--hair,rgba(60,60,67,.15))'};background:${s.sensorFail.gnss ? 'rgba(255,59,48,.12)' : 'var(--card,rgba(255,255,255,.5))'};color:${s.sensorFail.gnss ? '#FF3B30' : 'var(--muted,#8e8e93)'};font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;flex:1;`),
-      failGyroStyle: C(`padding:5px 9px;border-radius:8px;border:0.5px solid ${s.sensorFail.gyro ? '#FF3B30' : 'var(--hair,rgba(60,60,67,.15))'};background:${s.sensorFail.gyro ? 'rgba(255,59,48,.12)' : 'var(--card,rgba(255,255,255,.5))'};color:${s.sensorFail.gyro ? '#FF3B30' : 'var(--muted,#8e8e93)'};font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;flex:1;`),
+      failGnssStyle: C(`padding:5px 9px;border-radius:4px;border:0.5px solid ${s.sensorFail.gnss ? '#FF3B30' : 'var(--hair,rgba(60,60,67,.15))'};background:${s.sensorFail.gnss ? 'rgba(255,59,48,.12)' : 'var(--card,rgba(255,255,255,.5))'};color:${s.sensorFail.gnss ? '#FF3B30' : 'var(--muted,#8e8e93)'};font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;flex:1;`),
+      failGyroStyle: C(`padding:5px 9px;border-radius:4px;border:0.5px solid ${s.sensorFail.gyro ? '#FF3B30' : 'var(--hair,rgba(60,60,67,.15))'};background:${s.sensorFail.gyro ? 'rgba(255,59,48,.12)' : 'var(--card,rgba(255,255,255,.5))'};color:${s.sensorFail.gyro ? '#FF3B30' : 'var(--muted,#8e8e93)'};font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;flex:1;`),
       failGnssLabel: s.sensorFail.gnss ? 'GNSS: restore' : 'Simulate GNSS loss', failGyroLabel: s.sensorFail.gyro ? 'Gyro: restore' : 'Simulate gyro loss',
       onReplayToggle: () => this.setState({ replay: { ...s.replay, on: !s.replay.on, playing: false } }),
       onReplayPlay: () => this.setState({ replay: { ...s.replay, playing: !s.replay.playing } }),
       onReplayScrub: (e) => { this._replayPos = (+e.target.value) / 100; this.setState({ replay: { ...s.replay, playing: false } }); },
       replayOn: s.replay.on, replayPlayIcon: s.replay.playing ? '❚❚' : '▶',
-      replayToggleStyle: C(`padding:5px 11px;border-radius:8px;border:0.5px solid ${s.replay.on ? A : 'var(--hair,rgba(60,60,67,.15))'};background:${s.replay.on ? A : 'var(--card,rgba(255,255,255,.5))'};color:${s.replay.on ? '#fff' : 'var(--muted,#8e8e93)'};font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;`),
+      replayToggleStyle: C(`padding:5px 11px;border-radius:4px;border:0.5px solid ${s.replay.on ? A : 'var(--hair,rgba(60,60,67,.15))'};background:${s.replay.on ? A : 'var(--card,rgba(255,255,255,.5))'};color:${s.replay.on ? '#fff' : 'var(--muted,#8e8e93)'};font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;`),
       trackInfo: (() => { const T = this.track; if (!T || T.length < 2) return 'No track logged yet'; const mins = Math.round(((T[T.length - 1].t || 0) - (T[0].t || 0)) / 60000); return T.length + ' points · ' + (mins >= 60 ? (mins / 60).toFixed(1) + ' h' : mins + ' min') + ' logged (max 12 h)'; })(),
       onTabRoute: () => this.setState({ rightTab: 'route' }), onTabTargets: () => this.setState({ rightTab: 'targets' }), onTabAlarms: () => this.setState({ rightTab: 'alarms' }),
       tabIsChart: s.rightTab === 'chart', tabIsRoute: s.rightTab === 'route', tabIsTargets: s.rightTab === 'targets', tabIsAlarms: s.rightTab === 'alarms',
@@ -3026,7 +3036,7 @@ class Component extends DCLogic {
       onLoadDemo: () => this.loadDemoRoute(), onClearRoute: () => this.clearRoute(), channelLabel: (this.channel || 0.2).toFixed(2) + ' nm',
       noWaypoints: !R.length, alarmCount: s.alarms.filter(a => !a.ack).length, noAlarms: !s.alarms.length, onAckAll: () => this.setState({ alarms: s.alarms.map(a => ({ ...a, ack: true })) }),
       onZoomIn: () => { this.view.zoom = Math.min(18, this.view.zoom + 0.6); }, onZoomOut: () => { this.view.zoom = Math.max(4.5, this.view.zoom - 0.6); },
-      onCenterShip: () => { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; }, onToggleFollow: () => { const f = !this.state.followShip; if (f) { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; } this.setState({ followShip: f }); }, followTitle: s.followShip ? 'Following ship — tap to unlock' : 'Follow ship (chart centres on the ship)', followStyle: C('width:34px;height:34px;border:none;background:' + (s.followShip ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (s.followShip ? '#fff' : 'var(--accent,#0A84FF)') + ';cursor:pointer;border-radius:11px;display:flex;align-items:center;justify-content:center;'), onCycleOrient: () => this.setState({ orient: s.orient === 'north' ? 'course' : s.orient === 'course' ? 'head' : 'north' }),
+      onCenterShip: () => { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; }, onToggleFollow: () => { const f = !this.state.followShip; if (f) { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; } this.setState({ followShip: f }); }, followTitle: s.followShip ? 'Following ship — tap to unlock' : 'Follow ship (chart centres on the ship)', followStyle: C('width:34px;height:34px;border:none;background:' + (s.followShip ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (s.followShip ? '#fff' : 'var(--accent,#0A84FF)') + ';cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:center;'), onCycleOrient: () => this.setState({ orient: s.orient === 'north' ? 'course' : s.orient === 'course' ? 'head' : 'north' }),
       onToggleSim: () => this.setState({ simRunning: !s.simRunning }), playIcon: s.simRunning ? '❚❚' : '▶', simStateLabel: (s.simRunning ? 'Running' : 'Paused') + ' · ' + s.simSpeed + '×',
       onSpeed1: () => this.setState({ simSpeed: 1 }), onSpeed8: () => this.setState({ simSpeed: 8 }), onSpeed30: () => this.setState({ simSpeed: 30 }),
       pick: s.pick ? { title: s.pick.title, cls: s.pick.cls, rows: (s.pick.rows || []).map(r => Array.isArray(r) ? { k: r[0], v: r[1] } : r) } : null, onClosePick: () => this.setState({ pick: null }),
@@ -3050,7 +3060,7 @@ class Component extends DCLogic {
       autoDockStyle: C('display:flex;align-items:center;gap:8px;padding:0 14px;flex:none;white-space:nowrap;border:none;background:transparent;border-right:0.5px solid var(--hair,rgba(60,60,67,.15));cursor:pointer;font-family:inherit;'),
       onPredOff: () => this.setState({ predMin: 0 }), onPred3: () => this.setState({ predMin: 3 }), onPred5: () => this.setState({ predMin: 5 }), onPred10: () => this.setState({ predMin: 10 }),
       predOffS: segCat(s.predMin === 0), pred3S: segCat(s.predMin === 3), pred5S: segCat(s.predMin === 5), pred10S: segCat(s.predMin === 10),
-      onToggleHazard: () => this.setState({ hazardWarn: !s.hazardWarn }), hazardSwitch: C(`width:42px;height:25px;border-radius:13px;border:none;background:${s.hazardWarn ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;cursor:pointer;padding:0;`), hazardKnob: C(`position:absolute;top:2px;left:${s.hazardWarn ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`),
+      onToggleHazard: () => this.setState({ hazardWarn: !s.hazardWarn }), hazardSwitch: C(`width:42px;height:25px;border-radius:6px;border:none;background:${s.hazardWarn ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;cursor:pointer;padding:0;`), hazardKnob: C(`position:absolute;top:2px;left:${s.hazardWarn ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`),
       voyRows: (() => { try { if (!this.bbox) return []; const o = this.ownShip; const cur = this.currentAt(o.lat, o.lon); const dep = Math.max(0, this.depthAt(o.lat, o.lon)); return [['Course (HDG)', o.hdg.toFixed(0) + '°'], ['Rate of turn', (this._rot != null ? (this._rot >= 0 ? '+' : '') + this._rot.toFixed(0) : '0') + ' °/min'], ['Set / drift', Math.round((((cur.ang * 180 / Math.PI) % 360) + 360) % 360) + '° · ' + cur.spd.toFixed(1) + ' kn'], ['True wind', mw.windSpd != null ? mw.windSpd.toFixed(1) + ' m/s ' + this.compass8(mw.windDir) : '—'], ['Depth / UKC', dep.toFixed(0) + ' · ' + (dep - this.draughtV).toFixed(1) + ' m'], ['Draught', this.draughtV.toFixed(1) + ' m']].map(([k, v]) => ({ k, v })); } catch (e) { return []; } })(),
       wxBigIcon: this.wxIconFor(mw.symbol), wxCondition: this.wxLabelFor(mw.symbol), wxBigTemp: mw.airTemp != null ? mw.airTemp.toFixed(1) + ' °C' : '—', wxUpdated: mw.t ? new Date(mw.t).toISOString().slice(11, 16) + ' UTC' : '—',
       weatherRows: [ ['Wind', mw.windSpd != null ? mw.windSpd.toFixed(1) + ' m/s ' + this.compass8(mw.windDir) : '—'], ['Gusts', mw.gust != null ? mw.gust.toFixed(1) + ' m/s' : '—'], ['Air temp.', mw.airTemp != null ? mw.airTemp.toFixed(1) + ' °C' : '—'], ['Dew point', mw.dewPoint != null ? mw.dewPoint.toFixed(1) + ' °C' : '—'], ['Pressure', mw.pressure != null ? Math.round(mw.pressure) + ' hPa' : '—'], ['Humidity', mw.humidity != null ? Math.round(mw.humidity) + ' %' : '—'], ['Precip 1h', mw.precip != null ? mw.precip.toFixed(1) + ' mm' + (mw.precipMax != null && mw.precipMax > mw.precip ? '–' + mw.precipMax.toFixed(1) : '') : '—'], ['Precip chance', mw.precipProb != null ? Math.round(mw.precipProb) + ' %' : '—'], ['Fog', mw.fog != null ? Math.round(mw.fog) + ' %' : '—'], ['UV index', mw.uv != null ? mw.uv.toFixed(0) : '—'], ['Sea temp.', mw.seaTemp != null ? mw.seaTemp.toFixed(1) + ' °C' : '—'], ['Wave height', mw.waveH != null ? mw.waveH.toFixed(1) + ' m ' + (mw.waveDir != null ? this.compass8(mw.waveDir) : '') : '—'], ['Current', mw.curSpd != null ? mw.curSpd.toFixed(1) + ' kn ' + this.compass8(mw.curDir) : '—'], ['Sunrise', mw.sunrise || '—'], ['Sunset', mw.sunset || '—'] ].map(([k, v]) => ({ k, v })),
@@ -3063,7 +3073,7 @@ class Component extends DCLogic {
         // av alle faner via kiosk-serveren; aisstream krever nokkel og taaler
         // bare EN samtidig tilkobling paa gratisnivaa.
         const src = s.aisSrc || 'kystverket';
-        const seg = (on) => C(`flex:1;padding:6px 4px;border-radius:8px;border:none;background:${on ? 'var(--segon,#fff)' : 'transparent'};color:${on ? A : 'var(--muted,#8e8e93)'};font-size:10.5px;font-weight:700;cursor:pointer;box-shadow:${on ? '0 1px 3px rgba(0,0,0,.12)' : 'none'};font-family:inherit;`);
+        const seg = (on) => C(`flex:1;padding:6px 4px;border-radius:4px;border:none;background:${on ? 'var(--segon,#fff)' : 'transparent'};color:${on ? A : 'var(--muted,#8e8e93)'};font-size:10.5px;font-weight:700;cursor:pointer;box-shadow:${on ? '0 1px 3px rgba(0,0,0,.12)' : 'none'};font-family:inherit;`);
         const kvCfg = (window.__kioskAis && window.__kioskAis.kystverket) || {};
         const info = s.aisKvInfo;
         const stateTxt = { connected: 'Connected', connecting: 'Connecting…', reconnecting: 'Reconnecting…', error: 'No contact', off: 'Off' };
@@ -3080,7 +3090,7 @@ class Component extends DCLogic {
           aisKvCount: info ? (info.shown + ' on chart · ' + info.total + ' along the coast') : '—',
           aisKvHost: (kvCfg.host || '153.44.253.27') + ' : ' + (kvCfg.port || 5631),
           aisKvBtnLabel: this._aisKvTesting ? 'Testing…' : 'Test connection',
-          aisKvBtnStyle: C('padding:6px 10px;border-radius:8px;border:none;background:var(--seg,rgba(118,118,128,.16));color:var(--ink,#1c1c1e);font-weight:700;font-size:10px;cursor:pointer;font-family:inherit;'),
+          aisKvBtnStyle: C('padding:6px 10px;border-radius:4px;border:none;background:var(--seg,rgba(118,118,128,.16));color:var(--ink,#1c1c1e);font-weight:700;font-size:10px;cursor:pointer;font-family:inherit;'),
           onAisKvTest: async () => {
             this._aisKvTesting = true; this.setState({ srcVer: (this.state.srcVer || 0) + 1 });
             const st = await this.probeKystverket(9000);
@@ -3092,14 +3102,14 @@ class Component extends DCLogic {
         };
       })(),
       aisKeyVal: this._aisKeyInput || '', onAisKeyInput: (e) => { this._aisKeyInput = e.target.value; }, onAisConnect: () => { (s.aisMode === 'live') ? this.setAisSource('kystverket') : this.setAisSource('aisstream'); },
-      aisBtnLabel: s.aisMode === 'live' ? 'Stop' : 'Connect', aisBtnStyle: C(`padding:7px 12px;border-radius:9px;border:none;background:${s.aisMode === 'live' ? '#FF3B30' : A};color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;`),
-      aisStatusLabel: ({ off: 'no feed', connecting: 'connecting…', connected: 'live', reconnecting: 'reconnecting…', error: 'error', 'key error': 'invalid key' }[s.aisStatus] || s.aisStatus), aisStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${s.aisStatus === 'connected' ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${s.aisStatus === 'connected' ? '#34C759' : 'var(--muted,#8e8e93)'};`),
-      onToggleGps: () => { (this.gpsMode || s.gpsStatus === 'acquiring') ? this.stopGps() : this.startGps(); }, gpsSwitch: C(`width:42px;height:25px;border-radius:13px;border:none;background:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;cursor:pointer;padding:0;`), gpsKnob: C(`position:absolute;top:2px;left:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? 19 : 2}px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`), gpsStatusLabel: ({ off: 'off', acquiring: 'acquiring…', fix: 'position fix', denied: 'permission denied', unavailable: 'unavailable' }[s.gpsStatus] || s.gpsStatus),
+      aisBtnLabel: s.aisMode === 'live' ? 'Stop' : 'Connect', aisBtnStyle: C(`padding:7px 12px;border-radius:4px;border:none;background:${s.aisMode === 'live' ? '#FF3B30' : A};color:#fff;font-weight:700;font-size:11px;cursor:pointer;font-family:inherit;flex:none;`),
+      aisStatusLabel: ({ off: 'no feed', connecting: 'connecting…', connected: 'live', reconnecting: 'reconnecting…', error: 'error', 'key error': 'invalid key' }[s.aisStatus] || s.aisStatus), aisStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:${s.aisStatus === 'connected' ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${s.aisStatus === 'connected' ? '#34C759' : 'var(--muted,#8e8e93)'};`),
+      onToggleGps: () => { (this.gpsMode || s.gpsStatus === 'acquiring') ? this.stopGps() : this.startGps(); }, gpsSwitch: C(`width:36px;height:20px;border-radius:4px;border:none;background:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? A : 'var(--seg,rgba(118,118,128,.18))'};position:relative;flex:none;cursor:pointer;padding:0;`), gpsKnob: C(`position:absolute;top:2px;left:${(s.gpsStatus === 'fix' || s.gpsStatus === 'acquiring') ? 18 : 2}px;width:16px;height:16px;border-radius:3px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:left .18s;`), gpsStatusLabel: ({ off: 'off', acquiring: 'acquiring…', fix: 'position fix', denied: 'permission denied', unavailable: 'unavailable' }[s.gpsStatus] || s.gpsStatus),
       showIntro: s.showIntro,
       proxyOpen: s.proxyOpen, onToggleProxy: () => this.setState({ proxyOpen: !s.proxyOpen }), proxyChevron: s.proxyOpen ? '▾' : '▸',
       proxyVal: this._proxyInput || '', onProxyInput: (e) => { this._proxyInput = e.target.value; },
       onProxySave: () => { this.proxyUrl = (this._proxyInput || '').trim(); this._proxySaved = true; this.saveSrcCfg(); this.setState({ srcVer: (s.srcVer || 0) + 1 }); this.fetchMet(); this.fetchAlerts(); this.fetchTide(); },
-      proxyStatusLabel: this.proxyUrl ? 'active' : 'direct', proxyStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;background:${this.proxyUrl ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${this.proxyUrl ? '#34C759' : 'var(--muted,#8e8e93)'};`),
+      proxyStatusLabel: this.proxyUrl ? 'active' : 'direct', proxyStatusStyle: C(`font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;background:${this.proxyUrl ? 'rgba(52,199,89,.18)' : 'var(--seg,rgba(118,118,128,.16))'};color:${this.proxyUrl ? '#34C759' : 'var(--muted,#8e8e93)'};`),
       srcRows: (() => { const st = this.srcStatus || {}; const lab = { ok: 'live', wait: 'waiting…', error: 'error', blocked: 'CORS-blocked · needs proxy' }; const dot = { ok: '#34C759', wait: '#FF9F0A', error: '#FF3B30', blocked: '#FF3B30' };
         const aisK = s.aisStatus === 'connected' ? 'ok' : (s.aisStatus === 'error' || s.aisStatus === 'key error') ? 'error' : 'wait';
         return [ { name: 'Kartverket · sea charts', k: st.chart || 'wait' }, { name: 'MET Norway · yr weather', k: st.met || 'wait' }, { name: 'Kartverket · tide levels', k: st.tide || 'wait' }, { name: s.aisSrc === 'aisstream' ? 'aisstream.io · live AIS' : 'Kystverket · open AIS', k: aisK } ]
@@ -3223,39 +3233,39 @@ class Component extends DCLogic {
   // ---------- felles stilark (bruker appens CSS-variabler) ----------
   var style = doc.createElement("style");
   style.textContent = [
-    ".htd-glass{background:var(--glassbg,rgba(255,255,255,.72));backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border:0.5px solid var(--glassbd,rgba(255,255,255,.5));box-shadow:var(--shadow,0 8px 34px rgba(0,40,80,.16));}",
+    ".htd-glass{background:var(--glassbg,rgba(255,255,255,.78));backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:0.5px solid var(--glassbd,rgba(255,255,255,.5));box-shadow:var(--shadow,0 2px 12px rgba(0,40,80,.14));}",
     ".htd-nav{position:fixed;left:14px;bottom:14px;z-index:9997;display:flex;gap:8px;font-family:'Inter',system-ui,sans-serif;}",
-    ".htd-navbtn{min-height:46px;display:inline-flex;align-items:center;gap:8px;padding:0 16px;border-radius:14px;color:var(--ink,#1c1c1e);font:700 11px/1 'Inter',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;-webkit-tap-highlight-color:transparent;cursor:pointer;}",
+    ".htd-navbtn{min-height:38px;display:inline-flex;align-items:center;gap:7px;padding:0 12px;border-radius:5px;color:var(--ink,#1c1c1e);font:700 11px/1 'Inter',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;-webkit-tap-highlight-color:transparent;cursor:pointer;}",
     ".htd-navbtn:active{transform:scale(.97);}",
     ".htd-navbtn svg{flex:none;display:block;}",
     ".htd-navbtn.acc{color:var(--accent,#0A84FF);}",
     ".htd-search{position:fixed;z-index:9998;font-family:'Inter',system-ui,sans-serif;}",
     ".htd-iwrap{position:relative;}",
-    ".htd-input{width:100%;min-height:44px;padding:0 40px 0 36px;border-radius:14px;color:var(--ink,#1c1c1e);font:600 13px/1.2 'Inter',system-ui,sans-serif;outline:none;caret-color:var(--accent,#0A84FF);}",
+    ".htd-input{width:100%;min-height:38px;padding:0 38px 0 34px;border-radius:5px;color:var(--ink,#1c1c1e);font:600 13px/1.2 'Inter',system-ui,sans-serif;outline:none;caret-color:var(--accent,#0A84FF);}",
     ".htd-input::placeholder{color:var(--muted,#8e8e93);}",
     ".htd-sicon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted,#8e8e93);pointer-events:none;display:flex;}",
     ".htd-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:none;background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);font-size:13px;font-weight:700;display:none;cursor:pointer;line-height:1;}",
-    ".htd-list{margin-top:6px;border-radius:14px;overflow:hidden;display:none;}",
+    ".htd-list{margin-top:6px;border-radius:6px;overflow:hidden;display:none;}",
     ".htd-row{display:block;width:100%;min-height:46px;padding:8px 14px;border:0;background:transparent;text-align:left;cursor:pointer;color:var(--ink,#1c1c1e);font:600 12.5px/1.3 'Inter',system-ui,sans-serif;}",
     ".htd-row+.htd-row{border-top:0.5px solid var(--hair,rgba(60,60,67,.12));}",
     ".htd-row:active{background:var(--seg,rgba(118,118,128,.12));}",
     ".htd-row small{display:block;font-size:10px;font-weight:600;color:var(--muted,#8e8e93);margin-top:2px;}",
-    ".htd-dest{margin-top:6px;border-radius:16px;padding:12px 14px;display:none;color:var(--ink,#1c1c1e);}",
+    ".htd-dest{margin-top:6px;border-radius:8px;padding:12px 14px;display:none;color:var(--ink,#1c1c1e);}",
     ".htd-dest h5{margin:0;font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;color:var(--ink,#1c1c1e);}",
     ".htd-dest h5 svg{flex:none;color:var(--accent,#0A84FF);}",
     ".htd-meta{font-size:10.5px;color:var(--muted,#8e8e93);margin:4px 0 10px;font-weight:600;line-height:1.5;}",
     ".htd-x{margin-left:auto;width:28px;height:28px;border-radius:50%;border:none;background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);cursor:pointer;font-size:12px;font-weight:700;flex:none;line-height:1;}",
-    ".htd-go{width:100%;min-height:44px;border:none;border-radius:12px;background:var(--accent,#0A84FF);color:#fff;font:700 12.5px/1 'Inter',system-ui,sans-serif;letter-spacing:.03em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;}",
+    ".htd-go{width:100%;min-height:44px;border:none;border-radius:5px;background:var(--accent,#0A84FF);color:#fff;font:700 12.5px/1 'Inter',system-ui,sans-serif;letter-spacing:.03em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;}",
     ".htd-go:disabled{opacity:.5;cursor:default;}",
     ".htd-go:active:not(:disabled){transform:scale(.98);}",
     ".htd-status{display:none;align-items:center;gap:9px;min-height:38px;font:600 11.5px/1.4 'Inter',system-ui,sans-serif;color:var(--ink,#1c1c1e);}",
     ".htd-spin{width:15px;height:15px;border-radius:50%;border:2px solid var(--seg,rgba(118,118,128,.2));border-top-color:var(--accent,#0A84FF);animation:htdspin .8s linear infinite;flex:none;}",
     "@keyframes htdspin{to{transform:rotate(360deg);}}",
-    ".htd-kb{position:fixed;left:50%;bottom:14px;transform:translateX(-50%) translateY(calc(100% + 30px));z-index:9999;width:min(780px,calc(100vw - 24px));border-radius:20px;padding:10px;transition:transform .26s cubic-bezier(.32,.9,.35,1);font-family:'Inter',system-ui,sans-serif;}",
+    ".htd-kb{position:fixed;left:50%;bottom:14px;transform:translateX(-50%) translateY(calc(100% + 30px));z-index:9999;width:min(780px,calc(100vw - 24px));border-radius:8px;padding:10px;transition:transform .26s cubic-bezier(.32,.9,.35,1);font-family:'Inter',system-ui,sans-serif;}",
     ".htd-kb.open{transform:translateX(-50%) translateY(0);}",
     ".htd-kbrow{display:flex;gap:6px;margin-top:6px;}",
     ".htd-kbrow:first-child{margin-top:0;}",
-    ".htd-key{flex:1;min-height:48px;border:none;border-radius:10px;background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font:600 15px/1 'Inter',system-ui,sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0;}",
+    ".htd-key{flex:1;min-height:48px;border:none;border-radius:5px;background:var(--seg,rgba(118,118,128,.12));color:var(--ink,#1c1c1e);font:600 15px/1 'Inter',system-ui,sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;padding:0;}",
     ".htd-key:active{background:var(--accent,#0A84FF);color:#fff;}",
     ".htd-key.fn{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#8e8e93);flex:1.5;}",
     ".htd-key.fn:active{color:#fff;}",
