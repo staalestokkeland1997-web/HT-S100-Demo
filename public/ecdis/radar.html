@@ -116,6 +116,13 @@
     .panel { width: 236px; }
     #scope { right: 236px; }
   }
+  /* Telefon: kontrollpanelet legges som et rullbart bunnark over full bredde,
+     og skopet faar hele bredden over. resize() nullstiller scope-kantene. */
+  html.mob .panel {
+    left: 0; right: 0; top: auto; bottom: 0; width: auto; height: 44vh;
+    border-left: none; border-top: 1px solid var(--bd);
+  }
+  html.mob #scope { right: 0; }
 </style>
 <script src="/fullscreen.js" defer></script>
 </head>
@@ -680,9 +687,19 @@
   var ORG = { x: 0, y: 0 };
   function resize() {
     DPR = Math.min(2, window.devicePixelRatio || 1);
-    PANEL = window.innerWidth <= 1080 ? 236 : 280;
-    W = window.innerWidth - PANEL; H = window.innerHeight;
+    // Telefon (<=740): panelet ligger som bunnark, skopet faar full bredde.
+    var MOB = window.innerWidth <= 740;
+    document.documentElement.classList.toggle("mob", MOB);
+    PANEL = MOB ? 0 : (window.innerWidth <= 1080 ? 236 : 280);
+    var PH = MOB ? Math.round(window.innerHeight * 0.44) : 0;
+    W = window.innerWidth - PANEL; H = window.innerHeight - PH;
     scope.style.right = PANEL + "px";
+    scope.style.bottom = PH + "px";
+    // Basestilen har width:auto/height:100%; med bunnark maa boksen settes
+    // eksplisitt, ellers aspekt-skalerer canvasen (replaced element) seg
+    // storre enn viewporten.
+    scope.style.width = W + "px";
+    scope.style.height = H + "px";
     scope.width = W * DPR; scope.height = H * DPR;
     echoC.width = W * DPR; echoC.height = H * DPR;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -1272,13 +1289,15 @@
     ctx.restore();
 
     // ---------- datablokker ----------
+    // Paa smale skop (telefon) vises bare de to viktigste blokkene, smalere.
+    var slim = W < 560;
     var orientTxt = state.orient === "N" ? "N-UP" : state.orient === "H" ? "H-UP" : "C-UP";
     var leftY = 10 + drawBlock("tl", [
       { big: true, v: (state.range < 1 ? state.range.toFixed(2) : String(state.range)) + " NM", l: "RANGE" },
       { l: "RINGS", v: state.rings ? (state.range / 4).toFixed(state.range < 3 ? 2 : 1) + " NM" : "OFF" },
       { l: "PULSE", v: state.pulse + " · IR " + (state.ir ? "ON" : "OFF") + " · ES " + (state.es ? "ON" : "OFF"), small: true },
       { l: "MODE", v: orientTxt + " · " + state.motion + (state.offcenter ? " · OC" : "") }
-    ], 196) + 8;
+    ], slim ? 150 : 196) + 8;
 
     // Venstre live-datakolonne: rute/veipunkt, egne sensorer og miljodata.
     // Tegnes bare naar gutteren utenfor PPI-sirkelen har plass til den
@@ -1312,18 +1331,19 @@
       ], 196, leftY) + 8;
     }
 
-    drawBlock("tr", [
+    var trRows = [
       { big: true, v: fmt3(own.hdg), l: "GYRO" },
       { l: "SOG", v: own.sog.toFixed(1) + " KN" },
-      { l: "COG", v: fmt3(own.cog) },
-      { l: "POS", v: fmtPos(own.lat, own.lon), small: true },
-      { l: "SRC", v: (live && Date.now() - liveAt < 4000) ? "ECDIS LIVE" : (Date.now() - snapAt < 15000 ? "ECDIS SYNC" : "GYRO OK") },
-      { l: "AIS", v: aisLive() ? (aisTargets.length ? "LIVE · " + aisTargets.length + " TGT" : "ECDIS · " + liveTargets.length + " TGT") : (aisState === "error" ? "NO FEED" : "WAIT") }
-    ], 212);
+      { l: "COG", v: fmt3(own.cog) }
+    ];
+    if (!slim) trRows.push({ l: "POS", v: fmtPos(own.lat, own.lon), small: true });
+    trRows.push({ l: "SRC", v: (live && Date.now() - liveAt < 4000) ? "ECDIS LIVE" : (Date.now() - snapAt < 15000 ? "ECDIS SYNC" : "GYRO OK") });
+    trRows.push({ l: "AIS", v: aisLive() ? (aisTargets.length ? "LIVE · " + aisTargets.length + " TGT" : "ECDIS · " + liveTargets.length + " TGT") : (aisState === "error" ? "NO FEED" : "WAIT") });
+    drawBlock("tr", trRows, slim ? 160 : 212);
 
     var cur = state.cursor;
     var curPos = cur ? moveLL(own.lat, own.lon, cur.brg, cur.rng) : null;
-    drawBlock("bl", [
+    if (!slim) drawBlock("bl", [
       { l: "CURS", v: cur ? fmt3(cur.brg) + " · " + cur.rng.toFixed(2) + " NM" : "—" },
       { l: "", v: curPos ? fmtPos(curPos.lat, curPos.lon) : "", small: true },
       { l: "TUNE", bar: 0.82 + Math.sin(performance.now() / 700 + tuneT) * 0.06 },
@@ -1332,7 +1352,7 @@
 
     var dangerAny = false;
     for (var dk in dangerMap) if (dangerMap[dk]) { dangerAny = true; break; }
-    drawBlock("br", [
+    if (!slim) drawBlock("br", [
       { l: "EBL 1", v: state.ebl ? fmt3(state.ebl.brg) : "OFF" },
       { l: "VRM 1", v: state.ebl ? state.ebl.rng.toFixed(2) + " NM" : "OFF" },
       { l: "VECT", v: (state.vecMode === "R" ? "REL" : "TRUE") + " · " + state.vecMin + " MIN" },
