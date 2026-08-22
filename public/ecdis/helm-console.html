@@ -22,12 +22,19 @@
   button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;transition:transform .08s ease,filter .08s ease;}
   button:active{transform:scale(.97);filter:brightness(.93);}
   @keyframes hcPulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  /* Mobil/nettbrett: tre kolonner blir en, topplinjen faar bryte. */
+  @media (max-width:1080px){
+    .hc-grid{grid-template-columns:1fr !important;}
+  }
+  @media (max-width:740px){
+    .hc-top{flex-wrap:wrap;height:auto !important;padding:8px 10px !important;row-gap:8px;}
+  }
 </style>
 </helmet>
 <div ref="{{ rootRef }}" style="min-height:100vh;font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--bg,#cfe0e8);color:var(--ink,#1c1c1e);">
 
   <!-- TOP BAR -->
-  <div style="display:flex;align-items:center;gap:0;height:60px;padding:0 16px;background:var(--glassbg,rgba(255,255,255,.72));backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border-bottom:.5px solid var(--hair,rgba(60,60,67,.12));position:sticky;top:0;z-index:20;">
+  <div class="hc-top" style="display:flex;align-items:center;gap:0;height:60px;padding:0 16px;background:var(--glassbg,rgba(255,255,255,.72));backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border-bottom:.5px solid var(--hair,rgba(60,60,67,.12));position:sticky;top:0;z-index:20;">
     <img src="uploads/HT_Main_Logo_Black_Web.svg" alt="Hatteland Technology" style="height:20px;width:auto;display:block;filter:var(--logofilter,none);"/>
     <span style="width:1px;height:22px;background:var(--hair,rgba(60,60,67,.2));margin:0 14px;"></span>
     <div style="display:flex;flex-direction:column;justify-content:center;line-height:1.2;">
@@ -75,7 +82,7 @@
   </div>
 
   <!-- MAIN GRID -->
-  <div style="display:grid;grid-template-columns:336px minmax(0,1fr) 344px;gap:14px;align-items:start;">
+  <div class="hc-grid" style="display:grid;grid-template-columns:336px minmax(0,1fr) 344px;gap:14px;align-items:start;">
 
     <!-- LEFT COLUMN -->
     <div style="display:flex;flex-direction:column;gap:14px;">

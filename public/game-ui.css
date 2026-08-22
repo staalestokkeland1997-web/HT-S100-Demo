@@ -709,3 +709,13 @@ body.game-running .hold-exit {
   background: rgba(3, 13, 22, 0.78);
   backdrop-filter: blur(10px);
 }
+
+/* ---------- Telefon: intro-/resultatpaneler ----------
+   .steps og .result-figures bruker auto-fit med fast minimumsbredde; paa
+   smale skjermer tvinger min-content panelet bredere enn viewporten og
+   innholdet klippes. To kolonner med minmax(0,1fr) holder alt innenfor. */
+@media (max-width: 620px) {
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .result-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel { padding: 18px 14px; }
+}

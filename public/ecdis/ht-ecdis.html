@@ -68,6 +68,25 @@
   button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
   @keyframes mrdPulse{0%,100%{opacity:1;}50%{opacity:.4;}}
   .mrd-scroll::-webkit-scrollbar{width:0;height:0;}
+  /* --- mobil / nettbrett ---------------------------------------------------
+     Chromen er inline-stilet, saa bruddpunktene overstyrer med !important paa
+     klassekroker. <=1120: instrumentlinjen flyttes under merket (kolliderer
+     ellers med hoyre kontroller), kioskknappene loftes over bunnlinjen.
+     <=740 (telefon): panelet blir et fullbreddeark, palett/cursor skjules,
+     bunnlinjen ruller horisontalt. */
+  @media (max-width:1120px){
+    .mrd-strip{left:8px !important;transform:none !important;top:50px !important;}
+    .htd-nav{bottom:76px !important;}
+    .htd-search{top:92px !important;}
+  }
+  @media (max-width:740px){
+    .mrd-pal,.mrd-curs{display:none !important;}
+    .mrd-panel{left:6px !important;right:6px !important;width:auto !important;top:138px !important;max-height:calc(100vh - 262px) !important;}
+    .mrd-dock{left:6px !important;right:6px !important;transform:none !important;justify-content:flex-start !important;overflow-x:auto !important;-webkit-overflow-scrolling:touch;}
+    .mrd-rail{left:6px !important;z-index:11 !important;}
+    .mrd-cpanel{max-width:calc(100vw - 16px) !important;}
+    .htd-search{width:calc(100vw - 16px) !important;left:8px !important;}
+  }
 </style>
 </helmet>
 <div ref="{{ rootRef }}" style="position:fixed;inset:0;font-family:'Inter',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:var(--bg,#0a0e14);color:var(--ink,#1c1c1e);overflow:hidden;">
@@ -83,7 +102,7 @@
   </sc-if>
 
   <!-- brand -->
-  <div style="position:absolute;left:14px;top:12px;z-index:14;display:flex;align-items:center;gap:9px;{{ glass }}padding:6px 12px;border-radius:7px;">
+  <div class="mrd-brand" style="position:absolute;left:14px;top:12px;z-index:14;display:flex;align-items:center;gap:9px;{{ glass }}padding:6px 12px;border-radius:7px;">
     <img src="uploads/HT_Main_Logo_Black_Web.svg" alt="HT" style="height:17px;width:auto;display:block;filter:var(--logoFilter,none);"/>
     <span style="width:1px;height:18px;background:var(--hair,rgba(60,60,67,.2));"></span>
     <span style="font-size:9px;letter-spacing:1.2px;color:var(--muted,#8e8e93);font-weight:700;">ECDIS</span>
@@ -91,7 +110,7 @@
 
   <!-- EN sammenhengende instrumentlinje (som datalinjen paa en ekte ECDIS):
        DEMO-merke | klokke | skala | cursor, adskilt med tynne delelinjer -->
-  <div style="position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:14;display:flex;align-items:stretch;{{ glass }}border-radius:7px;overflow:hidden;">
+  <div class="mrd-strip" style="position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:14;display:flex;align-items:stretch;{{ glass }}border-radius:7px;overflow:hidden;">
     <div style="display:flex;align-items:center;gap:6px;padding:5px 11px;">
       <span style="width:6px;height:6px;border-radius:50%;background:#FF9F0A;animation:mrdPulse 2s infinite;flex:none;"></span>
       <span style="font-weight:700;font-size:9.5px;letter-spacing:.6px;color:var(--ink,#1c1c1e);white-space:nowrap;">DEMO — NOT FOR NAVIGATION</span>
@@ -106,8 +125,8 @@
       <span ref="{{ roRef }}" data-ro="scale" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:11px;color:var(--ink,#1c1c1e);white-space:nowrap;">1:90 000</span>
       <span style="font-size:7px;letter-spacing:1px;color:var(--muted,#8e8e93);font-weight:700;">SCALE</span>
     </div>
-    <span style="width:1px;background:var(--hair,rgba(60,60,67,.16));"></span>
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 11px;line-height:1.08;min-width:104px;">
+    <span class="mrd-curs" style="width:1px;background:var(--hair,rgba(60,60,67,.16));"></span>
+    <div class="mrd-curs" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 11px;line-height:1.08;min-width:104px;">
       <span ref="{{ roRef }}" data-ro="cursor" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:10.5px;color:var(--ink,#1c1c1e);white-space:nowrap;">—</span>
       <span style="font-size:7px;letter-spacing:1px;color:var(--muted,#8e8e93);font-weight:700;">CURSOR</span>
     </div>
@@ -127,7 +146,7 @@
       <button onClick="{{ onZoomOut }}" title="Zoom out" style="width:30px;height:29px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:17px;cursor:pointer;border-radius:4px;">−</button>
       <button onClick="{{ onZoomIn }}" title="Zoom in" style="width:30px;height:29px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:17px;cursor:pointer;border-radius:4px;">＋</button>
     </div>
-    <div style="display:flex;gap:2px;{{ glass }}padding:3px;border-radius:6px;">
+    <div class="mrd-pal" style="display:flex;gap:2px;{{ glass }}padding:3px;border-radius:6px;">
       <button onClick="{{ onPalDay }}" title="Day" style="{{ st.palDay }}">☀</button>
       <button onClick="{{ onPalDusk }}" title="Dusk" style="{{ st.palDusk }}">◐</button>
       <button onClick="{{ onPalNight }}" title="Night" style="{{ st.palNight }}">☾</button>
@@ -138,7 +157,7 @@
   </div>
 
   <!-- UNIFIED RIGHT PANEL -->
-  <div style="{{ st.rightPanel }}">
+  <div class="mrd-panel" style="{{ st.rightPanel }}">
     <div style="display:flex;gap:2px;background:var(--seg,rgba(118,118,128,.12));border-radius:5px;padding:2px;margin-bottom:8px;">
       <button onClick="{{ onTabChart }}" style="{{ st.tabChart }}">Chart</button>
       <button onClick="{{ onTabRoute }}" style="{{ st.tabRoute }}">Route</button>
@@ -400,7 +419,7 @@
   </div>
 
   <!-- TOOL DOCK -->
-  <div style="position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:13;display:flex;flex-direction:column;gap:3px;{{ glass }}padding:4px;border-radius:6px;">
+  <div class="mrd-rail" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:13;display:flex;flex-direction:column;gap:3px;{{ glass }}padding:4px;border-radius:6px;">
     <button onClick="{{ onToolPan }}" title="Pan &amp; pick" style="{{ toolPanStyle }}">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18"/><path d="M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>
     </button>
@@ -425,7 +444,7 @@
   </div>
 
   <!-- VOYAGE DOCK (live only) -->
-  <div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:14;display:flex;align-items:center;gap:4px;{{ glass }}padding:8px 10px;border-radius:8px;">
+  <div class="mrd-dock" style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:14;display:flex;align-items:center;gap:4px;{{ glass }}padding:8px 10px;border-radius:8px;">
     <div style="display:flex;align-items:center;gap:7px;padding:0 14px 0 8px;border-right:0.5px solid var(--hair,rgba(60,60,67,.15));">
       <span style="width:8px;height:8px;border-radius:50%;background:#34C759;box-shadow:0 0 7px #34C759;animation:mrdPulse 2s infinite;flex:none;"></span>
       <span style="font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--ink,#1c1c1e);">LIVE</span>
@@ -647,7 +666,7 @@
 
   <!-- AUTO-ROUTE · confirm before sailing -->
   <sc-if value="{{ routePendingOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:8px;padding:13px 15px;width:340px;">
+    <div class="mrd-cpanel" style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:8px;padding:13px 15px;width:340px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;">
         <span style="font-size:19px;line-height:1;">🤖</span>
         <div style="line-height:1.25;flex:1;"><div style="font-weight:700;font-size:13px;color:var(--ink,#1c1c1e);">Proposed autonomous route</div><div ref="{{ roRef }}" data-ro="rpStats" style="font-size:11px;color:var(--muted,#8e8e93);font-variant-numeric:tabular-nums;">—</div></div>
@@ -661,7 +680,7 @@
 
   <!-- AUTO-ROUTE · active voyage panel -->
   <sc-if value="{{ autoNavOpen }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:8px;padding:12px 15px;width:392px;">
+    <div class="mrd-cpanel" style="position:absolute;left:50%;top:60px;transform:translateX(-50%);z-index:30;{{ glass }}border-radius:8px;padding:12px 15px;width:392px;">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;">
         <span style="width:8px;height:8px;border-radius:50%;background:#34C759;box-shadow:0 0 7px #34C759;animation:mrdPulse 2s infinite;flex:none;"></span>
         <span style="font-weight:700;font-size:12px;letter-spacing:.5px;color:var(--ink,#1c1c1e);flex:1;">AUTONOMOUS VOYAGE · TRACK</span>
@@ -691,7 +710,7 @@ class Component extends DCLogic {
   state = {
     palette: (this.props && this.props.defaultPalette) || 'day', base: 'sjokart', orient: 'north',
     shallowC: 2, safetyC: 10, deepC: 20, safetyD: 7,
-    tool: 'pan', planning: false, rightTab: 'chart', rightOpen: true,
+    tool: 'pan', planning: false, rightTab: 'chart', rightOpen: (typeof window === 'undefined' || window.innerWidth > 740),
     simRunning: true, simSpeed: 1, displayCat: 'all',
     sensorFail: { gnss: false, gyro: false }, replay: { on: false, playing: false, pos: 1 }, routeChkVer: 0, predMin: 5, hazardWarn: true, voyOpen: false, cpaLimit: 0.5, tcpaLimit: 12,
     layers: { s101: true, s102: false, s104: true, s111: true, s124: true, s129: true, ais: true, route: true, wind: false, waves: false, radar: true, trails: true, lights: true, temp: false, clouds: true, density: false, precip: false, traffic: false },
@@ -2119,6 +2138,7 @@ class Component extends DCLogic {
   // NOYAKTIG de samme fargefunksjonene som tegner lagene, saa forklaringen
   // alltid stemmer med kartet, og brikken folger day/dusk/night via P.ui.
   drawLegend(ctx, P) {
+    if (this.W < 740) return; // telefon: legenden stjeler kartflate
     const s = this.state, wide = this.view.zoom < 7.5, u = P.ui;
     const owner = this.fieldOwner();
 
