@@ -63,9 +63,16 @@ folger day/dusk/night automatisk. Havnesoket har innebygd norsk havneliste
 eget touch-tastatur med AE/O/AA i samme glass-stil. Velg et treff for aa faa
 et destinasjonskort med "Set route to destination": appens dybdetrygge
 autoroute planlegger ruten og seilasen startes automatisk. Havner utenfor
-demo-kartomraadet vises som "view only". Ruteplanleggingen kjorer tidsskivet i
-bakgrunnen, saa kartet kan panoreres/zoomes og alle knapper virker mens ruten
-beregnes. AIS-laget er **kun ekte trafikk**: det finnes ingen simulert
+demo-kartomraadet vises som "view only". Soket finner ogsaa **fartoy**: det
+soker i de live AIS-maalene (navn eller MMSI) — samme sannhet som skopet
+viser, ingen egen kilde — og fartoykortet folger maalet live (posisjon, fart,
+kurs, destinasjon), kan sentrere kartet paa fartoyet og sette kurs mot det med
+samme dybdetrygge autoroute ("Set route to vessel"; ruta gaar til fartoyets
+posisjon i trykkoyeblikket, og forsvinner signalet viser kortet "AIS signal
+lost" paa siste kjente posisjon). Er AIS-kilden nede, gir fartoysoket ingen
+treff — et aerlig tomt svar, som resten av AIS-laget. Ruteplanleggingen
+kjorer tidsskivet i bakgrunnen, saa kartet kan panoreres/zoomes og alle
+knapper virker mens ruten beregnes. AIS-laget er **kun ekte trafikk**: det finnes ingen simulert
 flaate og ingen varmstart fra en gammel cache. Er stroemmen nede eller tom,
 staar skopet tomt og kildepanelet sier hvorfor — et tomt AIS-bilde er sant,
 en oppdiktet flaate er det ikke.

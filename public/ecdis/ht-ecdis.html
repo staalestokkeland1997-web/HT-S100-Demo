@@ -3788,11 +3788,15 @@ class Component extends DCLogic {
 }
 </script>
 <script>
-// HT-dock: kioskknappene, havnesoket og et eget touch-tastatur — alt stylet med
-// appens egne palettvariabler slik at de folger day/dusk/night automatisk.
-// Soket virker offline mot en innebygd norsk havneliste og utvides med ArcGIS
-// naar kioskens API-nokkel finnes. Valgt havn kan settes som reisemaal via
-// appens dybdetrygge autoroute ("Set route to destination").
+// HT-dock: kioskknappene, havne-/fartoysoket og et eget touch-tastatur — alt
+// stylet med appens egne palettvariabler slik at de folger day/dusk/night
+// automatisk. Soket virker offline mot en innebygd norsk havneliste, soker de
+// LIVE AIS-maalene appen allerede sporer (navn eller MMSI — ingen egen
+// datakilde, samme sannhet som skopet viser), og utvides med ArcGIS naar
+// kioskens API-nokkel finnes. Valgt havn kan settes som reisemaal via appens
+// dybdetrygge autoroute ("Set route to destination"); valgt fartoy folges
+// live i kortet og kan settes som reisemaal via samme motor ("Set route to
+// vessel" — ruta gaar til fartoyets posisjon i trykkoyeblikket).
 (function () {
   var doc = document;
 
@@ -3829,6 +3833,9 @@ class Component extends DCLogic {
     ".htd-go{width:100%;min-height:44px;border:none;border-radius:5px;background:var(--accent,#0A84FF);color:#fff;font:700 12.5px/1 'Inter',system-ui,sans-serif;letter-spacing:.03em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;}",
     ".htd-go:disabled{opacity:.5;cursor:default;}",
     ".htd-go:active:not(:disabled){transform:scale(.98);}",
+    ".htd-go2{width:100%;min-height:38px;margin-top:6px;border:none;border-radius:5px;background:var(--seg,rgba(118,118,128,.12));color:var(--accent,#0A84FF);font:700 12px/1 'Inter',system-ui,sans-serif;letter-spacing:.03em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;-webkit-tap-highlight-color:transparent;}",
+    ".htd-go2:active{transform:scale(.98);}",
+    ".htd-vtag{font:700 8.5px/1 'Inter',system-ui,sans-serif;letter-spacing:.8px;color:var(--accent,#0A84FF);border:1px solid var(--accent,#0A84FF);border-radius:3px;padding:2.5px 5px;margin-right:7px;vertical-align:1px;display:inline-block;}",
     ".htd-status{display:none;align-items:center;gap:9px;min-height:38px;font:600 11.5px/1.4 'Inter',system-ui,sans-serif;color:var(--ink,#1c1c1e);}",
     ".htd-spin{width:15px;height:15px;border-radius:50%;border:2px solid var(--seg,rgba(118,118,128,.2));border-top-color:var(--accent,#0A84FF);animation:htdspin .8s linear infinite;flex:none;}",
     "@keyframes htdspin{to{transform:rotate(360deg);}}",
@@ -4013,7 +4020,7 @@ class Component extends DCLogic {
   var input = doc.createElement("input");
   input.type = "text";
   input.className = "htd-input";
-  input.placeholder = "Search harbor or place…";
+  input.placeholder = "Search harbor, place or vessel…";
   input.autocomplete = "off";
   input.setAttribute("inputmode", "none"); // eget kiosk-tastatur, ikke OS-tastaturet
   var sicon = doc.createElement("span");
@@ -4097,7 +4104,7 @@ class Component extends DCLogic {
   });
 
   // ---------- sok ----------
-  var timer = null, seq = 0, current = [], selected = null, routePoll = null, hideT = null;
+  var timer = null, seq = 0, current = [], selected = null, routePoll = null, hideT = null, vesselT = null;
 
   function flyTo(lat, lon) {
     var a = app(); if (!a) return;
@@ -4131,6 +4138,33 @@ class Component extends DCLogic {
     return hits.slice(0, 5);
   }
 
+  // Fartoysok i de LIVE AIS-maalene appen allerede sporer — navn eller MMSI.
+  // Ingen egen datakilde: treffene er noyaktig de fartoyene skopet viser naa,
+  // saa et tomt resultat er sant (AIS av/uten dekning = ingen fartoy aa finne).
+  // Kortet slaar seinere opp ferske data via mmsi, saa raden baerer bare id +
+  // et snapshot til sortering/visning.
+  function vesselSearch(text) {
+    var a = app();
+    if (!a || !a.aisArr) return [];
+    var q = norm(text);
+    if (!q) return [];
+    var digits = /^[0-9]{3,}$/.test(q);
+    var o = shipRef(), hits = [];
+    var arr = a.aisArr();
+    for (var i = 0; i < arr.length; i++) {
+      var t = arr[i];
+      if (t.lat == null || t.lon == null) continue;
+      var rank = -1;
+      var n = norm(t.name || "");
+      if (n) { var idx = n.indexOf(q); if (idx === 0) rank = 0; else if (idx > 0) rank = 1; }
+      if (rank < 0 && digits && t.mmsi != null && String(t.mmsi).indexOf(q) === 0) rank = 0;
+      if (rank < 0) continue;
+      hits.push({ name: t.name || ("MMSI " + t.mmsi), lat: t.lat, lon: t.lon, vessel: true, mmsi: t.mmsi, sog: t.sog, type: t.type, rank: rank, d: distNm(o.lat, o.lon, t.lat, t.lon) });
+    }
+    hits.sort(function (a2, b2) { return a2.rank - b2.rank || a2.d - b2.d; });
+    return hits.slice(0, 3);
+  }
+
   function render(items) {
     current = items;
     list.innerHTML = "";
@@ -4140,8 +4174,16 @@ class Component extends DCLogic {
       row.type = "button";
       row.className = "htd-row";
       var sub = doc.createElement("small");
-      sub.textContent = (item.local ? "Harbor · Norway · " : "") + distTxt(item.lat, item.lon);
-      row.textContent = item.name;
+      sub.textContent = item.vessel
+        ? (item.type || "Vessel") + " · AIS live · " + (item.sog != null ? item.sog.toFixed(1) + " kn · " : "") + distTxt(item.lat, item.lon)
+        : (item.local ? "Harbor · Norway · " : "") + distTxt(item.lat, item.lon);
+      if (item.vessel) {
+        var tag = doc.createElement("span");
+        tag.className = "htd-vtag";
+        tag.textContent = "VESSEL";
+        row.appendChild(tag);
+      }
+      row.appendChild(doc.createTextNode(item.name));
       row.appendChild(sub);
       row.addEventListener("pointerup", function (event) {
         event.preventDefault();
@@ -4154,8 +4196,8 @@ class Component extends DCLogic {
 
   function search(text) {
     var mine = ++seq;
-    var loc = localSearch(text);
-    render(loc);
+    var base = vesselSearch(text).concat(localSearch(text));
+    render(base.slice(0, 7));
     var key = (window.__kioskKeys || {}).arcgis;
     if (!key) return;
     var a = app();
@@ -4165,7 +4207,7 @@ class Component extends DCLogic {
     fetch(url).then(function (r) { return r.json(); }).then(function (data) {
       if (mine !== seq) return;
       var have = {};
-      loc.forEach(function (l) { have[norm(l.name)] = true; });
+      base.forEach(function (l) { have[norm(l.name)] = true; });
       var items = ((data && data.candidates) || []).map(function (c) {
         return { name: c.address, lat: c.location.y, lon: c.location.x, local: false };
       }).filter(function (c) {
@@ -4173,7 +4215,7 @@ class Component extends DCLogic {
         for (var k2 in have) if (n && k2.indexOf(n) === 0) return false;
         return true;
       });
-      render(loc.concat(items).slice(0, 7));
+      render(base.concat(items).slice(0, 7));
     }).catch(function () {});
   }
 
@@ -4196,16 +4238,39 @@ class Component extends DCLogic {
     dest.style.display = "none";
     selected = null;
     clearInterval(routePoll);
+    clearInterval(vesselT);
     clearTimeout(hideT);
+  }
+  // Ferskt AIS-maal for kortet: aisLive er sannheten (samme objekt skopet
+  // tegner), og et maal som er aldret ut av broen er reelt borte — da viser
+  // kortet "signal lost" paa siste kjente posisjon i stedet for aa dikte.
+  function liveTarget(mmsi) {
+    var a = app();
+    if (!a || !a.aisLive || mmsi == null) return null;
+    var t = a.aisLive[mmsi];
+    return (t && t.lat != null) ? t : null;
+  }
+  function vesselMetaHtml(t, item) {
+    var lost = !t;
+    var v = t || item;
+    var l1 = "MMSI " + (v.mmsi != null ? v.mmsi : "—") + " · " + (v.type || "Vessel") +
+      (v.sog != null ? " · " + v.sog.toFixed(1) + " kn / " + (v.cog != null ? v.cog.toFixed(0) : "—") + "°" : "");
+    var l2 = fmtLL(v.lat, v.lon) + " · " + distTxt(v.lat, v.lon);
+    var l3 = (t && t.dest) ? "Bound for " + t.dest : "";
+    return escHtml(l1) + "<br>" + escHtml(l2) + (l3 ? "<br>" + escHtml(l3) : "") +
+      (lost ? '<br><span style="color:#FF9F0A;">AIS signal lost — last known position shown</span>' : "");
   }
   function showDest(item) {
     selected = item;
     clearInterval(routePoll);
+    clearInterval(vesselT);
     clearTimeout(hideT);
     var routable = insideDemoArea(item.lat, item.lon);
     dest.innerHTML = "";
     var h5 = doc.createElement("h5");
-    h5.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5.5" r="2.5"/><path d="M12 8v12M5 12H3c0 5 4 8 9 8s9-3 9-8h-2M7 12h10"/></svg>';
+    h5.innerHTML = item.vessel
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l6 5v6H6V8z"/><path d="M4 19c2 1.5 4 1.5 6 0s4-1.5 6 0 3.2 1.2 4 .7"/></svg>'
+      : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5.5" r="2.5"/><path d="M12 8v12M5 12H3c0 5 4 8 9 8s9-3 9-8h-2M7 12h10"/></svg>';
     var nameSpan = doc.createElement("span");
     nameSpan.textContent = item.name;
     nameSpan.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
@@ -4216,21 +4281,49 @@ class Component extends DCLogic {
     h5.appendChild(x);
     var meta = doc.createElement("div");
     meta.className = "htd-meta";
-    meta.textContent = fmtLL(item.lat, item.lon) + " · " + distTxt(item.lat, item.lon);
+    if (item.vessel) meta.innerHTML = vesselMetaHtml(liveTarget(item.mmsi), item);
+    else meta.textContent = fmtLL(item.lat, item.lon) + " · " + distTxt(item.lat, item.lon);
     var go = doc.createElement("button");
     go.type = "button";
     go.className = "htd-go";
     go.innerHTML = routable
-      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19c2 1.5 4 1.5 6 0s4-1.5 6 0 3.2 1.2 4 .7"/><path d="M6 15l6-11 6 11z"/></svg><span>Set route to destination</span>'
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19c2 1.5 4 1.5 6 0s4-1.5 6 0 3.2 1.2 4 .7"/><path d="M6 15l6-11 6 11z"/></svg><span>' + (item.vessel ? "Set route to vessel" : "Set route to destination") + "</span>"
       : "<span>Outside demo chart area — view only</span>";
     go.disabled = !routable;
     var status = doc.createElement("div");
     status.className = "htd-status";
-    dest.appendChild(h5); dest.appendChild(meta); dest.appendChild(go); dest.appendChild(status);
+    dest.appendChild(h5); dest.appendChild(meta); dest.appendChild(go);
+    if (item.vessel) {
+      // Fartoy flytter seg mens kortet staar aapent: kortet folger AIS-en live,
+      // og "Center on vessel" flyr til DER fartoyet er naa, ikke der det var.
+      var center = doc.createElement("button");
+      center.type = "button";
+      center.className = "htd-go2";
+      center.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><span>Center on vessel</span>';
+      center.addEventListener("pointerup", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var t = liveTarget(item.mmsi);
+        if (t) { item.lat = t.lat; item.lon = t.lon; }
+        flyTo(item.lat, item.lon);
+      });
+      dest.appendChild(center);
+      vesselT = setInterval(function () {
+        var t = liveTarget(item.mmsi);
+        if (t) { item.lat = t.lat; item.lon = t.lon; }
+        meta.innerHTML = vesselMetaHtml(t, item);
+      }, 2500);
+    }
+    dest.appendChild(status);
     dest.style.display = "block";
     if (routable) {
       go.addEventListener("pointerup", function (e) {
         e.preventDefault(); e.stopPropagation();
+        if (item.vessel) {
+          // rute til fartoyets posisjon i TRYKKOYEBLIKKET (ferskeste AIS-fix)
+          var t = liveTarget(item.mmsi);
+          if (t) { item.lat = t.lat; item.lon = t.lon; }
+          if (!insideDemoArea(item.lat, item.lon)) { setStatus(status, "The vessel has left the demo chart area — view only.", false); return; }
+        }
         routeTo(item, go, status);
       });
     }
@@ -4275,7 +4368,7 @@ class Component extends DCLogic {
       });
       if (failed || ticks > 55) {
         clearInterval(routePoll);
-        setStatus(status, failed ? "No safe route found — the harbor is blocked by land or shoals." : "Route planning timed out — try again.", false);
+        setStatus(status, failed ? "No safe route found — the " + (item.vessel ? "vessel is cut off" : "harbor is blocked") + " by land or shoals." : "Route planning timed out — try again.", false);
         go.style.display = "flex";
       }
     }, 600);
