@@ -70,20 +70,22 @@
   .mrd-scroll::-webkit-scrollbar{width:0;height:0;}
   /* --- mobil / nettbrett ---------------------------------------------------
      Chromen er inline-stilet, saa bruddpunktene overstyrer med !important paa
-     klassekroker. Fire trinn (kumulative):
+     klassekroker. Tre samlede moduler oppe (soek-med-merke | instrumentlinje |
+     kontrollfelt), verktoylinjen med kioskceller til venstre, dokken nede.
+     Fire trinn (kumulative):
      <=1500 (liten desktop / stor iPad): toppraden senkes klar av iOS-status-
        linjen (--ctop), cursorcellen skjules og CONNING blir ikonknapp.
-     <=1280 (iPad landskap): merket slankes, DEMO-teksten kortes til "DEMO",
-       hoyrekontrollene strammes og bunndokken skaleres ned + senkes, slik at
-       alt paa en 1180 px iPad gaar klar av hverandre i en enkelt rad.
-     <=1060 (nettbrett portrett): instrumentlinjen legges under merket,
-       dokken strekkes ut og ruller horisontalt, kioskknappene loftes over.
-     <=740 (telefon): panelet blir et fullbreddeark, palett og intro skjules.
-     Soekefeltet plasseres per samme trinn i place() i dock-skriptet;
-     kioskknappenes egne trinn ligger i dock-skriptets stilark. */
+     <=1280 (iPad landskap): DEMO-teksten kortes til "DEMO", ECDIS-taggen i
+       soekemodulen skjules og bunndokken skaleres ned + senkes, slik at alt
+       paa en 1180 px iPad gaar klar av hverandre i en enkelt rad.
+     <=1060 (nettbrett portrett): instrumentlinjen venstrestilles paa rad 1,
+       soekemodulen legges under den, dokken strekkes ut og ruller.
+     <=740 (telefon): skala- og DEMO-tekstcellene vekk (prikk + klokke igjen),
+       panelet blir et fullbreddeark, palett og intro skjules.
+     Soekefeltet plasseres per samme trinn i place() i dock-skriptet. */
   @media (max-width:1500px){
     html{--ctop:max(26px, env(safe-area-inset-top, 0px));}
-    .mrd-brand,.mrd-strip,.mrd-ctrls{top:var(--ctop) !important;}
+    .mrd-strip,.mrd-ctrls{top:var(--ctop) !important;}
     .mrd-curs{display:none !important;}
     .mrd-panel{top:calc(var(--ctop) + 44px) !important;max-height:calc(100vh - var(--ctop) - 128px) !important;}
     .mrd-cpanel{top:calc(var(--ctop) + 48px) !important;}
@@ -91,24 +93,22 @@
     .mrd-dconn span{display:none !important;}
   }
   @media (max-width:1280px){
-    .mrd-brand{padding:5px 9px !important;gap:7px !important;}
     .mrd-demo-x{display:none;}
-    .mrd-ctrls{gap:5px !important;}
     .mrd-dock{bottom:18px !important;transform:translateX(-50%) scale(.85) !important;transform-origin:50% 100%;}
     .mrd-attr{bottom:2px !important;}
     .mrd-hint{bottom:76px !important;}
   }
   @media (max-width:1060px){
-    .mrd-strip{left:14px !important;transform:none !important;top:calc(var(--ctop) + 38px) !important;}
+    .mrd-strip{left:14px !important;transform:none !important;top:var(--ctop) !important;}
     .mrd-dock{left:8px !important;right:8px !important;bottom:20px !important;transform:none !important;justify-content:flex-start !important;overflow-x:auto !important;-webkit-overflow-scrolling:touch;}
     .mrd-dock::-webkit-scrollbar{width:0;height:0;}
     .mrd-rail{left:8px !important;z-index:11 !important;}
-    .mrd-cpanel{max-width:calc(100vw - 16px) !important;top:calc(var(--ctop) + 118px) !important;}
+    .mrd-cpanel{max-width:calc(100vw - 16px) !important;top:calc(var(--ctop) + 90px) !important;}
   }
   @media (max-width:740px){
-    .mrd-pal{display:none !important;}
+    .mrd-pal,.mrd-scl,.mrd-demo-t{display:none !important;}
     .mrd-hint{display:none !important;}
-    .mrd-panel{left:6px !important;right:6px !important;width:auto !important;top:calc(var(--ctop) + 120px) !important;max-height:calc(100vh - var(--ctop) - 244px) !important;}
+    .mrd-panel{left:6px !important;right:6px !important;width:auto !important;top:calc(var(--ctop) + 88px) !important;max-height:calc(100vh - var(--ctop) - 172px) !important;}
   }
 </style>
 </helmet>
@@ -124,27 +124,23 @@
     <div class="mrd-hint" style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;{{ glass }}padding:10px 18px;border-radius:6px;font-size:11.5px;font-weight:600;color:var(--ink,#1c1c1e);white-space:nowrap;pointer-events:none;">Drag to pan · Pinch or scroll to zoom · <b style="color:var(--accent,#0A84FF);">Plan route</b> + tap the chart to build a route</div>
   </sc-if>
 
-  <!-- brand -->
-  <div class="mrd-brand" style="position:absolute;left:14px;top:12px;z-index:14;display:flex;align-items:center;gap:9px;{{ glass }}padding:6px 12px;border-radius:7px;">
-    <img src="uploads/HT_Main_Logo_Black_Web.svg" alt="HT" style="height:17px;width:auto;display:block;filter:var(--logoFilter,none);"/>
-    <span style="width:1px;height:18px;background:var(--hair,rgba(60,60,67,.2));"></span>
-    <span style="font-size:9px;letter-spacing:1.2px;color:var(--muted,#8e8e93);font-weight:700;">ECDIS</span>
-  </div>
+  <!-- Merket (logo + ECDIS) bor naa i soekemodulen som dock-skriptet bygger —
+       en samlet boks oppe til venstre i stedet for to. -->
 
   <!-- EN sammenhengende instrumentlinje (som datalinjen paa en ekte ECDIS):
        DEMO-merke | klokke | skala | cursor, adskilt med tynne delelinjer -->
   <div class="mrd-strip" style="position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:14;display:flex;align-items:stretch;{{ glass }}border-radius:7px;overflow:hidden;">
     <div style="display:flex;align-items:center;gap:6px;padding:5px 11px;" title="DEMO — NOT FOR NAVIGATION">
       <span style="width:6px;height:6px;border-radius:50%;background:#FF9F0A;animation:mrdPulse 2s infinite;flex:none;"></span>
-      <span style="font-weight:700;font-size:9.5px;letter-spacing:.6px;color:var(--ink,#1c1c1e);white-space:nowrap;">DEMO<span class="mrd-demo-x"> — NOT FOR NAVIGATION</span></span>
+      <span class="mrd-demo-t" style="font-weight:700;font-size:9.5px;letter-spacing:.6px;color:var(--ink,#1c1c1e);white-space:nowrap;">DEMO<span class="mrd-demo-x"> — NOT FOR NAVIGATION</span></span>
     </div>
     <span style="width:1px;background:var(--hair,rgba(60,60,67,.16));"></span>
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 11px;line-height:1.08;">
       <span ref="{{ roRef }}" data-ro="utc" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:12.5px;color:var(--ink,#1c1c1e);">09:00:00</span>
       <span style="font-size:7px;letter-spacing:1px;color:var(--muted,#8e8e93);font-weight:700;">LOCAL · LIVE</span>
     </div>
-    <span style="width:1px;background:var(--hair,rgba(60,60,67,.16));"></span>
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 11px;line-height:1.08;">
+    <span class="mrd-scl" style="width:1px;background:var(--hair,rgba(60,60,67,.16));"></span>
+    <div class="mrd-scl" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 11px;line-height:1.08;">
       <span ref="{{ roRef }}" data-ro="scale" style="font-variant-numeric:tabular-nums;font-weight:700;font-size:11px;color:var(--ink,#1c1c1e);white-space:nowrap;">1:90 000</span>
       <span style="font-size:7px;letter-spacing:1px;color:var(--muted,#8e8e93);font-weight:700;">SCALE</span>
     </div>
@@ -156,24 +152,23 @@
     <span ref="{{ roRef }}" data-ro="toolbox" style="display:none;align-items:center;background:var(--accent,#0A84FF);color:#fff;font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:700;padding:0 11px;white-space:nowrap;"></span>
   </div>
 
-  <!-- top-right controls -->
-  <div class="mrd-ctrls" style="position:absolute;right:14px;top:12px;z-index:14;display:flex;align-items:center;gap:7px;">
-    <div style="display:flex;align-items:center;gap:2px;{{ glass }}padding:4px;border-radius:6px;">
-      <button onClick="{{ onToggleFollow }}" title="{{ followTitle }}" style="{{ followStyle }}">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/></svg>
-      </button>
-      <button onClick="{{ onCycleOrient }}" title="Orientation" style="display:flex;align-items:center;gap:5px;height:29px;padding:0 8px 0 5px;border:none;background:transparent;color:var(--ink,#1c1c1e);cursor:pointer;border-radius:4px;">
-        <svg width="20" height="20" viewBox="0 0 28 28"><g ref="{{ compassRotRef }}"><path d="M14 3 L17.2 14 L14 11.3 L10.8 14 Z" fill="#FF3B30"/><path d="M14 25 L17.2 14 L14 16.7 L10.8 14 Z" fill="var(--muted,#8e8e93)"/></g></svg>
-        <span ref="{{ roRef }}" data-ro="orient" style="font-size:9px;font-weight:700;letter-spacing:.3px;white-space:nowrap;">N-UP</span>
-      </button>
-      <button onClick="{{ onZoomOut }}" title="Zoom out" style="width:30px;height:29px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:17px;cursor:pointer;border-radius:4px;">−</button>
-      <button onClick="{{ onZoomIn }}" title="Zoom in" style="width:30px;height:29px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:17px;cursor:pointer;border-radius:4px;">＋</button>
-    </div>
-    <div class="mrd-pal" style="display:flex;gap:2px;{{ glass }}padding:3px;border-radius:6px;">
-      <button onClick="{{ onPalDay }}" title="Day" style="{{ st.palDay }}">☀</button>
-      <button onClick="{{ onPalDusk }}" title="Dusk" style="{{ st.palDusk }}">◐</button>
-      <button onClick="{{ onPalNight }}" title="Night" style="{{ st.palNight }}">☾</button>
-    </div>
+  <!-- top-right controls — ETT samlet glassfelt (folg/orientering/zoom | palett | paneler)
+       med tynne delelinjer, i stedet for tre separate bokser -->
+  <div class="mrd-ctrls" style="position:absolute;right:14px;top:12px;z-index:14;display:flex;align-items:center;gap:2px;{{ glass }}padding:4px;border-radius:7px;">
+    <button onClick="{{ onToggleFollow }}" title="{{ followTitle }}" style="{{ followStyle }}">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/></svg>
+    </button>
+    <button onClick="{{ onCycleOrient }}" title="Orientation" style="display:flex;align-items:center;gap:5px;height:29px;padding:0 8px 0 5px;border:none;background:transparent;color:var(--ink,#1c1c1e);cursor:pointer;border-radius:4px;">
+      <svg width="20" height="20" viewBox="0 0 28 28"><g ref="{{ compassRotRef }}"><path d="M14 3 L17.2 14 L14 11.3 L10.8 14 Z" fill="#FF3B30"/><path d="M14 25 L17.2 14 L14 16.7 L10.8 14 Z" fill="var(--muted,#8e8e93)"/></g></svg>
+      <span ref="{{ roRef }}" data-ro="orient" style="font-size:9px;font-weight:700;letter-spacing:.3px;white-space:nowrap;">N-UP</span>
+    </button>
+    <button onClick="{{ onZoomOut }}" title="Zoom out" style="width:30px;height:29px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:17px;cursor:pointer;border-radius:4px;">−</button>
+    <button onClick="{{ onZoomIn }}" title="Zoom in" style="width:30px;height:29px;border:none;background:transparent;color:var(--ink,#1c1c1e);font-size:17px;cursor:pointer;border-radius:4px;">＋</button>
+    <span class="mrd-pal" style="width:1px;height:20px;background:var(--hair,rgba(60,60,67,.16));margin:0 4px;flex:none;"></span>
+    <button class="mrd-pal" onClick="{{ onPalDay }}" title="Day" style="{{ st.palDay }}">☀</button>
+    <button class="mrd-pal" onClick="{{ onPalDusk }}" title="Dusk" style="{{ st.palDusk }}">◐</button>
+    <button class="mrd-pal" onClick="{{ onPalNight }}" title="Night" style="{{ st.palNight }}">☾</button>
+    <span style="width:1px;height:20px;background:var(--hair,rgba(60,60,67,.16));margin:0 4px;flex:none;"></span>
     <button onClick="{{ onToggleLeft }}" title="Panels" style="{{ st.layersBtn }}">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 13 L12 18 L21 13" stroke-opacity=".5"/></svg>
     </button>
@@ -2929,7 +2924,7 @@ class Component extends DCLogic {
 
     const st = {
       palDay: palB(s.palette === 'day'), palDusk: palB(s.palette === 'dusk'), palNight: palB(s.palette === 'night'),
-      layersBtn: C(glass + `width:38px;height:38px;border-radius:6px;color:${s.rightOpen ? A : 'var(--ink,#1c1c1e)'};cursor:pointer;display:flex;align-items:center;justify-content:center;`),
+      layersBtn: C(`width:36px;height:29px;border-radius:4px;border:none;background:${s.rightOpen ? A : 'transparent'};color:${s.rightOpen ? '#fff' : 'var(--ink,#1c1c1e)'};cursor:pointer;display:flex;align-items:center;justify-content:center;`),
       baseSjo: seg(s.base === 'sjokart'), baseTopo: seg(s.base === 'topo'), baseDark: seg(s.base === 'dark'),
       tabChart: seg(s.rightTab === 'chart'), tabRoute: seg(s.rightTab === 'route'), tabTargets: seg(s.rightTab === 'targets'), tabAlarms: seg(s.rightTab === 'alarms'),
       zbtn: zb,
@@ -3080,7 +3075,7 @@ class Component extends DCLogic {
       onLoadDemo: () => this.loadDemoRoute(), onClearRoute: () => this.clearRoute(), channelLabel: (this.channel || 0.2).toFixed(2) + ' nm',
       noWaypoints: !R.length, alarmCount: s.alarms.filter(a => !a.ack).length, noAlarms: !s.alarms.length, onAckAll: () => this.setState({ alarms: s.alarms.map(a => ({ ...a, ack: true })) }),
       onZoomIn: () => { this.view.zoom = Math.min(18, this.view.zoom + 0.6); }, onZoomOut: () => { this.view.zoom = Math.max(4.5, this.view.zoom - 0.6); },
-      onCenterShip: () => { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; }, onToggleFollow: () => { const f = !this.state.followShip; if (f) { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; } this.setState({ followShip: f }); }, followTitle: s.followShip ? 'Following ship — tap to unlock' : 'Follow ship (chart centres on the ship)', followStyle: C('width:34px;height:34px;border:none;background:' + (s.followShip ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (s.followShip ? '#fff' : 'var(--accent,#0A84FF)') + ';cursor:pointer;border-radius:5px;display:flex;align-items:center;justify-content:center;'), onCycleOrient: () => this.setState({ orient: s.orient === 'north' ? 'course' : s.orient === 'course' ? 'head' : 'north' }),
+      onCenterShip: () => { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; }, onToggleFollow: () => { const f = !this.state.followShip; if (f) { this.view.lat = this.ownShip.lat; this.view.lon = this.ownShip.lon; } this.setState({ followShip: f }); }, followTitle: s.followShip ? 'Following ship — tap to unlock' : 'Follow ship (chart centres on the ship)', followStyle: C('width:32px;height:29px;border:none;background:' + (s.followShip ? 'var(--accent,#0A84FF)' : 'transparent') + ';color:' + (s.followShip ? '#fff' : 'var(--accent,#0A84FF)') + ';cursor:pointer;border-radius:4px;display:flex;align-items:center;justify-content:center;'), onCycleOrient: () => this.setState({ orient: s.orient === 'north' ? 'course' : s.orient === 'course' ? 'head' : 'north' }),
       onToggleSim: () => this.setState({ simRunning: !s.simRunning }), playIcon: s.simRunning ? '❚❚' : '▶', simStateLabel: (s.simRunning ? 'Running' : 'Paused') + ' · ' + s.simSpeed + '×',
       onSpeed1: () => this.setState({ simSpeed: 1 }), onSpeed8: () => this.setState({ simSpeed: 8 }), onSpeed30: () => this.setState({ simSpeed: 30 }),
       pick: s.pick ? { title: s.pick.title, cls: s.pick.cls, rows: (s.pick.rows || []).map(r => Array.isArray(r) ? { k: r[0], v: r[1] } : r) } : null, onClosePick: () => this.setState({ pick: null }),
@@ -3278,14 +3273,19 @@ class Component extends DCLogic {
   var style = doc.createElement("style");
   style.textContent = [
     ".htd-glass{background:var(--glassbg,rgba(255,255,255,.78));backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:0.5px solid var(--glassbd,rgba(255,255,255,.5));box-shadow:var(--shadow,0 2px 12px rgba(0,40,80,.14));}",
-    ".htd-nav{position:fixed;left:14px;bottom:14px;z-index:9997;display:flex;gap:8px;font-family:'Inter',system-ui,sans-serif;}",
-    ".htd-navbtn{min-height:38px;display:inline-flex;align-items:center;gap:7px;padding:0 12px;border-radius:5px;color:var(--ink,#1c1c1e);font:700 11px/1 'Inter',system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;-webkit-tap-highlight-color:transparent;cursor:pointer;}",
-    ".htd-navbtn:active{transform:scale(.97);}",
-    ".htd-navbtn svg{flex:none;display:block;}",
-    ".htd-navbtn.acc{color:var(--accent,#0A84FF);}",
+    ".htd-railnav{display:flex;flex-direction:column;gap:3px;}",
+    ".htd-raildiv{height:1px;background:var(--hair,rgba(60,60,67,.18));margin:1px 6px;}",
+    ".htd-railbtn{width:33px;height:33px;display:flex;align-items:center;justify-content:center;border-radius:4px;color:var(--ink,#1c1c1e);text-decoration:none;-webkit-tap-highlight-color:transparent;cursor:pointer;}",
+    ".htd-railbtn:active{background:var(--seg,rgba(118,118,128,.12));}",
+    ".htd-railbtn svg{flex:none;display:block;}",
+    ".htd-railbtn.acc{color:var(--accent,#0A84FF);}",
     ".htd-search{position:fixed;z-index:9998;font-family:'Inter',system-ui,sans-serif;}",
-    ".htd-iwrap{position:relative;}",
-    ".htd-input{width:100%;min-height:38px;padding:0 38px 0 34px;border-radius:5px;color:var(--ink,#1c1c1e);font:600 13px/1.2 'Inter',system-ui,sans-serif;outline:none;caret-color:var(--accent,#0A84FF);}",
+    ".htd-iwrap{display:flex;align-items:center;border-radius:5px;}",
+    ".htd-blogo{height:15px;width:auto;flex:none;display:block;margin:0 9px 0 12px;filter:var(--logoFilter,none);}",
+    ".htd-etag{font:700 9px/1 'Inter',system-ui,sans-serif;letter-spacing:1.2px;color:var(--muted,#8e8e93);margin-right:10px;flex:none;}",
+    ".htd-bdiv{width:1px;height:18px;background:var(--hair,rgba(60,60,67,.2));flex:none;}",
+    ".htd-ihold{position:relative;flex:1;min-width:0;}",
+    ".htd-input{width:100%;min-height:38px;padding:0 38px 0 34px;border:none;background:transparent;border-radius:5px;color:var(--ink,#1c1c1e);font:600 13px/1.2 'Inter',system-ui,sans-serif;outline:none;caret-color:var(--accent,#0A84FF);}",
     ".htd-input::placeholder{color:var(--muted,#8e8e93);}",
     ".htd-sicon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted,#8e8e93);pointer-events:none;display:flex;}",
     ".htd-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:30px;height:30px;border-radius:50%;border:none;background:var(--seg,rgba(118,118,128,.12));color:var(--muted,#8e8e93);font-size:13px;font-weight:700;display:none;cursor:pointer;line-height:1;}",
@@ -3316,10 +3316,8 @@ class Component extends DCLogic {
     ".htd-key.space{flex:4.2;}",
     ".htd-key.go{background:var(--accent,#0A84FF);color:#fff;flex:1.7;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}",
     "@media (max-height:840px){.htd-key{min-height:44px;font-size:14px;}}",
-    // samme trinn som chromens bruddpunkter: ikonknapper naar bredden er knapp,
-    // loeftet over den fullbredde-dokken paa nettbrett i portrett / telefon
-    "@media (max-width:1500px){.htd-navbtn{width:42px;min-width:42px;min-height:42px;padding:0;justify-content:center;}.htd-navbtn span{display:none;}}",
-    "@media (max-width:1060px){.htd-nav{bottom:84px;}}"
+    // ECDIS-taggen i soekemodulen skjules paa samme trinn som chromen slankes
+    "@media (max-width:1280px){.htd-etag{display:none;}}"
   ].join("\n");
   (doc.head || doc.documentElement).appendChild(style);
 
@@ -3346,31 +3344,42 @@ class Component extends DCLogic {
   setInterval(syncTheme, 400);
   syncTheme();
 
-  // ---------- kioskknapper nede til venstre ----------
-  var nav = doc.createElement("div");
-  nav.className = "htd-nav";
+  // ---------- kiosk/radar som celler i venstre verktoylinje ----------
+  // I stedet for en egen boks nede til venstre (som krasjet med dokken paa
+  // nettbrett) bor lenkene som to celler nederst i railen — ett samlet felt.
+  // Appens malmotor kan tegne railen paa nytt, saa en liten vakt re-monterer.
+  var navWrap = doc.createElement("div");
+  navWrap.className = "htd-railnav";
+  var navDiv = doc.createElement("div");
+  navDiv.className = "htd-raildiv";
   var kioskBtn = doc.createElement("a");
-  kioskBtn.className = "htd-navbtn htd-glass";
+  kioskBtn.className = "htd-railbtn";
   kioskBtn.href = "/select.html";
   kioskBtn.title = "Main kiosk";
   kioskBtn.setAttribute("aria-label", "Main kiosk");
-  kioskBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg><span>Main kiosk</span>';
+  kioskBtn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>';
   kioskBtn.addEventListener("pointerup", function (e) {
     if (!e.isPrimary) { e.preventDefault(); window.location.href = kioskBtn.href; }
   });
   var radarBtn = doc.createElement("a");
-  radarBtn.className = "htd-navbtn htd-glass acc";
+  radarBtn.className = "htd-railbtn acc";
   radarBtn.href = "radar.html";
   radarBtn.title = "Radar";
   radarBtn.setAttribute("aria-label", "Radar");
-  radarBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5" opacity=".45"/><path d="M12 12 L12 3"/><path d="M12 12 L18.4 5.6" opacity=".55"/><circle cx="15.3" cy="14.6" r="1.4" fill="currentColor" stroke="none"/></svg><span>Radar</span>';
+  radarBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5" opacity=".45"/><path d="M12 12 L12 3"/><path d="M12 12 L18.4 5.6" opacity=".55"/><circle cx="15.3" cy="14.6" r="1.4" fill="currentColor" stroke="none"/></svg>';
   radarBtn.addEventListener("click", function () { radarBtn.href = "radar.html" + location.search; });
   radarBtn.addEventListener("pointerup", function (e) {
     if (!e.isPrimary) { e.preventDefault(); window.location.href = "radar.html" + location.search; }
   });
-  nav.appendChild(kioskBtn);
-  nav.appendChild(radarBtn);
-  doc.body.appendChild(nav);
+  navWrap.appendChild(navDiv);
+  navWrap.appendChild(kioskBtn);
+  navWrap.appendChild(radarBtn);
+  function mountNav() {
+    var rail = doc.querySelector(".mrd-rail");
+    if (rail && navWrap.parentNode !== rail) rail.appendChild(navWrap);
+  }
+  mountNav();
+  setInterval(mountNav, 600);
 
   // ---------- innebygd havneliste (fungerer uten nett og uten API-nokkel) ----------
   var HARBORS = [
@@ -3443,28 +3452,40 @@ class Component extends DCLogic {
       String(Math.floor(lo)).padStart(3, "0") + "°" + ((lo % 1) * 60).toFixed(1) + "'" + (lon >= 0 ? "E" : "W");
   }
 
-  // ---------- soke-widget ----------
+  // ---------- soke-widget (baerer ogsaa merket: logo | ECDIS | soek) ----------
   var wrap = doc.createElement("div");
   wrap.className = "htd-search";
-  // Trinnene speiler chromens bruddpunkter (1500/1280/1060/740): en rad saa
-  // lenge instrumentlinjen faar plass ved siden av, ellers under den stablede
-  // linjen. --ctop (satt i chromens stilark) holder raden klar av iOS-statuslinjen.
+  // Trinnene speiler chromens bruddpunkter (1500/1280/1060/740): oppe til
+  // venstre som en samlet merke+soek-modul saa lenge instrumentlinjen faar
+  // plass ved siden av, ellers paa rad 2 under den venstrestilte linjen.
+  // --ctop (satt i chromens stilark) holder raden klar av iOS-statuslinjen.
   function place() {
     var w = window.innerWidth;
-    if (w > 1500) { wrap.style.left = "196px"; wrap.style.top = "14px"; wrap.style.width = "min(300px,25vw)"; }
-    else if (w > 1280) { wrap.style.left = "196px"; wrap.style.top = "var(--ctop,26px)"; wrap.style.width = "min(260px,21vw)"; }
-    else if (w > 1060) { wrap.style.left = "158px"; wrap.style.top = "var(--ctop,26px)"; wrap.style.width = "230px"; }
-    else if (w > 740) { wrap.style.left = "14px"; wrap.style.top = "calc(var(--ctop,26px) + 76px)"; wrap.style.width = "272px"; }
-    else { wrap.style.left = "8px"; wrap.style.top = "calc(var(--ctop,26px) + 76px)"; wrap.style.width = "calc(100vw - 16px)"; }
+    if (w > 1500) { wrap.style.left = "14px"; wrap.style.top = "14px"; wrap.style.width = "min(430px,30vw)"; }
+    else if (w > 1280) { wrap.style.left = "14px"; wrap.style.top = "var(--ctop,26px)"; wrap.style.width = "min(400px,28vw)"; }
+    else if (w > 1060) { wrap.style.left = "14px"; wrap.style.top = "var(--ctop,26px)"; wrap.style.width = "330px"; }
+    else if (w > 740) { wrap.style.left = "14px"; wrap.style.top = "calc(var(--ctop,26px) + 44px)"; wrap.style.width = "340px"; }
+    else { wrap.style.left = "8px"; wrap.style.top = "calc(var(--ctop,26px) + 44px)"; wrap.style.width = "calc(100vw - 16px)"; }
   }
   place();
   window.addEventListener("resize", place);
 
   var iwrap = doc.createElement("div");
-  iwrap.className = "htd-iwrap";
+  iwrap.className = "htd-iwrap htd-glass";
+  var blogo = doc.createElement("img");
+  blogo.className = "htd-blogo";
+  blogo.src = "uploads/HT_Main_Logo_Black_Web.svg";
+  blogo.alt = "Hatteland Technology";
+  var etag = doc.createElement("span");
+  etag.className = "htd-etag";
+  etag.textContent = "ECDIS";
+  var bdiv = doc.createElement("span");
+  bdiv.className = "htd-bdiv";
+  var ihold = doc.createElement("div");
+  ihold.className = "htd-ihold";
   var input = doc.createElement("input");
   input.type = "text";
-  input.className = "htd-input htd-glass";
+  input.className = "htd-input";
   input.placeholder = "Search harbor or place…";
   input.autocomplete = "off";
   input.setAttribute("inputmode", "none"); // eget kiosk-tastatur, ikke OS-tastaturet
@@ -3475,7 +3496,8 @@ class Component extends DCLogic {
   clearBtn.type = "button";
   clearBtn.className = "htd-clear";
   clearBtn.textContent = "✕";
-  iwrap.appendChild(input); iwrap.appendChild(sicon); iwrap.appendChild(clearBtn);
+  ihold.appendChild(input); ihold.appendChild(sicon); ihold.appendChild(clearBtn);
+  iwrap.appendChild(blogo); iwrap.appendChild(etag); iwrap.appendChild(bdiv); iwrap.appendChild(ihold);
 
   var list = doc.createElement("div");
   list.className = "htd-list htd-glass";
