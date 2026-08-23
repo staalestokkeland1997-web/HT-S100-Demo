@@ -70,6 +70,24 @@ flaate og ingen varmstart fra en gammel cache. Er stroemmen nede eller tom,
 staar skopet tomt og kildepanelet sier hvorfor — et tomt AIS-bilde er sant,
 en oppdiktet flaate er det ikke.
 
+Rutefinneren er bygget om for fart og sikkerhet: hver sjokartflis dekodes EN
+gang til en bitpakket landmaske (8-16 KB i stedet for 256 KB raa piksler), saa
+store korridorer ikke lenger kaster ut hverandres fliser midt i planleggingen;
+A*-soeket bruker lukket sett og vektet heuristikk (hoyst en ekspansjon per
+celle — foer kunne et soek brenne hele ekspansjonstaket paa aa gjenaapne noder
+og "feile" en passasje som var aapen); klaringsnivaaer som blokkerer identisk
+deler ett soek; og validering som strander paa ulastede fliser avbryter runden
+i stedet for aa brenne hele kaskaden mot manglende data. Ruter over ~12 nm
+planlegges i to trinn: en grov korridor finner skjelettet, deretter planlegges
+hvert ~7 nm-segment paa fullt finmasket rutenett (~0,02 nm celler, samme
+skjaergaardsopploesning som korte ruter — foer vokste cellene med avstanden og
+smaa holmer kunne falle mellom dem) og soemmes sammen. Flis-preloaden gaar naa
+som en prioritert stroem langs ruten i stedet for 400 samtidige kall, og den
+autonome omrutingen underveis kjorer ogsaa tidsskivet (hoyst ett soek per
+bilde) i stedet for aa fryse simulasjonen. Hver kandidatrute valideres fortsatt
+kontinuerlig (hver 0,02 nm) mot selve kartrasteret foer den settes — en rute
+kan aldri godkjennes paa data som ikke er lastet.
+
 HT Radar er et fullverdig radarkonsoll (demo) med roterende sveip og
 etterglod, datablokker i hjornene, peilering med kurs- og nordmerke,
 TX/STBY, pulslengde SP/MP/LP, range 0,25-48 nm, ringer av/paa,
