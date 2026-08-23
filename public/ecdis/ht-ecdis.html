@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>HT ECDIS — Hatteland Technology</title>
 <meta name="description" content="Interactive ECDIS demonstrator for Norwegian west-coast waters — not for navigation.">
 <meta name="theme-color" content="#0a0e14">
@@ -70,22 +70,45 @@
   .mrd-scroll::-webkit-scrollbar{width:0;height:0;}
   /* --- mobil / nettbrett ---------------------------------------------------
      Chromen er inline-stilet, saa bruddpunktene overstyrer med !important paa
-     klassekroker. <=1120: instrumentlinjen flyttes under merket (kolliderer
-     ellers med hoyre kontroller), kioskknappene loftes over bunnlinjen.
-     <=740 (telefon): panelet blir et fullbreddeark, palett/cursor skjules,
-     bunnlinjen ruller horisontalt. */
-  @media (max-width:1120px){
-    .mrd-strip{left:8px !important;transform:none !important;top:50px !important;}
-    .htd-nav{bottom:76px !important;}
-    .htd-search{top:92px !important;}
+     klassekroker. Fire trinn (kumulative):
+     <=1500 (liten desktop / stor iPad): toppraden senkes klar av iOS-status-
+       linjen (--ctop), cursorcellen skjules og CONNING blir ikonknapp.
+     <=1280 (iPad landskap): merket slankes, DEMO-teksten kortes til "DEMO",
+       hoyrekontrollene strammes og bunndokken skaleres ned + senkes, slik at
+       alt paa en 1180 px iPad gaar klar av hverandre i en enkelt rad.
+     <=1060 (nettbrett portrett): instrumentlinjen legges under merket,
+       dokken strekkes ut og ruller horisontalt, kioskknappene loftes over.
+     <=740 (telefon): panelet blir et fullbreddeark, palett og intro skjules.
+     Soekefeltet plasseres per samme trinn i place() i dock-skriptet;
+     kioskknappenes egne trinn ligger i dock-skriptets stilark. */
+  @media (max-width:1500px){
+    html{--ctop:max(26px, env(safe-area-inset-top, 0px));}
+    .mrd-brand,.mrd-strip,.mrd-ctrls{top:var(--ctop) !important;}
+    .mrd-curs{display:none !important;}
+    .mrd-panel{top:calc(var(--ctop) + 44px) !important;max-height:calc(100vh - var(--ctop) - 128px) !important;}
+    .mrd-cpanel{top:calc(var(--ctop) + 48px) !important;}
+    .mrd-dconn{padding:6px 9px !important;}
+    .mrd-dconn span{display:none !important;}
+  }
+  @media (max-width:1280px){
+    .mrd-brand{padding:5px 9px !important;gap:7px !important;}
+    .mrd-demo-x{display:none;}
+    .mrd-ctrls{gap:5px !important;}
+    .mrd-dock{bottom:18px !important;transform:translateX(-50%) scale(.85) !important;transform-origin:50% 100%;}
+    .mrd-attr{bottom:2px !important;}
+    .mrd-hint{bottom:76px !important;}
+  }
+  @media (max-width:1060px){
+    .mrd-strip{left:14px !important;transform:none !important;top:calc(var(--ctop) + 38px) !important;}
+    .mrd-dock{left:8px !important;right:8px !important;bottom:20px !important;transform:none !important;justify-content:flex-start !important;overflow-x:auto !important;-webkit-overflow-scrolling:touch;}
+    .mrd-dock::-webkit-scrollbar{width:0;height:0;}
+    .mrd-rail{left:8px !important;z-index:11 !important;}
+    .mrd-cpanel{max-width:calc(100vw - 16px) !important;top:calc(var(--ctop) + 118px) !important;}
   }
   @media (max-width:740px){
-    .mrd-pal,.mrd-curs{display:none !important;}
-    .mrd-panel{left:6px !important;right:6px !important;width:auto !important;top:138px !important;max-height:calc(100vh - 262px) !important;}
-    .mrd-dock{left:6px !important;right:6px !important;transform:none !important;justify-content:flex-start !important;overflow-x:auto !important;-webkit-overflow-scrolling:touch;}
-    .mrd-rail{left:6px !important;z-index:11 !important;}
-    .mrd-cpanel{max-width:calc(100vw - 16px) !important;}
-    .htd-search{width:calc(100vw - 16px) !important;left:8px !important;}
+    .mrd-pal{display:none !important;}
+    .mrd-hint{display:none !important;}
+    .mrd-panel{left:6px !important;right:6px !important;width:auto !important;top:calc(var(--ctop) + 120px) !important;max-height:calc(100vh - var(--ctop) - 244px) !important;}
   }
 </style>
 </helmet>
@@ -95,10 +118,10 @@
     <canvas ref="{{ canvasRef }}" style="position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;"></canvas>
   </div>
 
-  <div style="position:absolute;left:50%;bottom:5px;transform:translateX(-50%);z-index:4;font-size:9px;color:var(--attr,rgba(70,80,90,.8));background:var(--attrbg,rgba(255,255,255,.55));padding:2px 9px;border-radius:4px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none;">© Kartverket charts · OpenSeaMap · EMODnet Bathymetry · build 0821-3</div>
+  <div class="mrd-attr" style="position:absolute;left:50%;bottom:5px;transform:translateX(-50%);z-index:4;font-size:9px;color:var(--attr,rgba(70,80,90,.8));background:var(--attrbg,rgba(255,255,255,.55));padding:2px 9px;border-radius:4px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);white-space:nowrap;pointer-events:none;">© Kartverket charts · OpenSeaMap · EMODnet Bathymetry · build 0821-3</div>
 
   <sc-if value="{{ showIntro }}" hint-placeholder-val="{{ false }}">
-    <div style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;{{ glass }}padding:10px 18px;border-radius:6px;font-size:11.5px;font-weight:600;color:var(--ink,#1c1c1e);white-space:nowrap;pointer-events:none;">Drag to pan · Pinch or scroll to zoom · <b style="color:var(--accent,#0A84FF);">Plan route</b> + tap the chart to build a route</div>
+    <div class="mrd-hint" style="position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;{{ glass }}padding:10px 18px;border-radius:6px;font-size:11.5px;font-weight:600;color:var(--ink,#1c1c1e);white-space:nowrap;pointer-events:none;">Drag to pan · Pinch or scroll to zoom · <b style="color:var(--accent,#0A84FF);">Plan route</b> + tap the chart to build a route</div>
   </sc-if>
 
   <!-- brand -->
@@ -111,9 +134,9 @@
   <!-- EN sammenhengende instrumentlinje (som datalinjen paa en ekte ECDIS):
        DEMO-merke | klokke | skala | cursor, adskilt med tynne delelinjer -->
   <div class="mrd-strip" style="position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:14;display:flex;align-items:stretch;{{ glass }}border-radius:7px;overflow:hidden;">
-    <div style="display:flex;align-items:center;gap:6px;padding:5px 11px;">
+    <div style="display:flex;align-items:center;gap:6px;padding:5px 11px;" title="DEMO — NOT FOR NAVIGATION">
       <span style="width:6px;height:6px;border-radius:50%;background:#FF9F0A;animation:mrdPulse 2s infinite;flex:none;"></span>
-      <span style="font-weight:700;font-size:9.5px;letter-spacing:.6px;color:var(--ink,#1c1c1e);white-space:nowrap;">DEMO — NOT FOR NAVIGATION</span>
+      <span style="font-weight:700;font-size:9.5px;letter-spacing:.6px;color:var(--ink,#1c1c1e);white-space:nowrap;">DEMO<span class="mrd-demo-x"> — NOT FOR NAVIGATION</span></span>
     </div>
     <span style="width:1px;background:var(--hair,rgba(60,60,67,.16));"></span>
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3px 11px;line-height:1.08;">
@@ -134,7 +157,7 @@
   </div>
 
   <!-- top-right controls -->
-  <div style="position:absolute;right:14px;top:12px;z-index:14;display:flex;align-items:center;gap:7px;">
+  <div class="mrd-ctrls" style="position:absolute;right:14px;top:12px;z-index:14;display:flex;align-items:center;gap:7px;">
     <div style="display:flex;align-items:center;gap:2px;{{ glass }}padding:4px;border-radius:6px;">
       <button onClick="{{ onToggleFollow }}" title="{{ followTitle }}" style="{{ followStyle }}">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/></svg>
@@ -486,7 +509,7 @@
       <span style="font-size:8px;letter-spacing:.5px;color:var(--muted,#8e8e93);font-weight:700;white-space:nowrap;">CURRENT · S-111</span>
       <span ref="{{ roRef }}" data-ro="tidecur" style="font-variant-numeric:tabular-nums;font-size:15px;font-weight:700;line-height:1.1;color:#0A84FF;white-space:nowrap;">— · —</span>
     </div>
-    <button onClick="{{ onGoConning }}" title="Open Conning / Helm" style="display:flex;align-items:center;gap:7px;margin-left:6px;padding:6px 12px;border:none;border-left:0.5px solid var(--hair,rgba(60,60,67,.15));background:transparent;color:var(--muted,#8e8e93);cursor:pointer;font-family:inherit;flex:none;">
+    <button class="mrd-dconn" onClick="{{ onGoConning }}" title="Open Conning / Helm" style="display:flex;align-items:center;gap:7px;margin-left:6px;padding:6px 12px;border:none;border-left:0.5px solid var(--hair,rgba(60,60,67,.15));background:transparent;color:var(--muted,#8e8e93);cursor:pointer;font-family:inherit;flex:none;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="2.2"></circle><line x1="12" y1="3" x2="12" y2="6.5"></line><line x1="12" y1="17.5" x2="12" y2="21"></line><line x1="3" y1="12" x2="6.5" y2="12"></line><line x1="17.5" y1="12" x2="21" y2="12"></line></svg>
       <span style="font-size:10.5px;font-weight:700;letter-spacing:.5px;">CONNING</span>
     </button>
@@ -2259,7 +2282,8 @@ class Component extends DCLogic {
   // On-map notice when the chart tile host is unreachable — without it the
   // demo shows silently blank sea and only the buried provider panel hints why.
   drawTileError(ctx) {
-    const msg = 'CHART TILES UNAVAILABLE — CHECK CONNECTION'; const y = 96;
+    // under den stablede soekelinjen paa smale skjermer (samme trinn som chromen)
+    const msg = 'CHART TILES UNAVAILABLE — CHECK CONNECTION'; const y = window.innerWidth <= 1060 ? 150 : 96;
     ctx.save(); ctx.font = '700 10.5px Inter, sans-serif'; const w = ctx.measureText(msg).width + 30;
     const x = this.W / 2 - w / 2;
     ctx.fillStyle = 'rgba(255,59,48,.92)'; ctx.beginPath();
@@ -3291,7 +3315,11 @@ class Component extends DCLogic {
     ".htd-key.fn:active{color:#fff;}",
     ".htd-key.space{flex:4.2;}",
     ".htd-key.go{background:var(--accent,#0A84FF);color:#fff;flex:1.7;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}",
-    "@media (max-height:840px){.htd-key{min-height:44px;font-size:14px;}}"
+    "@media (max-height:840px){.htd-key{min-height:44px;font-size:14px;}}",
+    // samme trinn som chromens bruddpunkter: ikonknapper naar bredden er knapp,
+    // loeftet over den fullbredde-dokken paa nettbrett i portrett / telefon
+    "@media (max-width:1500px){.htd-navbtn{width:42px;min-width:42px;min-height:42px;padding:0;justify-content:center;}.htd-navbtn span{display:none;}}",
+    "@media (max-width:1060px){.htd-nav{bottom:84px;}}"
   ].join("\n");
   (doc.head || doc.documentElement).appendChild(style);
 
@@ -3324,6 +3352,8 @@ class Component extends DCLogic {
   var kioskBtn = doc.createElement("a");
   kioskBtn.className = "htd-navbtn htd-glass";
   kioskBtn.href = "/select.html";
+  kioskBtn.title = "Main kiosk";
+  kioskBtn.setAttribute("aria-label", "Main kiosk");
   kioskBtn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg><span>Main kiosk</span>';
   kioskBtn.addEventListener("pointerup", function (e) {
     if (!e.isPrimary) { e.preventDefault(); window.location.href = kioskBtn.href; }
@@ -3331,6 +3361,8 @@ class Component extends DCLogic {
   var radarBtn = doc.createElement("a");
   radarBtn.className = "htd-navbtn htd-glass acc";
   radarBtn.href = "radar.html";
+  radarBtn.title = "Radar";
+  radarBtn.setAttribute("aria-label", "Radar");
   radarBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5" opacity=".45"/><path d="M12 12 L12 3"/><path d="M12 12 L18.4 5.6" opacity=".55"/><circle cx="15.3" cy="14.6" r="1.4" fill="currentColor" stroke="none"/></svg><span>Radar</span>';
   radarBtn.addEventListener("click", function () { radarBtn.href = "radar.html" + location.search; });
   radarBtn.addEventListener("pointerup", function (e) {
@@ -3414,9 +3446,16 @@ class Component extends DCLogic {
   // ---------- soke-widget ----------
   var wrap = doc.createElement("div");
   wrap.className = "htd-search";
+  // Trinnene speiler chromens bruddpunkter (1500/1280/1060/740): en rad saa
+  // lenge instrumentlinjen faar plass ved siden av, ellers under den stablede
+  // linjen. --ctop (satt i chromens stilark) holder raden klar av iOS-statuslinjen.
   function place() {
-    if (window.innerWidth >= 1150) { wrap.style.left = "196px"; wrap.style.top = "14px"; wrap.style.width = "min(300px,25vw)"; }
-    else { wrap.style.left = "16px"; wrap.style.top = "70px"; wrap.style.width = "272px"; }
+    var w = window.innerWidth;
+    if (w > 1500) { wrap.style.left = "196px"; wrap.style.top = "14px"; wrap.style.width = "min(300px,25vw)"; }
+    else if (w > 1280) { wrap.style.left = "196px"; wrap.style.top = "var(--ctop,26px)"; wrap.style.width = "min(260px,21vw)"; }
+    else if (w > 1060) { wrap.style.left = "158px"; wrap.style.top = "var(--ctop,26px)"; wrap.style.width = "230px"; }
+    else if (w > 740) { wrap.style.left = "14px"; wrap.style.top = "calc(var(--ctop,26px) + 76px)"; wrap.style.width = "272px"; }
+    else { wrap.style.left = "8px"; wrap.style.top = "calc(var(--ctop,26px) + 76px)"; wrap.style.width = "calc(100vw - 16px)"; }
   }
   place();
   window.addEventListener("resize", place);
