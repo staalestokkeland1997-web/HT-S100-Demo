@@ -971,8 +971,36 @@ class Component extends DCLogic {
     img.src = url;
   }
   landAt(lat, lon) { if (!this.landMask) return false; const [fx, fy] = this.gi(lat, lon); const x = Math.round(fx), y = Math.round(fy); if (x < 0 || y < 0 || x >= this.GW || y >= this.GH) return false; return this.landMask[y * this.GW + x] === 1; }
-  tilePixData(z, x, y) { const n = Math.pow(2, z); x = ((x % n) + n) % n; const key = z + '/' + x + '/' + y; this._tpx = this._tpx || {}; if (key in this._tpx) return this._tpx[key]; const img = this.tiles['sjokart/' + z + '/' + x + '/' + y]; if (!img) return null; try { const c = this._tpxC || (this._tpxC = document.createElement('canvas')); c.width = 256; c.height = 256; const cx = c.getContext('2d', { willReadFrequently: true }); cx.clearRect(0, 0, 256, 256); cx.drawImage(img, 0, 0, 256, 256); this._tpx[key] = cx.getImageData(0, 0, 256, 256).data; } catch (e) { this._tpx[key] = null; } const ks = this._tpxKeys || (this._tpxKeys = []); ks.push(key); while (ks.length > 300) delete this._tpx[ks.shift()]; return this._tpx[key]; }
-  chartLandAt(lat, lon, Z) { Z = Z || 12; const [px, py] = this.project(lat, lon, Z); const xt = Math.floor(px / 256), yt = Math.floor(py / 256); const data = this.tilePixData(Z, xt, yt); if (!data) { this.tileImg('sjokart', Z, xt, yt); return null; } const ix = Math.min(255, Math.max(0, Math.floor(px - xt * 256))), iy = Math.min(255, Math.max(0, Math.floor(py - yt * 256))); const o = (iy * 256 + ix) * 4; const r = data[o], g = data[o + 1], b = data[o + 2], a = data[o + 3]; if (a < 10) return null; return (r > 190 && g > 178 && b < 214 && (r - b) > 17 && (g - b) > 3); }
+  // 1-bit land + unknown mask per sjokart tile, decoded ONCE from the tile image. The previous
+  // RGBA pixel cache held whole 256 KB buffers with a 300-tile cap, so a route corridor of up to
+  // 400 tiles was GUARANTEED to thrash it — every planner grid rebuild re-decoded the same tiles
+  // over and over. The masks are 8-16 KB (land bits + unknown bits only where the tile has
+  // transparent no-chart pixels), the cache holds every tile a big corridor needs, and the masks
+  // survive eviction of the tile Image itself from the draw-loop LRU — so a long plan keeps its
+  // land data even while panning churns this.tiles. chartLandAt becomes a bit test.
+  tileLandMask(z, x, y) {
+    const n = Math.pow(2, z); x = ((x % n) + n) % n; const key = z + '/' + x + '/' + y;
+    const M = this._tlm || (this._tlm = {}); if (key in M) return M[key];
+    const img = this.tiles['sjokart/' + key]; if (!img) return null;
+    let rec = null;
+    try {
+      const c = this._tpxC || (this._tpxC = document.createElement('canvas')); c.width = 256; c.height = 256;
+      const cx = c.getContext('2d', { willReadFrequently: true }); cx.clearRect(0, 0, 256, 256); cx.drawImage(img, 0, 0, 256, 256);
+      const d = cx.getImageData(0, 0, 256, 256).data;
+      const land = new Uint8Array(8192); let unk = null;
+      for (let i = 0; i < 65536; i++) {
+        const o = i * 4;
+        if (d[o + 3] < 10) { (unk || (unk = new Uint8Array(8192)))[i >> 3] |= 1 << (i & 7); continue; }
+        const r = d[o], g = d[o + 1], b = d[o + 2];
+        if (r > 190 && g > 178 && b < 214 && (r - b) > 17 && (g - b) > 3) land[i >> 3] |= 1 << (i & 7);
+      }
+      rec = { land, unk };
+    } catch (e) { rec = null; }
+    M[key] = rec;
+    const ks = this._tlmKeys || (this._tlmKeys = []); ks.push(key); while (ks.length > 1600) delete M[ks.shift()];
+    return rec;
+  }
+  chartLandAt(lat, lon, Z) { Z = Z || 12; const [px, py] = this.project(lat, lon, Z); const xt = Math.floor(px / 256), yt = Math.floor(py / 256); const m = this.tileLandMask(Z, xt, yt); if (!m) { this.tileImg('sjokart', Z, xt, yt); return null; } const ix = Math.min(255, Math.max(0, Math.floor(px - xt * 256))), iy = Math.min(255, Math.max(0, Math.floor(py - yt * 256))); const i = iy * 256 + ix; if (m.unk && (m.unk[i >> 3] >> (i & 7)) & 1) return null; return ((m.land[i >> 3] >> (i & 7)) & 1) === 1; }
   recomputeSafety() {
     const s = this.state, B = this.bbox; const mx = (lon) => (lon + 180) / 360, my = (lat) => 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI);
     const mxMin = mx(B.lonMin), mxMax = mx(B.lonMax), myTop = my(B.latMax), myBot = my(B.latMin);
@@ -1206,7 +1234,7 @@ class Component extends DCLogic {
   ensureCoastline() {
     if (this._coast || this._coastLoading) return; this._coastLoading = true;
     const urls = ['https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_land.geojson', 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_land.geojson'];
-    const tryUrl = (i) => { if (i >= urls.length) { this._coastLoading = false; return; } fetch(urls[i]).then(r => { if (!r.ok) throw 0; return r.json(); }).then(j => { const B = { latMin: 54, latMax: 73, lonMin: -3, lonMax: 33 }; const polys = []; for (const f of (j.features || [])) { const g = f.geometry; if (!g) continue; const parts = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []; for (const poly of parts) { const r0 = poly[0]; let hit = false; for (const p of r0) { if (p[1] > B.latMin && p[1] < B.latMax && p[0] > B.lonMin && p[0] < B.lonMax) { hit = true; break; } } if (hit) polys.push(poly); } } this._coast = polys; this._coastLoading = false; if (this._planDest) this._doPlan(this._planDest); }).catch(() => tryUrl(i + 1)); };
+    const tryUrl = (i) => { if (i >= urls.length) { this._coastLoading = false; return; } fetch(urls[i]).then(r => { if (!r.ok) throw 0; return r.json(); }).then(j => { const B = { latMin: 54, latMax: 73, lonMin: -3, lonMax: 33 }; const polys = []; for (const f of (j.features || [])) { const g = f.geometry; if (!g) continue; const parts = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : []; for (const poly of parts) { const r0 = poly[0]; let hit = false; for (const p of r0) { if (p[1] > B.latMin && p[1] < B.latMax && p[0] > B.lonMin && p[0] < B.lonMax) { hit = true; break; } } if (hit) polys.push(poly); } } this._coast = polys; this._coastLoading = false; if (this._planDest) this._doPlan(this._planDest, true); }).catch(() => tryUrl(i + 1)); };
     tryUrl(0);
   }
   rasterizeCoast(Lt0, Lt1, Ln0, Ln1, W, H) {
@@ -1222,87 +1250,204 @@ class Component extends DCLogic {
   }
   coastLandAt(lat, lon) { const C = this._coast; if (!C) return false; for (const poly of C) { let inOuter = false; for (let r = 0; r < poly.length; r++) { const ring = poly[r]; let inside = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1]; if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside; } if (r === 0) { if (!inside) break; inOuter = true; } else if (inside) { inOuter = false; break; } } if (inOuter) return true; } return false; }
   routeDepthAt(lat, lon) { const f = this.routeDepth || this.depth; const [fx, fy] = this.gi(lat, lon); let x0 = Math.floor(fx), y0 = Math.floor(fy); if (x0 < 0 || y0 < 0 || x0 >= this.GW - 1 || y0 >= this.GH - 1) return 400; const dx = fx - x0, dy = fy - y0, W = this.GW; const a = f[y0 * W + x0], b = f[y0 * W + x0 + 1], c = f[(y0 + 1) * W + x0], d = f[(y0 + 1) * W + x0 + 1]; return (a * (1 - dx) + b * dx) * (1 - dy) + (c * (1 - dx) + d * dx) * dy; }
-  preloadChartTiles(a, b) { const Z = 12; const pad = 0.05; const Lt0 = Math.min(a.lat, b.lat) - pad, Lt1 = Math.max(a.lat, b.lat) + pad, Ln0 = Math.min(a.lon, b.lon) - pad, Ln1 = Math.max(a.lon, b.lon) + pad; const p0 = this.project(Lt1, Ln0, Z), p1 = this.project(Lt0, Ln1, Z); const x0 = Math.floor(p0[0] / 256), x1 = Math.floor(p1[0] / 256), y0 = Math.floor(p0[1] / 256), y1 = Math.floor(p1[1] / 256); let nn = 0; for (let x = x0; x <= x1 && nn < 400; x++) for (let y = y0; y <= y1 && nn < 400; y++) { this.tileImg('sjokart', Z, x, y); nn++; } }
-  // fraction (0..1) of the Z11 sjokart tiles covering a route corridor that are already decoded — the planner waits for this before declaring a destination unreachable.
-  corridorTilesReady(a, b) { const Z = 12, pad = 0.05; const Lt0 = Math.min(a.lat, b.lat) - pad, Lt1 = Math.max(a.lat, b.lat) + pad, Ln0 = Math.min(a.lon, b.lon) - pad, Ln1 = Math.max(a.lon, b.lon) + pad; const p0 = this.project(Lt1, Ln0, Z), p1 = this.project(Lt0, Ln1, Z); const n = Math.pow(2, Z); const x0 = Math.floor(p0[0] / 256), x1 = Math.floor(p1[0] / 256), y0 = Math.floor(p0[1] / 256), y1 = Math.floor(p1[1] / 256); let have = 0, tot = 0; for (let x = x0; x <= x1 && tot < 400; x++) for (let y = y0; y <= y1 && tot < 400; y++) { const xx = ((x % n) + n) % n; tot++; if (this.tiles['sjokart/' + Z + '/' + xx + '/' + y]) have++; } return tot ? have / tot : 1; }
-  buildLocalLand(a, b, cb) {
-    // Fetch a HIGH-RES EMODnet land/no-data raster for just the route area (CORS-safe getImageData) — the global mask is too coarse to resolve fjords/islands.
-    const padLat = Math.abs(a.lat - b.lat) * 0.3 + 0.06, padLon = Math.abs(a.lon - b.lon) * 0.3 + 0.08;
-    const Lt0 = Math.min(a.lat, b.lat) - padLat, Lt1 = Math.max(a.lat, b.lat) + padLat, Ln0 = Math.min(a.lon, b.lon) - padLon, Ln1 = Math.max(a.lon, b.lon) + padLon;
-    const W = 700, H = Math.max(60, Math.min(700, Math.round(W * (Lt1 - Lt0) / ((Ln1 - Ln0) * this.cosMid))));
-    const url = `https://ows.emodnet-bathymetry.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:mean_multicolour&styles=&format=image/png&transparent=true&crs=EPSG:4326&width=${W}&height=${H}&bbox=${Lt0.toFixed(4)},${Ln0.toFixed(4)},${Lt1.toFixed(4)},${Ln1.toFixed(4)}`;
-    const img = new Image(); img.crossOrigin = 'anonymous';
-    img.onload = () => { try { const c = document.createElement('canvas'); c.width = W; c.height = H; const cx = c.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0, W, H); const dt = cx.getImageData(0, 0, W, H).data; const land = new Uint8Array(W * H); for (let i = 0; i < W * H; i++) land[i] = dt[i * 4 + 3] < 40 ? 1 : 0; this._localLand = { Lt0, Lt1, Ln0, Ln1, W, H, land }; if (cb) cb(); } catch (e) { this._localLand = null; if (cb) cb(); } };
-    img.onerror = () => { this._localLand = null; if (cb) cb(); };
-    img.src = url;
+  // The Z12 sjokart tiles the planner needs for the a↔b corridor, nearest-to-the-direct-line
+  // first. Short routes get the whole padded box; long routes only a strip a few tiles wide
+  // around the direct line — the planner's own sampling auto-requests anything it probes
+  // OUTSIDE the strip (chartLandAt fires tileImg on a mask miss), so the strip is a warm-up,
+  // not a limit. Sorting by distance-to-line means the tiles the route almost certainly
+  // crosses arrive first, so early planning attempts have real data where it matters.
+  _corridorTiles(a, b) {
+    const Z = 12, pad = 0.05;
+    const Lt0 = Math.min(a.lat, b.lat) - pad, Lt1 = Math.max(a.lat, b.lat) + pad, Ln0 = Math.min(a.lon, b.lon) - pad, Ln1 = Math.max(a.lon, b.lon) + pad;
+    const p0 = this.project(Lt1, Ln0, Z), p1 = this.project(Lt0, Ln1, Z);
+    const x0 = Math.floor(p0[0] / 256), x1 = Math.floor(p1[0] / 256), y0 = Math.floor(p0[1] / 256), y1 = Math.floor(p1[1] / 256);
+    const pa = this.project(a.lat, a.lon, Z), pb = this.project(b.lat, b.lon, Z);
+    const ax = pa[0] / 256, ay = pa[1] / 256, bx = pb[0] / 256, by = pb[1] / 256;
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    const strip = (x1 - x0 + 1) * (y1 - y0 + 1) > 220;
+    const list = [];
+    outer: for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
+      const cx = x + 0.5, cy = y + 0.5;
+      const t = L2 ? Math.max(0, Math.min(1, ((cx - ax) * dx + (cy - ay) * dy) / L2)) : 0;
+      const d = Math.hypot(cx - (ax + dx * t), cy - (ay + dy * t));
+      if (strip && d > 2.6) continue;
+      list.push({ x, y, d });
+      if (list.length > 1400) break outer;
+    }
+    list.sort((u, v) => u.d - v.d);
+    return { Z, list: list.slice(0, 400) };
   }
-  localLandAt(lat, lon) { const L = this._localLand; if (!L) return null; if (lat < L.Lt0 || lat > L.Lt1 || lon < L.Ln0 || lon > L.Ln1) return null; const gx = Math.round((lon - L.Ln0) / (L.Ln1 - L.Ln0) * (L.W - 1)), gy = Math.round((L.Lt1 - lat) / (L.Lt1 - L.Lt0) * (L.H - 1)); return L.land[gy * L.W + gx] === 1; }
-  autoRouteTo(dest) {
-    this.preloadChartTiles(this.ownShip, dest); this.ensureCoastline();
+  // Budgeted warm-up: at most 64 new requests per call. The plan-retry loop calls this every
+  // ~650 ms, so the corridor still streams in fast — but as a trickle instead of a 400-request
+  // burst against the same host the VISIBLE tiles come from (which used to starve the screen).
+  preloadChartTiles(a, b) {
+    const { Z, list } = this._corridorTiles(a, b);
+    const n = Math.pow(2, Z); let started = 0;
+    for (const t of list) {
+      if (started >= 64) break;
+      const xx = ((t.x % n) + n) % n;
+      if (this.tiles['sjokart/' + Z + '/' + xx + '/' + t.y] || this.tileLoading['sjokart/' + Z + '/' + xx + '/' + t.y]) continue;
+      if (this._tlm && this._tlm[Z + '/' + xx + '/' + t.y]) continue; // mask already decoded — planning does not need the Image back
+      this.tileImg('sjokart', Z, t.x, t.y); started++;
+    }
+  }
+  // fraction (0..1) of the Z12 sjokart tiles the planner needs for a route corridor that are
+  // already decodable — the planner waits for this before declaring a destination unreachable.
+  // A tile counts when its Image is live OR its land mask is already decoded (the mask outlives
+  // the Image in the draw-loop LRU).
+  corridorTilesReady(a, b) {
+    const { Z, list } = this._corridorTiles(a, b);
+    const n = Math.pow(2, Z); let have = 0;
+    for (const t of list) { const xx = ((t.x % n) + n) % n; if (this.tiles['sjokart/' + Z + '/' + xx + '/' + t.y] || (this._tlm && this._tlm[Z + '/' + xx + '/' + t.y])) have++; }
+    return list.length ? have / list.length : 1;
+  }
+  // Routes longer than this get the two-stage corridor treatment (coarse skeleton → fine
+  // full-resolution segments); shorter ones fit a single fine grid. Segments are cut to
+  // SEG_LEN_NM so every fine grid keeps ~0.02 nm cells — full skerry resolution — no matter
+  // how long the whole voyage is.
+  SEG_NM = 12; SEG_LEN_NM = 7;
+  autoRouteTo(dest, from) {
+    // Optional `from` overrides the start (defaults to own ship): the same engine plans
+    // place-to-place routes and present-position-to-harbour routes.
+    this._planFrom = (from && from.lat != null) ? { lat: from.lat, lon: from.lon } : null;
+    const org = this._planFrom || this.ownShip;
+    this.preloadChartTiles(org, dest); this.ensureCoastline();
     this._planDest = dest;
     // attempt immediately against whatever is cached, then retry on a loop while the chart tiles (the only data that resolves fjords) stream in — only declare failure once tiles are loaded.
     this._planTries = 0; this._lastReady = -1;
+    const maxT = this.distNm(org, dest) > this.SEG_NM ? 40 : 18; // a long corridor legitimately needs longer to stream in before "unreachable" is a fair verdict
     this._doPlan(dest, true);
     clearInterval(this._planRetry);
     this._planRetry = setInterval(() => {
       if (this.routePending || this._planDest !== dest) { clearInterval(this._planRetry); return; }
       this._planTries++;
-      this.preloadChartTiles(this.ownShip, dest);
-      const ready = this.corridorTilesReady(this.ownShip, dest);
+      const o = this._planFrom || this.ownShip;
+      this.preloadChartTiles(o, dest);
+      const ready = this.corridorTilesReady(o, dest);
       const dataReady = !!this._coast && ready >= 0.92;
       // only re-run the (heavy) planner when more of the corridor has decoded since last try, or data just became ready — avoids rebuilding an identical grid every tick and keeps the UI responsive.
-      if (ready > this._lastReady + 0.04 || dataReady || this._planTries >= 16) { this._lastReady = ready; this._doPlan(dest, !(dataReady || this._planTries >= 16)); }
-      if (this.routePending || (dataReady && this._planTries >= 2) || this._planTries >= 18) { clearInterval(this._planRetry); if (!this.routePending && this._planDest === dest) this._doPlan(dest, false); }
+      if (ready > this._lastReady + 0.04 || dataReady || this._planTries >= maxT - 2) { this._lastReady = ready; this._doPlan(dest, !(dataReady || this._planTries >= maxT - 2)); }
+      if (this.routePending || (dataReady && this._planTries >= 2) || this._planTries >= maxT) { clearInterval(this._planRetry); if (!this.routePending && this._planDest === dest) this._doPlan(dest, false); }
     }, 650);
   }
   // strict (default): a sample on an UNLOADED chart tile (chartLandAt === null) counts as NOT clear, so a route is only ever accepted once its whole corridor's chart data is really loaded — this prevents committing a route computed on half-loaded tiles (undecoded cells look like water and yield phantom routes through land). lax: treat unloaded as water (best-effort, used only on the final give-up attempt).
-  routeClear(R, lax) { if (!R || R.length < 2) return false; for (let i = 1; i < R.length; i++) { const a = R[i - 1], b = R[i]; const n = Math.max(2, Math.ceil(this.distNm(a, b) / 0.04)); for (let s = 0; s <= n; s++) { const f = s / n, la = a.lat + (b.lat - a.lat) * f, lo = a.lon + (b.lon - a.lon) * f; const cl = this.chartLandAt(la, lo, 12); if (cl === true) return false; if (cl == null && !lax) return false; } } return true; }
-  _doPlan(dest, quiet) {
-    // Tidsskivet planlegging: en planRoute-kandidat per makrotask i stedet for
-    // hele kaskaden i ett jafs, saa kartet kan panoreres/zoomes og alle knapper
-    // virker mens ruten beregnes. Nye kall mens en kaskade kjorer koalesceres
-    // (siste vinner) i stedet for aa stables oppaa hverandre.
-    if (this._planBusy) { this._planAgain = { dest, quiet }; return; }
+  // Returns WHY it failed too: 'land' means the candidate really grazes charted land (try the
+  // next combo/clearance), 'unloaded' means the verdict is unknowable until more tiles decode —
+  // in that case running the REST of the cascade is pure waste, since every candidate crosses
+  // the same unloaded area; the caller aborts the round and lets the retry loop try again once
+  // more of the corridor has streamed in. Sampling every 0.02 nm (~37 m — matches the planner's
+  // own construction-time density, and under 2 px at Z12) instead of the old 0.04 nm, so a
+  // committed route can never be validated more loosely than it was built.
+  routeClearEx(R, lax) {
+    if (!R || R.length < 2) return { ok: false, why: 'empty' };
+    let unloaded = false;
+    for (let i = 1; i < R.length; i++) {
+      const a = R[i - 1], b = R[i]; const n = Math.max(2, Math.ceil(this.distNm(a, b) / 0.02));
+      for (let s = 0; s <= n; s++) {
+        const f = s / n, la = a.lat + (b.lat - a.lat) * f, lo = a.lon + (b.lon - a.lon) * f;
+        const cl = this.chartLandAt(la, lo, 12);
+        if (cl === true) return { ok: false, why: 'land' };
+        if (cl == null && !lax) unloaded = true; // keep sampling — probing requests the missing tiles
+      }
+    }
+    return unloaded ? { ok: false, why: 'unloaded' } : { ok: true, why: null };
+  }
+  routeClear(R, lax) { return this.routeClearEx(R, lax).ok; }
+  _doPlan(dest, quiet, opts) {
+    // Tidsskivet planlegging: en avgrenset arbeidsbit (hoyst ETT A*-soek) per makrotask i
+    // stedet for hele kaskaden i ett jafs, saa kartet kan panoreres/zoomes og alle knapper
+    // virker mens ruten beregnes. Nye kall mens en kaskade kjorer koalesceres (siste vinner)
+    // i stedet for aa stables oppaa hverandre. `opts` lar den autonome replanleggingen bruke
+    // samme motor: {from} overstyrer start, {commit} overtar innsettingen av ruten, {silent}
+    // dropper panel-spinneren, {guard} erstatter destinasjonsvakten.
+    if (this._planBusy) { this._planAgain = { dest, quiet, opts }; return; }
     this._planBusy = true;
-    if (!this._planWorking) { this._planWorking = true; this.setState({ routeVer: this.state.routeVer + 1 }); }
-    const o = this.ownShip; const draught = this.draughtV || 7;
+    const silent = !!(opts && opts.silent);
+    if (!this._planWorking && !silent) { this._planWorking = true; this.setState({ routeVer: this.state.routeVer + 1 }); }
+    const org = (opts && opts.from) || this._planFrom || this.ownShip;
+    const oLat = org.lat, oLon = org.lon;
+    const draught = this.draughtV || 7;
     const tries = [...new Set([Math.max(this.state.safetyC, draught + 1.5), draught, this.state.shallowC, 1, 0.5].filter(v => v > 0))].sort((a, b) => b - a);
-    // (cellDivisor, paddingMultiplier, dilationCells) combos. Finer grids + a few cells of land-dilation keep the route mid-channel so straight legs can't clip headlands (clean routes in open/deep fjords); the dil=0 + wider-box combos fall back for narrow channels and long winding sounds. STRICT routeClear validates every candidate against loaded chart data; lax (unloaded tiles as water) only on the final give-up attempts.
-    const combos = [[560, 1, 2], [560, 1, 0], [400, 2.0, 1], [300, 3.2, 0]];
+    // (cellDivisor, paddingMultiplier, shoreStandoffNm) combos. Finer grids + a shore standoff keep the route mid-channel so straight legs can't clip headlands (clean routes in open/deep fjords); the standoff-0 + wider-box combos fall back for narrow channels and long winding sounds. STRICT validation checks every candidate against loaded chart data; lax (unloaded tiles as water) only on the final give-up attempts. Standoffs are in nautical miles, so they mean the same thing on every grid resolution (the old cell counts meant 30 m on a fine grid but 700 m on a coarse one).
+    const combos = [[560, 1, 0.045], [560, 1, 0], [400, 2.0, 0.03], [300, 3.2, 0]];
+    const longHaul = this.distNm({ lat: oLat, lon: oLon }, dest) > this.SEG_NM;
     const jobs = [];
-    for (const noAis of [false, true]) for (const [dv, pk, dl] of combos) for (const clr of tries) jobs.push({ dv, pk, dl, clr, noAis, lax: false });
-    if (!quiet) for (const [dv, pk, dl] of combos) for (const clr of tries) jobs.push({ dv, pk, dl, clr, noAis: true, lax: true });
-    let i = 0;
+    if (longHaul) {
+      // Long corridors: segmented planning at full skerry resolution (coarse skeleton decides
+      // where the fine planner works — see coarseCorridor/_segStep). A couple of single-box
+      // ladders remain as a backstop for the rare case the coarse pass finds no skeleton.
+      for (const noAis of [false, true]) for (const clr of tries) jobs.push({ seg: true, clr, noAis, lax: false });
+      for (const clr of tries) jobs.push({ dv: 400, pk: 2.0, dl: 0.03, clr, noAis: true, lax: false });
+      for (const clr of tries) jobs.push({ dv: 300, pk: 3.2, dl: 0, clr, noAis: true, lax: false });
+      if (!quiet) for (const clr of tries) jobs.push({ seg: true, clr, noAis: true, lax: true });
+    } else {
+      for (const noAis of [false, true]) for (const [dv, pk, dl] of combos) for (const clr of tries) jobs.push({ dv, pk, dl, clr, noAis, lax: false });
+      if (!quiet) for (const [dv, pk, dl] of combos) for (const clr of tries) jobs.push({ dv, pk, dl, clr, noAis: true, lax: true });
+    }
+    let i = 0, segRun = null; const failedPaths = new Set();
     const chain = () => {
       const again = this._planAgain; this._planAgain = null;
-      if (again && !this.routePending) setTimeout(() => this._doPlan(again.dest, again.quiet), 30);
+      if (again && !this.routePending) setTimeout(() => this._doPlan(again.dest, again.quiet, again.opts), 30);
     };
     const finish = (path, used) => {
       this._planBusy = false;
       if (path) {
-        // A route that passed STRICT routeClear is validated against loaded chart data along its whole length, so it is safe to commit immediately.
-        this._planWorking = false;
-        this.route = path; this.activeLeg = 1; this.routeCheck = null; this.autoNav = false; this.routePending = true; this._routeClr = used;
-        this.helm = Object.assign(this.helm || {}, { active: false, ap: false });
-        this.setState({ simRunning: false, routeVer: this.state.routeVer + 1, tool: 'pan', autoOpen: true });
+        // A route that passed STRICT validation is checked against loaded chart data along its whole length, so it is safe to commit immediately.
+        if (!silent) this._planWorking = false;
+        if (opts && opts.commit) { opts.commit(path, used); }
+        else {
+          this.route = path; this.activeLeg = 1; this.routeCheck = null; this.autoNav = false; this.routePending = true; this._routeClr = used;
+          this.helm = Object.assign(this.helm || {}, { active: false, ap: false });
+          this.setState({ simRunning: false, routeVer: this.state.routeVer + 1, tool: 'pan', autoOpen: true });
+        }
       } else if (!quiet) {
-        this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false;
-        this.addAlarm('warning', 'No safe route found to that point — it is blocked by land/shoals. Pick a point in navigable water.');
-        this.setState({ routeVer: this.state.routeVer + 1 });
+        if (!silent) this._planWorking = false;
+        if (!(opts && opts.commit)) {
+          this.route = null; this.routePending = false; this.autoNav = false;
+          this.addAlarm('warning', 'No safe route found to that point — it is blocked by land/shoals. Pick a point in navigable water.');
+          this.setState({ routeVer: this.state.routeVer + 1 });
+        }
       }
       // quiet with no hit: _planWorking stays set so the panel keeps showing "Computing route…" while the retry loop continues.
       chain();
     };
+    const abortRound = () => { this._planBusy = false; chain(); };
+    const guard = (opts && opts.guard) ? opts.guard : () => (this._planDest === dest && !this.routePending);
     const step = () => {
-      if (this._planDest !== dest || this.routePending) { this._planBusy = false; chain(); return; }
+      if (!guard()) { this._planBusy = false; chain(); return; }
       const t0 = performance.now();
-      while (i < jobs.length && performance.now() - t0 < 26) {
+      while (performance.now() - t0 < 26) {
+        // 1) advance an in-flight segmented attempt by one bounded unit
+        if (segRun) {
+          let r = 'fail';
+          try { r = this._segStep(segRun); } catch (e) {} // a throwing unit must fail the attempt, never wedge the cascade with _planBusy held
+          if (r === 'busy') continue;
+          const sj = segRun.job; segRun = null;
+          if (r === 'unloaded' && quiet) { abortRound(); return; }
+          if (r && r.path) {
+            const v = this.routeClearEx(r.path, sj.lax);
+            if (v.ok) { finish(r.path, sj.clr); return; }
+            if (v.why === 'unloaded' && quiet) { abortRound(); return; }
+          }
+          continue; // attempt failed → next job in the cascade
+        }
+        // 2) or take the next job
+        if (i >= jobs.length) { finish(null); return; }
         const j = jobs[i++];
+        if (j.seg) { segRun = { lat0: oLat, lon0: oLon, lat1: dest.lat, lon1: dest.lon, job: j, stage: 'corridor', vias: null, k: 0, combo: 0, parts: [] }; continue; }
         let p = null;
-        try { p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, j.clr, j.noAis, j.dv, j.pk, j.dl); } catch (e) {}
-        if (p && this.routeClear(p, j.lax)) { finish(p, j.clr); return; }
+        try { p = this.planRoute(oLat, oLon, dest.lat, dest.lon, j.clr, j.noAis, j.dv, j.pk, j.dl); } catch (e) {}
+        if (!p || failedPaths.has(p)) continue; // memoised identical candidate — already rejected
+        const v = this.routeClearEx(p, j.lax);
+        if (v.ok) { finish(p, j.clr); return; }
+        failedPaths.add(p);
+        // FAIL-FAST: this candidate crossed tiles that have not decoded yet, so its verdict is
+        // unknowable — and every later candidate crosses the same unloaded area. The old code
+        // burned the whole ~40-job cascade against missing tiles on every retry tick; now the
+        // round stops here and the retry loop calls back once more of the corridor has decoded
+        // (the validation probing itself queued the missing tiles).
+        if (v.why === 'unloaded' && quiet) { abortRound(); return; }
       }
-      if (i >= jobs.length) { finish(null); return; }
       setTimeout(step, 30);
     };
     setTimeout(step, 0);
@@ -1310,11 +1455,10 @@ class Component extends DCLogic {
   routeStats() { const R = this.route; if (!R || R.length < 2) return null; const o = this.ownShip; let rem = this.distNm(o, R[Math.min(this.activeLeg, R.length - 1)]); for (let i = this.activeLeg + 1; i < R.length; i++) rem += this.distNm(R[i - 1], R[i]); const total = R.reduce((a, p, i) => i ? a + this.distNm(R[i - 1], p) : 0, 0); const spd = (this.autoNav && o.sog > 0.3) ? o.sog : 14; return { rem, total, legs: R.length - 1, eta: rem / Math.max(6, spd) * 60 }; }
   startAutoNav() { if (!this.route) return; this.routePending = false; this.autoNav = true; this.helm = Object.assign(this.helm || {}, { active: false, ap: false }); this.saveRoute(); this.setState({ simRunning: true, routeVer: this.state.routeVer + 1 }); const st = this.routeStats(); this.addAlarm('info', 'Autonomous voyage started — ' + (st ? st.legs + ' legs · ' + st.total.toFixed(1) + ' nm · ≥ ' + (this._routeClr || this.state.safetyC).toFixed(0) + ' m UKC · ETA ~' + Math.round(st.eta) + ' min.' : 'steering to destination.')); }
   pauseAutoNav() { this.setState({ simRunning: !this.state.simRunning }); }
-  cancelAutoNav() { clearInterval(this._planRetry); this._planDest = null; this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false; this.activeLeg = 1; this.routeCheck = null; this.saveRoute(); this.setState({ simRunning: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonomous voyage cancelled — manual steering.'); }
+  cancelAutoNav() { clearInterval(this._planRetry); this._planDest = null; this._planFrom = null; this._planWorking = false; this.route = null; this.routePending = false; this.autoNav = false; this.activeLeg = 1; this.routeCheck = null; this.saveRoute(); this.setState({ simRunning: false, routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonomous voyage cancelled — manual steering.'); }
   planRoute(lat0, lon0, lat1, lon1, clr, noAis, div, padK, dil) {
     try {
-    div = div || 340; padK = padK || 1; dil = dil || 0;
-    const oS = this.ownShip;
+    div = div || 340; padK = padK || 1; dil = dil || 0; // dil = hard shore standoff in NAUTICAL MILES (converted to cells per grid below, so it means the same distance on every grid resolution)
     // Local HIGH-RES grid around start↔dest — the global grid is far too coarse (~2–3 km/cell) to resolve islands. Padding (scaled by padK) lets A* detour around headlands/islands and through winding sounds that lie outside the direct start→dest box.
     const padLat = (Math.abs(lat1 - lat0) * 0.32 + 0.09) * padK, padLon = (Math.abs(lon1 - lon0) * 0.32 + 0.12) * padK;
     const Lt0 = Math.min(lat0, lat1) - padLat, Lt1 = Math.max(lat0, lat1) + padLat, Ln0 = Math.min(lon0, lon1) - padLon, Ln1 = Math.max(lon0, lon1) + padLon;
@@ -1323,15 +1467,16 @@ class Component extends DCLogic {
     const H = Math.max(8, Math.min(div + 70, Math.round(hNm / cellNm))), W = Math.max(8, Math.min(div + 70, Math.round(wNm / cellNm))); const N = W * H;
     const cLL = (x, y) => ({ lat: Lt1 - (y / (H - 1)) * (Lt1 - Lt0), lon: Ln0 + (x / (W - 1)) * (Ln1 - Ln0) });
     const cIdxOf = (lat, lon) => [Math.round((lon - Ln0) / (Ln1 - Ln0) * (W - 1)), Math.round((Lt1 - lat) / (Lt1 - Lt0) * (H - 1))];
-    // --- LAND + DEPTH grid, built ONCE per corridor and cached (independent of clr) so the per-clearance retries in _doPlan don't rebuild the whole ~100k-cell grid 14x ---
+    // --- LAND + DEPTH grid, built ONCE per corridor geometry and cached so the per-clearance retries in _doPlan don't rebuild the whole ~100k-cell grid 14x. A small Map instead of the old single slot: the cascade alternates between 3-4 grid geometries (combos), and the single slot evicted on every alternation — each geometry now keeps its grid for the whole cascade. ---
     // key on how much of THIS corridor's chart data is decoded (not the global tile count, which saturates and would freeze the cache while corridor tiles stream in)
     const corridorReady = Math.round(this.corridorTilesReady({ lat: Lt0, lon: Ln0 }, { lat: Lt1, lon: Ln1 }) * 100);
     const ckey = [Lt0.toFixed(3), Lt1.toFixed(3), Ln0.toFixed(3), Ln1.toFixed(3), W, H, !!this._coast, !!this.routeDepth, corridorReady].join('|');
-    let GC = this._gridCache;
-    if (!GC || GC.key !== ckey) {
+    const GCM = this._gridCaches || (this._gridCaches = new Map());
+    let GC = GCM.get(ckey);
+    if (!GC) {
       const landA = new Uint8Array(N), depthA = new Float32Array(N);
       const dLat = (Lt1 - Lt0) / (H - 1), dLon = (Ln1 - Ln0) / (W - 1);
-      // Sub-cell sampling catches tiny skerries BETWEEN cell centres — but only when cells are small. On a coarse (wide-box) grid the ±sub-cell points reach hundreds of metres and would falsely seal the wide main fjord channel, so coarse grids sample the cell centre only and rely on routeClear to reject any true land-grazing.
+      // Sub-cell sampling catches tiny skerries BETWEEN cell centres — but only when cells are small. On a coarse (wide-box) grid the ±sub-cell points reach hundreds of metres and would falsely seal the wide main fjord channel, so coarse grids sample the cell centre only and rely on the continuous validation to reject any true land-grazing.
       const subSample = (Math.max(dLat, dLon) * 60 * 1852) < 150;
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; const ll = cLL(x, y);
         // chart raster (the sjokart the user SEES) is the ONLY source fine enough to resolve fjords/skerries. The coarse global coastline/land mask falsely seal fjord water, so they are NOT used. Unresolved cells (tile not decoded) are water; the readiness gate ensures tiles load before declaring failure.
@@ -1339,38 +1484,62 @@ class Component extends DCLogic {
         if (!land && subSample) { const q = 0.42; if (this.chartLandAt(ll.lat + dLat * q, ll.lon, 12) === true || this.chartLandAt(ll.lat - dLat * q, ll.lon, 12) === true || this.chartLandAt(ll.lat, ll.lon + dLon * q, 12) === true || this.chartLandAt(ll.lat, ll.lon - dLon * q, 12) === true) land = true; }
         landA[i] = land ? 1 : 0; depthA[i] = this.routeDepthAt(ll.lat, ll.lon);
       }
-      GC = this._gridCache = { key: ckey, landA, depthA, W, H, N };
+      GC = { landA, depthA, W, H, N, memo: new Map() };
+      GCM.set(ckey, GC);
+      if (GCM.size > 10) GCM.delete(GCM.keys().next().value);
     }
     const landA = GC.landA, depthA = GC.depthA;
     const blk = new Uint8Array(N);
     for (let i = 0; i < N; i++) blk[i] = (landA[i] || depthA[i] < clr) ? 1 : 0;
+    const dilC = dil > 0 ? Math.max(1, Math.round(dil / cellNm)) : 0;
+    // Identical-work memo: two clearance levels that block the exact same cell set produce the
+    // exact same path (the depth field is smooth, so 1 m vs 0.5 m usually block nothing new).
+    // Returning the SAME array instance lets _doPlan skip re-validating a candidate it already
+    // rejected — together this collapses the 4-5 clearance retries per combo to the 1-2 that
+    // actually differ. AIS blocking is time-varying, so live-AIS runs get an 8 s key bucket.
+    let nBlk = 0; for (let i = 0; i < N; i++) nBlk += blk[i];
+    const memoKey = nBlk + '|' + dilC + '|' + (noAis ? 'x' : 'a' + Math.floor(Date.now() / 8000));
+    if (GC.memo.has(memoKey)) return GC.memo.get(memoKey);
+    const run = () => {
     // clearance distance (cells) to nearest blocked, so A* can prefer mid-channel water instead of hugging shoals/shore
     const clD = new Int16Array(N); for (let i = 0; i < N; i++) clD[i] = blk[i] ? 0 : 9999;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; let v = clD[i]; if (y > 0 && clD[i - W] + 1 < v) v = clD[i - W] + 1; if (x > 0 && clD[i - 1] + 1 < v) v = clD[i - 1] + 1; clD[i] = v; }
     for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; let v = clD[i]; if (y < H - 1 && clD[i + W] + 1 < v) v = clD[i + W] + 1; if (x < W - 1 && clD[i + 1] + 1 < v) v = clD[i + 1] + 1; clD[i] = v; }
-    // DILATION: keep the route `dil` cells off the shore so straight legs between cell centres can't clip a headland (the cause of A* paths that fail the continuous routeClear). Applied as a soft-then-hard rule: a cell within `dil` of land is treated as blocked FOR PATHFINDING. Narrow channels < dil cells seal — handled by the dil=0 fallback combos.
-    const CAP = 14; const clPen = (x, y) => { const c = clD[y * W + x]; return c >= CAP ? 0 : (CAP - c) * 1.1; };
-    // DEPTH PREFERENCE: read the EMODnet bathymetry (the same data that colours the chart blue→white by depth) and make shallower water cost more, so A* prefers the deep central channel — like a navigator hugging the dark-blue deep water. Keeps routes safely off the shoals AND smoother (the deep channel runs straighter than the shoreline).
+    // DILATION: keep the route `dilC` cells off the shore so straight legs between cell centres can't clip a headland (the cause of A* paths that fail the continuous validation). Applied as a soft-then-hard rule: a cell within `dilC` of land is treated as blocked FOR PATHFINDING. Narrow channels < dilC cells seal — handled by the standoff-0 fallback combos.
+    // Soft mid-channel preference measured in NM (the old fixed 14-cell reach meant 0.2 nm on a fine grid but 3 nm on a coarse one, which made long-route paths swing far offshore); max penalty stays ~15 regardless of resolution.
+    const CAPc = Math.max(3, Math.min(18, Math.round(0.25 / cellNm)));
+    const clPen = (x, y) => { const c = clD[y * W + x]; return c >= CAPc ? 0 : (CAPc - c) * (15 / CAPc); };
+    // DEPTH PREFERENCE: read the bathymetry model (the same data that colours the chart blue→white by depth) and make shallower water cost more, so A* prefers the deep central channel — like a navigator hugging the dark-blue deep water. Keeps routes safely off the shoals AND smoother (the deep channel runs straighter than the shoreline).
     const dPref = 25; const depthPen = (x, y) => { const dp = depthA[y * W + x]; return dp >= dPref ? 0 : (dPref - Math.max(0, dp)) * 0.02; };
     // block a modest disc around each AIS target (capped so it can NEVER seal a narrow channel on the fine grid — the no-AIS fallback in _doPlan covers the case where a vessel sits in the only passage)
     if (!noAis) try { const arr = this.aisArr ? this.aisArr() : []; const rad = Math.max(1, Math.min(5, Math.round(0.16 / cellNm))); for (const t of arr) { if (t == null || t.lat == null) continue; const pts = [[t.lat, t.lon]]; if (t.sog && t.cog != null) { const ld = this.moveLL(t.lat, t.lon, t.cog, t.sog / 60); pts.push([ld.lat, ld.lon]); } for (const [plat, plon] of pts) { const gc = cIdxOf(plat, plon); const cx = gc[0], cy = gc[1]; for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) { if (dx * dx + dy * dy > rad * rad) continue; const nx = cx + dx, ny = cy + dy; if (nx >= 0 && ny >= 0 && nx < W && ny < H) blk[ny * W + nx] = 1; } } } } catch (e) {}
-    const blocked = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? true : (!!blk[y * W + x] || clD[y * W + x] < dil);
+    const blocked = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? true : (!!blk[y * W + x] || clD[y * W + x] < dilC);
     let [sxf, syf] = cIdxOf(lat0, lon0), [gxf, gyf] = cIdxOf(lat1, lon1);
     const nearestWater = (x, y) => { x = Math.round(x); y = Math.round(y); if (!blocked(x, y)) return [x, y]; for (let r = 1; r < 30; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; if (!blocked(x + dx, y + dy)) return [x + dx, y + dy]; } return null; };
     const S = nearestWater(sxf, syf), G = nearestWater(gxf, gyf); if (!S || !G) return null;
     const sx = S[0], sy = S[1], gx = G[0], gy = G[1];
     const came = new Int32Array(N).fill(-1); const gsc = new Float32Array(N); gsc.fill(Infinity);
-    const idx = (x, y) => y * W + x; const dgx = gx - sx, dgy = gy - sy; const hh = (x, y) => { const dx = x - gx, dy = y - gy; const cross = Math.abs((x - sx) * dgy - (y - sy) * dgx); return Math.hypot(dx, dy) + cross * 0.0012; };
+    // Weighted A*: inflating the distance part of the heuristic by 1.22 trades a bounded (≤22%,
+    // in practice far less — the penalty terms dominate near shore) path-length optimality gap
+    // for a several-fold smaller search frontier in open water. The cross-track term stays a
+    // tiny tie-breaker toward the direct line.
+    const idx = (x, y) => y * W + x; const dgx = gx - sx, dgy = gy - sy; const hh = (x, y) => { const dx = x - gx, dy = y - gy; const cross = Math.abs((x - sx) * dgy - (y - sy) * dgx); return Math.hypot(dx, dy) * 1.22 + cross * 0.0012; };
     const hk = [], hp = [];
     const hpush = (k, p) => { hk.push(k); hp.push(p); let i = hk.length - 1; while (i > 0) { const pa = (i - 1) >> 1; if (hp[pa] <= hp[i]) break; const tk = hk[pa]; hk[pa] = hk[i]; hk[i] = tk; const tp = hp[pa]; hp[pa] = hp[i]; hp[i] = tp; i = pa; } };
     const hpop = () => { const top = hk[0], n = hk.length - 1; hk[0] = hk[n]; hp[0] = hp[n]; hk.pop(); hp.pop(); let i = 0; const m = hk.length; for (;;) { let l = 2 * i + 1, r = 2 * i + 2, sm = i; if (l < m && hp[l] < hp[sm]) sm = l; if (r < m && hp[r] < hp[sm]) sm = r; if (sm === i) break; const tk = hk[sm]; hk[sm] = hk[i]; hk[i] = tk; const tp = hp[sm]; hp[sm] = hp[i]; hp[i] = tp; i = sm; } return top; };
     gsc[idx(sx, sy)] = 0; hpush(idx(sx, sy), hh(sx, sy));
     const dirs = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.4142], [1, -1, 1.4142], [-1, 1, 1.4142], [-1, -1, 1.4142]];
-    let found = false, exp = 0; const cap = 450000;
-    while (hk.length && exp < cap) { const cur = hpop(); exp++; const cx = cur % W, cy = (cur / W) | 0; if (cx === gx && cy === gy) { found = true; break; } const gc = gsc[cur];
+    // CLOSED SET — one expansion per cell. The inflated heuristic and the direction-dependent
+    // turn penalty make h inconsistent, and the lazy decrease-key heap then re-opens nodes en
+    // masse (the old code could burn its whole 450k-expansion cap on a 140k-cell grid and
+    // "fail" a corridor that had an easy passage). Finalising each cell on first pop bounds
+    // the search at ≤ N expansions with a bounded (≤ heuristic weight) optimality gap.
+    const done = new Uint8Array(N);
+    let found = false, exp = 0; const cap = Math.min(450000, Math.max(40000, 6 * N));
+    while (hk.length && exp < cap) { const cur = hpop(); if (done[cur]) continue; done[cur] = 1; exp++; const cx = cur % W, cy = (cur / W) | 0; if (cx === gx && cy === gy) { found = true; break; } const gc = gsc[cur];
       // incoming direction at `cur` (for the turn penalty below)
       const pc = came[cur]; let pdx = 0, pdy = 0, magP = 1; if (pc !== -1) { pdx = Math.sign(cx - (pc % W)); pdy = Math.sign(cy - ((pc / W) | 0)); magP = (pdx && pdy) ? 1.41421356 : 1; }
-      for (let di = 0; di < 8; di++) { const dx = dirs[di][0], dy = dirs[di][1], w = dirs[di][2]; const nx = cx + dx, ny = cy + dy; if (blocked(nx, ny)) continue; if (dx && dy && (blocked(cx + dx, cy) || blocked(cx, cy + dy))) continue; let pen = clPen(nx, ny) + depthPen(nx, ny); if (pc !== -1) pen += 0.3 * (1 - (pdx * dx + pdy * dy) / (magP * w)); const ni = idx(nx, ny); const ng = gc + w + pen; if (ng < gsc[ni]) { gsc[ni] = ng; came[ni] = cur; hpush(ni, ng + hh(nx, ny)); } } }
+      for (let di = 0; di < 8; di++) { const dx = dirs[di][0], dy = dirs[di][1], w = dirs[di][2]; const nx = cx + dx, ny = cy + dy; if (blocked(nx, ny)) continue; if (dx && dy && (blocked(cx + dx, cy) || blocked(cx, cy + dy))) continue; let pen = clPen(nx, ny) + depthPen(nx, ny); if (pc !== -1) pen += 0.3 * (1 - (pdx * dx + pdy * dy) / (magP * w)); const ni = idx(nx, ny); if (done[ni]) continue; const ng = gc + w + pen; if (ng < gsc[ni]) { gsc[ni] = ng; came[ni] = cur; hpush(ni, ng + hh(nx, ny)); } } }
     if (!found) return null;
     let ci = idx(gx, gy); const cells = []; while (ci !== -1) { cells.push([ci % W, (ci / W) | 0]); ci = came[ci]; } cells.reverse();
     // grid line-of-sight WITH a 1-cell margin: a leg is only "clear" if every Bresenham cell AND its 4-neighbours are water. This keeps simplified legs off the shore so the continuous routeClear sampling below won't graze land at a cell corner.
@@ -1400,7 +1569,132 @@ class Component extends DCLogic {
     let smOk = true; for (let i = 1; i < sm.length; i++) if (legBad(sm[i - 1], sm[i])) { smOk = false; break; }
     const fin = smOk ? sm : out;
     return fin.length >= 2 ? fin : null;
+    };
+    const result = run();
+    GC.memo.set(memoKey, result);
+    return result;
     } catch (e) { return null; }
+  }
+  // Coarse corridor pass for long routes: a cheap A* on a grid of up to ~220 cells a side over
+  // the whole padded start↔dest box, land sampled PERMISSIVELY (a cell is sea if ANY of centre
+  // + 4 offsets is sea) so narrow sounds stay open at 0.3-0.7 nm cell sizes. The result is not
+  // a sailable route — it is the skeleton that decides WHERE the fine full-resolution planner
+  // works, so an 80 nm voyage keeps ~0.02 nm cells the whole way instead of the ~0.15 nm cells
+  // a single box would force (which is how skerries used to slip between cell centres on long
+  // routes). Unresolved tiles count as sea here; the strict per-segment validation catches it.
+  coarseCorridor(lat0, lon0, lat1, lon1) {
+    const padLat = Math.abs(lat1 - lat0) * 0.4 + 0.15, padLon = Math.abs(lon1 - lon0) * 0.4 + 0.2;
+    const Lt0 = Math.min(lat0, lat1) - padLat, Lt1 = Math.max(lat0, lat1) + padLat, Ln0 = Math.min(lon0, lon1) - padLon, Ln1 = Math.max(lon0, lon1) + padLon;
+    const hNm = this.distNm({ lat: Lt0, lon: Ln0 }, { lat: Lt1, lon: Ln0 }), wNm = this.distNm({ lat: Lt0, lon: Ln0 }, { lat: Lt0, lon: Ln1 });
+    const cellNm = Math.max(0.12, Math.max(hNm, wNm) / 160);
+    const H = Math.max(8, Math.min(220, Math.round(hNm / cellNm))), W = Math.max(8, Math.min(220, Math.round(wNm / cellNm))); const N = W * H;
+    const ready = Math.round(this.corridorTilesReady({ lat: Lt0, lon: Ln0 }, { lat: Lt1, lon: Ln1 }) * 100);
+    const ckey = ['C', Lt0.toFixed(3), Lt1.toFixed(3), Ln0.toFixed(3), Ln1.toFixed(3), W, H, ready].join('|');
+    if (this._corCache && this._corCache.key === ckey) return this._corCache.path;
+    const cLL = (x, y) => ({ lat: Lt1 - (y / (H - 1)) * (Lt1 - Lt0), lon: Ln0 + (x / (W - 1)) * (Ln1 - Ln0) });
+    const dLat = (Lt1 - Lt0) / (H - 1), dLon = (Ln1 - Ln0) / (W - 1);
+    const blk = new Uint8Array(N);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const ll = cLL(x, y); const q = 0.33;
+      const sea = this.chartLandAt(ll.lat, ll.lon, 12) !== true || this.chartLandAt(ll.lat + dLat * q, ll.lon, 12) !== true || this.chartLandAt(ll.lat - dLat * q, ll.lon, 12) !== true || this.chartLandAt(ll.lat, ll.lon + dLon * q, 12) !== true || this.chartLandAt(ll.lat, ll.lon - dLon * q, 12) !== true;
+      blk[y * W + x] = sea ? 0 : 1;
+    }
+    // mild mid-water preference so the skeleton keeps off the beach where there is room
+    const clD = new Int16Array(N); for (let i = 0; i < N; i++) clD[i] = blk[i] ? 0 : 9999;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; let v = clD[i]; if (y > 0 && clD[i - W] + 1 < v) v = clD[i - W] + 1; if (x > 0 && clD[i - 1] + 1 < v) v = clD[i - 1] + 1; clD[i] = v; }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; let v = clD[i]; if (y < H - 1 && clD[i + W] + 1 < v) v = clD[i + W] + 1; if (x < W - 1 && clD[i + 1] + 1 < v) v = clD[i + 1] + 1; clD[i] = v; }
+    const CAPc = Math.max(2, Math.min(8, Math.round(0.8 / cellNm)));
+    const blocked = (x, y) => (x < 0 || y < 0 || x >= W || y >= H) ? true : !!blk[y * W + x];
+    const cIdxOf = (lat, lon) => [Math.round((lon - Ln0) / (Ln1 - Ln0) * (W - 1)), Math.round((Lt1 - lat) / (Lt1 - Lt0) * (H - 1))];
+    const nearestSea = (x, y) => { x = Math.round(x); y = Math.round(y); if (!blocked(x, y)) return [x, y]; for (let r = 1; r < 25; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; if (!blocked(x + dx, y + dy)) return [x + dx, y + dy]; } return null; };
+    const S0 = cIdxOf(lat0, lon0), G0 = cIdxOf(lat1, lon1);
+    const S = nearestSea(S0[0], S0[1]), G = nearestSea(G0[0], G0[1]);
+    let path = null;
+    if (S && G) {
+      const sx = S[0], sy = S[1], gx = G[0], gy = G[1];
+      const came = new Int32Array(N).fill(-1); const gsc = new Float32Array(N); gsc.fill(Infinity);
+      const idx = (x, y) => y * W + x; const hh = (x, y) => Math.hypot(x - gx, y - gy) * 1.3;
+      const hk = [], hp = [];
+      const hpush = (k, p) => { hk.push(k); hp.push(p); let i = hk.length - 1; while (i > 0) { const pa = (i - 1) >> 1; if (hp[pa] <= hp[i]) break; const tk = hk[pa]; hk[pa] = hk[i]; hk[i] = tk; const tp = hp[pa]; hp[pa] = hp[i]; hp[i] = tp; i = pa; } };
+      const hpop = () => { const top = hk[0], n = hk.length - 1; hk[0] = hk[n]; hp[0] = hp[n]; hk.pop(); hp.pop(); let i = 0; const m = hk.length; for (;;) { let l = 2 * i + 1, r = 2 * i + 2, sm = i; if (l < m && hp[l] < hp[sm]) sm = l; if (r < m && hp[r] < hp[sm]) sm = r; if (sm === i) break; const tk = hk[sm]; hk[sm] = hk[i]; hk[i] = tk; const tp = hp[sm]; hp[sm] = hp[i]; hp[i] = tp; i = sm; } return top; };
+      gsc[idx(sx, sy)] = 0; hpush(idx(sx, sy), hh(sx, sy));
+      const dirs = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.4142], [1, -1, 1.4142], [-1, 1, 1.4142], [-1, -1, 1.4142]];
+      const done = new Uint8Array(N); // closed set — same reasoning as the fine planner
+      let found = false, exp = 0; const cap = 140000;
+      while (hk.length && exp < cap) {
+        const cur = hpop(); if (done[cur]) continue; done[cur] = 1; exp++; const cx = cur % W, cy = (cur / W) | 0;
+        if (cx === gx && cy === gy) { found = true; break; }
+        const gc = gsc[cur];
+        for (let di = 0; di < 8; di++) { const dx = dirs[di][0], dy = dirs[di][1], w = dirs[di][2]; const nx = cx + dx, ny = cy + dy; if (blocked(nx, ny)) continue; if (dx && dy && (blocked(cx + dx, cy) || blocked(cx, cy + dy))) continue; const c = clD[ny * W + nx]; const pen = c >= CAPc ? 0 : (CAPc - c) * (2.5 / CAPc); const ni = idx(nx, ny); if (done[ni]) continue; const ng = gc + w + pen; if (ng < gsc[ni]) { gsc[ni] = ng; came[ni] = cur; hpush(ni, ng + hh(nx, ny)); } }
+      }
+      if (found) { let ci = idx(gx, gy); const cells = []; while (ci !== -1) { cells.push(cLL(ci % W, (ci / W) | 0)); ci = came[ci]; } cells.reverse(); path = cells; }
+    }
+    this._corCache = { key: ckey, path };
+    return path;
+  }
+  // Margin string-pull over a whole polyline: greedily replace runs of waypoints with one leg
+  // when the straightened leg — tested on its centreline AND two parallels offset ±margin —
+  // stays clear of charted land. The far point is found by halving instead of stepping, so a
+  // long stitched route stays cheap. Falls back to the input if the straightened line trips
+  // the strict centreline test anywhere; unknown tiles count as clear here because every
+  // caller re-validates the result with routeClearEx afterwards.
+  smoothRoutePolyline(pts, mNm) {
+    if (!pts || pts.length < 3) return pts;
+    const mDeg = Math.min(0.14, Math.max(0.02, mNm || 0.06)) / 60;
+    const legBadM = (a, b) => { const dLa = b.lat - a.lat, dLoM = (b.lon - a.lon) * this.cosMid; const len = Math.hypot(dLa, dLoM) || 1e-6; const pla = -dLoM / len * mDeg, plo = dLa / len * mDeg / this.cosMid; const dd = this.distNm(a, b), n = Math.max(2, Math.ceil(dd / 0.02)); for (let s = 0; s <= n; s++) { const f = s / n, la = a.lat + (b.lat - a.lat) * f, lo = a.lon + (b.lon - a.lon) * f; if (this.chartLandAt(la, lo, 12) === true || this.chartLandAt(la + pla, lo + plo, 12) === true || this.chartLandAt(la - pla, lo - plo, 12) === true) return true; } return false; };
+    const legBad = (a, b) => { const dd = this.distNm(a, b); const n = Math.max(2, Math.ceil(dd / 0.02)); for (let s = 0; s <= n; s++) { const f = s / n, la = a.lat + (b.lat - a.lat) * f, lo = a.lon + (b.lon - a.lon) * f; if (this.chartLandAt(la, lo, 12) === true) return true; } return false; };
+    const sm = [pts[0]]; let si = 0;
+    while (si < pts.length - 1) {
+      let jj = pts.length - 1;
+      while (jj > si + 1 && legBadM(pts[si], pts[jj])) { const half = si + ((jj - si) >> 1); jj = (half > si + 1 && half < jj) ? half : jj - 1; }
+      sm.push(pts[jj]); si = jj;
+    }
+    for (let i = 1; i < sm.length; i++) if (legBad(sm[i - 1], sm[i])) return pts;
+    return sm;
+  }
+  // One bounded unit of a segmented long-route attempt: the first call finds the coarse
+  // corridor and cuts it into via points, each later call plans ONE fine full-resolution
+  // segment (so a UI slice never blocks on more than a single A* run), and the last call
+  // stitches the parts and smooths across the joints. Returns 'busy' (more units to run),
+  // 'fail' (this clearance/AIS combination cannot make it), 'unloaded' (verdict unknowable
+  // until more tiles decode — caller aborts the round), or {path} ready for final validation.
+  _segStep(sr) {
+    const j = sr.job;
+    if (sr.stage === 'corridor') {
+      const cor = this.coarseCorridor(sr.lat0, sr.lon0, sr.lat1, sr.lon1);
+      if (!cor || cor.length < 2) return 'fail';
+      const vias = [{ lat: sr.lat0, lon: sr.lon0 }];
+      let acc = 0;
+      for (let i = 1; i < cor.length - 1; i++) { acc += this.distNm(cor[i - 1], cor[i]); if (acc >= this.SEG_LEN_NM) { vias.push(cor[i]); acc = 0; } }
+      vias.push({ lat: sr.lat1, lon: sr.lon1 });
+      sr.vias = vias; sr.stage = 'seg'; sr.k = 0; sr.combo = 0; sr.parts = [];
+      return 'busy';
+    }
+    if (sr.stage === 'seg') {
+      const a = sr.vias[sr.k], b = sr.vias[sr.k + 1];
+      const ladder = [[560, 1.25, 0.045], [400, 2.0, 0.03], [300, 3.0, 0]];
+      const dv = ladder[sr.combo][0], pk = ladder[sr.combo][1], dl = ladder[sr.combo][2];
+      let p = null;
+      try { p = this.planRoute(a.lat, a.lon, b.lat, b.lon, j.clr, j.noAis, dv, pk, dl); } catch (e) {}
+      const v = p ? this.routeClearEx(p, j.lax) : null;
+      if (!p || !v.ok) {
+        if (v && v.why === 'unloaded') return 'unloaded';
+        if (++sr.combo < 3) return 'busy';
+        return 'fail';
+      }
+      sr.parts.push(p); sr.combo = 0;
+      if (++sr.k >= sr.vias.length - 1) sr.stage = 'stitch';
+      return 'busy';
+    }
+    // stitch: concat, dropping a joint only when it truly duplicates the previous end (a via
+    // nudged to water by nearestWater can make neighbouring parts differ slightly — then the
+    // connecting micro-leg is kept and the final validation checks it like any other leg).
+    // Then smooth ACROSS the joints with the same margin string-pull the per-segment planner
+    // uses, so the junctions do not kink.
+    const out = [];
+    for (const part of sr.parts) for (let i = 0; i < part.length; i++) { if (out.length && i === 0 && this.distNm(out[out.length - 1], part[0]) < 0.002) continue; out.push(part[i]); }
+    const sm = this.smoothRoutePolyline(out, 0.06);
+    return { path: (sm && sm.length >= 2 ? sm : out) };
   }
 
   initParticles() { const dpr = this.dpr || (window.devicePixelRatio || 1); const area = (this.canvas && this.canvas.clientWidth) ? this.canvas.clientWidth * this.canvas.clientHeight : 1280 * 800; const scale = Math.max(0.4, Math.min(1, area / (1280 * 800))); const lowPower = (navigator.hardwareConcurrency || 4) <= 4 || dpr > 2 || Math.min(screen.width, screen.height) < 700; const curN = Math.round((lowPower ? 550 : 850) * scale); const windN = Math.round((lowPower ? 450 : 750) * scale); this.particles = []; for (let i = 0; i < curN; i++) this.particles.push(this.spawnP(true)); this.windParticles = []; for (let i = 0; i < windN; i++) this.windParticles.push(this.spawnP(true)); }
@@ -2117,17 +2411,20 @@ class Component extends DCLogic {
   // Silent dynamic re-route used by the autonomous controller when land is
   // detected ahead: recompute a strictly-clear path from the current position
   // to the destination and swap it in without interrupting the voyage. Throttled.
+  // Runs through the SAME time-sliced engine as the panel planner (at most one
+  // bounded A* unit per macrotask) — the old version ran up to 12 grid searches
+  // synchronously inside the simulation tick, freezing the frame for hundreds of
+  // milliseconds exactly when the ship was already in trouble.
   autoReplan() {
     if (!this.autoNav || !this.route || this.route.length < 2) return;
-    const now = performance.now(); if (now - (this._lastReplan || 0) < 7000) return; this._lastReplan = now;
-    try {
-      const o = this.ownShip, dest = this.route[this.route.length - 1], draught = this.draughtV || 7;
-      const tries = [...new Set([Math.max(this.state.safetyC, draught + 1.5), draught, this.state.shallowC, 1].filter(v => v > 0))].sort((a, b) => b - a);
-      const combos = [[560, 1, 2], [400, 2.0, 1], [300, 3.2, 0]];
-      let path = null;
-      for (const [dv, pk, dl] of combos) { for (const clr of tries) { const p = this.planRoute(o.lat, o.lon, dest.lat, dest.lon, clr, false, dv, pk, dl); if (p && this.routeClear(p)) { path = p; break; } } if (path) break; }
-      if (path && path.length >= 2) { this.route = path; this.activeLeg = 1; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonomous rerouting — new safe route from present position.'); }
-    } catch (e) {}
+    const now = performance.now(); if (now - (this._lastReplan || 0) < 7000 || this._planBusy) return; this._lastReplan = now;
+    const dest = this.route[this.route.length - 1];
+    this._doPlan({ lat: dest.lat, lon: dest.lon }, true, {
+      silent: true,
+      from: { lat: this.ownShip.lat, lon: this.ownShip.lon },
+      guard: () => (this.autoNav && !!this.route && this.route.length >= 2 && this.route[this.route.length - 1] === dest),
+      commit: (path) => { if (!this.autoNav || path.length < 2) return; this.route = path; this.activeLeg = 1; this.saveRoute(); this.setState({ routeVer: this.state.routeVer + 1 }); this.addAlarm('info', 'Autonomous rerouting — new safe route from present position.'); }
+    });
   }
   tick(dt) {
     const s = this.state; const sdt = dt * s.simSpeed; const o = this.ownShip;
@@ -2415,7 +2712,7 @@ class Component extends DCLogic {
   // omlasting. Ferske fliser hentes fortsatt naar de er eldre enn TILE_TTL,
   // med den lagrede flisen som reserve om nettet er borte. Feiler IndexedDB
   // (privat modus o.l.) faller alt tilbake til ren nettlasting som foer.
-  // Flisene lastes allerede med CORS (tilePixData leser piksler av dem), saa
+  // Flisene lastes allerede med CORS (tileLandMask leser piksler av dem), saa
   // fetch-til-blob er trygt der dagens Image-lasting virker.
   TILE_TTL = 45 * 24 * 3600e3; TILE_CAP = 8000;
   tileDb() {
@@ -3491,11 +3788,15 @@ class Component extends DCLogic {
 }
 </script>
 <script>
-// HT-dock: kioskknappene, havnesoket og et eget touch-tastatur — alt stylet med
-// appens egne palettvariabler slik at de folger day/dusk/night automatisk.
-// Soket virker offline mot en innebygd norsk havneliste og utvides med ArcGIS
-// naar kioskens API-nokkel finnes. Valgt havn kan settes som reisemaal via
-// appens dybdetrygge autoroute ("Set route to destination").
+// HT-dock: kioskknappene, havne-/fartoysoket og et eget touch-tastatur — alt
+// stylet med appens egne palettvariabler slik at de folger day/dusk/night
+// automatisk. Soket virker offline mot en innebygd norsk havneliste, soker de
+// LIVE AIS-maalene appen allerede sporer (navn eller MMSI — ingen egen
+// datakilde, samme sannhet som skopet viser), og utvides med ArcGIS naar
+// kioskens API-nokkel finnes. Valgt havn kan settes som reisemaal via appens
+// dybdetrygge autoroute ("Set route to destination"); valgt fartoy folges
+// live i kortet og kan settes som reisemaal via samme motor ("Set route to
+// vessel" — ruta gaar til fartoyets posisjon i trykkoyeblikket).
 (function () {
   var doc = document;
 
@@ -3532,6 +3833,9 @@ class Component extends DCLogic {
     ".htd-go{width:100%;min-height:44px;border:none;border-radius:5px;background:var(--accent,#0A84FF);color:#fff;font:700 12.5px/1 'Inter',system-ui,sans-serif;letter-spacing:.03em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;-webkit-tap-highlight-color:transparent;}",
     ".htd-go:disabled{opacity:.5;cursor:default;}",
     ".htd-go:active:not(:disabled){transform:scale(.98);}",
+    ".htd-go2{width:100%;min-height:38px;margin-top:6px;border:none;border-radius:5px;background:var(--seg,rgba(118,118,128,.12));color:var(--accent,#0A84FF);font:700 12px/1 'Inter',system-ui,sans-serif;letter-spacing:.03em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;-webkit-tap-highlight-color:transparent;}",
+    ".htd-go2:active{transform:scale(.98);}",
+    ".htd-vtag{font:700 8.5px/1 'Inter',system-ui,sans-serif;letter-spacing:.8px;color:var(--accent,#0A84FF);border:1px solid var(--accent,#0A84FF);border-radius:3px;padding:2.5px 5px;margin-right:7px;vertical-align:1px;display:inline-block;}",
     ".htd-status{display:none;align-items:center;gap:9px;min-height:38px;font:600 11.5px/1.4 'Inter',system-ui,sans-serif;color:var(--ink,#1c1c1e);}",
     ".htd-spin{width:15px;height:15px;border-radius:50%;border:2px solid var(--seg,rgba(118,118,128,.2));border-top-color:var(--accent,#0A84FF);animation:htdspin .8s linear infinite;flex:none;}",
     "@keyframes htdspin{to{transform:rotate(360deg);}}",
@@ -3716,7 +4020,7 @@ class Component extends DCLogic {
   var input = doc.createElement("input");
   input.type = "text";
   input.className = "htd-input";
-  input.placeholder = "Search harbor or place…";
+  input.placeholder = "Search harbor, place or vessel…";
   input.autocomplete = "off";
   input.setAttribute("inputmode", "none"); // eget kiosk-tastatur, ikke OS-tastaturet
   var sicon = doc.createElement("span");
@@ -3800,7 +4104,7 @@ class Component extends DCLogic {
   });
 
   // ---------- sok ----------
-  var timer = null, seq = 0, current = [], selected = null, routePoll = null, hideT = null;
+  var timer = null, seq = 0, current = [], selected = null, routePoll = null, hideT = null, vesselT = null;
 
   function flyTo(lat, lon) {
     var a = app(); if (!a) return;
@@ -3834,6 +4138,33 @@ class Component extends DCLogic {
     return hits.slice(0, 5);
   }
 
+  // Fartoysok i de LIVE AIS-maalene appen allerede sporer — navn eller MMSI.
+  // Ingen egen datakilde: treffene er noyaktig de fartoyene skopet viser naa,
+  // saa et tomt resultat er sant (AIS av/uten dekning = ingen fartoy aa finne).
+  // Kortet slaar seinere opp ferske data via mmsi, saa raden baerer bare id +
+  // et snapshot til sortering/visning.
+  function vesselSearch(text) {
+    var a = app();
+    if (!a || !a.aisArr) return [];
+    var q = norm(text);
+    if (!q) return [];
+    var digits = /^[0-9]{3,}$/.test(q);
+    var o = shipRef(), hits = [];
+    var arr = a.aisArr();
+    for (var i = 0; i < arr.length; i++) {
+      var t = arr[i];
+      if (t.lat == null || t.lon == null) continue;
+      var rank = -1;
+      var n = norm(t.name || "");
+      if (n) { var idx = n.indexOf(q); if (idx === 0) rank = 0; else if (idx > 0) rank = 1; }
+      if (rank < 0 && digits && t.mmsi != null && String(t.mmsi).indexOf(q) === 0) rank = 0;
+      if (rank < 0) continue;
+      hits.push({ name: t.name || ("MMSI " + t.mmsi), lat: t.lat, lon: t.lon, vessel: true, mmsi: t.mmsi, sog: t.sog, type: t.type, rank: rank, d: distNm(o.lat, o.lon, t.lat, t.lon) });
+    }
+    hits.sort(function (a2, b2) { return a2.rank - b2.rank || a2.d - b2.d; });
+    return hits.slice(0, 3);
+  }
+
   function render(items) {
     current = items;
     list.innerHTML = "";
@@ -3843,8 +4174,16 @@ class Component extends DCLogic {
       row.type = "button";
       row.className = "htd-row";
       var sub = doc.createElement("small");
-      sub.textContent = (item.local ? "Harbor · Norway · " : "") + distTxt(item.lat, item.lon);
-      row.textContent = item.name;
+      sub.textContent = item.vessel
+        ? (item.type || "Vessel") + " · AIS live · " + (item.sog != null ? item.sog.toFixed(1) + " kn · " : "") + distTxt(item.lat, item.lon)
+        : (item.local ? "Harbor · Norway · " : "") + distTxt(item.lat, item.lon);
+      if (item.vessel) {
+        var tag = doc.createElement("span");
+        tag.className = "htd-vtag";
+        tag.textContent = "VESSEL";
+        row.appendChild(tag);
+      }
+      row.appendChild(doc.createTextNode(item.name));
       row.appendChild(sub);
       row.addEventListener("pointerup", function (event) {
         event.preventDefault();
@@ -3857,8 +4196,8 @@ class Component extends DCLogic {
 
   function search(text) {
     var mine = ++seq;
-    var loc = localSearch(text);
-    render(loc);
+    var base = vesselSearch(text).concat(localSearch(text));
+    render(base.slice(0, 7));
     var key = (window.__kioskKeys || {}).arcgis;
     if (!key) return;
     var a = app();
@@ -3868,7 +4207,7 @@ class Component extends DCLogic {
     fetch(url).then(function (r) { return r.json(); }).then(function (data) {
       if (mine !== seq) return;
       var have = {};
-      loc.forEach(function (l) { have[norm(l.name)] = true; });
+      base.forEach(function (l) { have[norm(l.name)] = true; });
       var items = ((data && data.candidates) || []).map(function (c) {
         return { name: c.address, lat: c.location.y, lon: c.location.x, local: false };
       }).filter(function (c) {
@@ -3876,7 +4215,7 @@ class Component extends DCLogic {
         for (var k2 in have) if (n && k2.indexOf(n) === 0) return false;
         return true;
       });
-      render(loc.concat(items).slice(0, 7));
+      render(base.concat(items).slice(0, 7));
     }).catch(function () {});
   }
 
@@ -3899,16 +4238,39 @@ class Component extends DCLogic {
     dest.style.display = "none";
     selected = null;
     clearInterval(routePoll);
+    clearInterval(vesselT);
     clearTimeout(hideT);
+  }
+  // Ferskt AIS-maal for kortet: aisLive er sannheten (samme objekt skopet
+  // tegner), og et maal som er aldret ut av broen er reelt borte — da viser
+  // kortet "signal lost" paa siste kjente posisjon i stedet for aa dikte.
+  function liveTarget(mmsi) {
+    var a = app();
+    if (!a || !a.aisLive || mmsi == null) return null;
+    var t = a.aisLive[mmsi];
+    return (t && t.lat != null) ? t : null;
+  }
+  function vesselMetaHtml(t, item) {
+    var lost = !t;
+    var v = t || item;
+    var l1 = "MMSI " + (v.mmsi != null ? v.mmsi : "—") + " · " + (v.type || "Vessel") +
+      (v.sog != null ? " · " + v.sog.toFixed(1) + " kn / " + (v.cog != null ? v.cog.toFixed(0) : "—") + "°" : "");
+    var l2 = fmtLL(v.lat, v.lon) + " · " + distTxt(v.lat, v.lon);
+    var l3 = (t && t.dest) ? "Bound for " + t.dest : "";
+    return escHtml(l1) + "<br>" + escHtml(l2) + (l3 ? "<br>" + escHtml(l3) : "") +
+      (lost ? '<br><span style="color:#FF9F0A;">AIS signal lost — last known position shown</span>' : "");
   }
   function showDest(item) {
     selected = item;
     clearInterval(routePoll);
+    clearInterval(vesselT);
     clearTimeout(hideT);
     var routable = insideDemoArea(item.lat, item.lon);
     dest.innerHTML = "";
     var h5 = doc.createElement("h5");
-    h5.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5.5" r="2.5"/><path d="M12 8v12M5 12H3c0 5 4 8 9 8s9-3 9-8h-2M7 12h10"/></svg>';
+    h5.innerHTML = item.vessel
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l6 5v6H6V8z"/><path d="M4 19c2 1.5 4 1.5 6 0s4-1.5 6 0 3.2 1.2 4 .7"/></svg>'
+      : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5.5" r="2.5"/><path d="M12 8v12M5 12H3c0 5 4 8 9 8s9-3 9-8h-2M7 12h10"/></svg>';
     var nameSpan = doc.createElement("span");
     nameSpan.textContent = item.name;
     nameSpan.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
@@ -3919,21 +4281,49 @@ class Component extends DCLogic {
     h5.appendChild(x);
     var meta = doc.createElement("div");
     meta.className = "htd-meta";
-    meta.textContent = fmtLL(item.lat, item.lon) + " · " + distTxt(item.lat, item.lon);
+    if (item.vessel) meta.innerHTML = vesselMetaHtml(liveTarget(item.mmsi), item);
+    else meta.textContent = fmtLL(item.lat, item.lon) + " · " + distTxt(item.lat, item.lon);
     var go = doc.createElement("button");
     go.type = "button";
     go.className = "htd-go";
     go.innerHTML = routable
-      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19c2 1.5 4 1.5 6 0s4-1.5 6 0 3.2 1.2 4 .7"/><path d="M6 15l6-11 6 11z"/></svg><span>Set route to destination</span>'
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19c2 1.5 4 1.5 6 0s4-1.5 6 0 3.2 1.2 4 .7"/><path d="M6 15l6-11 6 11z"/></svg><span>' + (item.vessel ? "Set route to vessel" : "Set route to destination") + "</span>"
       : "<span>Outside demo chart area — view only</span>";
     go.disabled = !routable;
     var status = doc.createElement("div");
     status.className = "htd-status";
-    dest.appendChild(h5); dest.appendChild(meta); dest.appendChild(go); dest.appendChild(status);
+    dest.appendChild(h5); dest.appendChild(meta); dest.appendChild(go);
+    if (item.vessel) {
+      // Fartoy flytter seg mens kortet staar aapent: kortet folger AIS-en live,
+      // og "Center on vessel" flyr til DER fartoyet er naa, ikke der det var.
+      var center = doc.createElement("button");
+      center.type = "button";
+      center.className = "htd-go2";
+      center.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><span>Center on vessel</span>';
+      center.addEventListener("pointerup", function (e) {
+        e.preventDefault(); e.stopPropagation();
+        var t = liveTarget(item.mmsi);
+        if (t) { item.lat = t.lat; item.lon = t.lon; }
+        flyTo(item.lat, item.lon);
+      });
+      dest.appendChild(center);
+      vesselT = setInterval(function () {
+        var t = liveTarget(item.mmsi);
+        if (t) { item.lat = t.lat; item.lon = t.lon; }
+        meta.innerHTML = vesselMetaHtml(t, item);
+      }, 2500);
+    }
+    dest.appendChild(status);
     dest.style.display = "block";
     if (routable) {
       go.addEventListener("pointerup", function (e) {
         e.preventDefault(); e.stopPropagation();
+        if (item.vessel) {
+          // rute til fartoyets posisjon i TRYKKOYEBLIKKET (ferskeste AIS-fix)
+          var t = liveTarget(item.mmsi);
+          if (t) { item.lat = t.lat; item.lon = t.lon; }
+          if (!insideDemoArea(item.lat, item.lon)) { setStatus(status, "The vessel has left the demo chart area — view only.", false); return; }
+        }
         routeTo(item, go, status);
       });
     }
@@ -3978,7 +4368,7 @@ class Component extends DCLogic {
       });
       if (failed || ticks > 55) {
         clearInterval(routePoll);
-        setStatus(status, failed ? "No safe route found — the harbor is blocked by land or shoals." : "Route planning timed out — try again.", false);
+        setStatus(status, failed ? "No safe route found — the " + (item.vessel ? "vessel is cut off" : "harbor is blocked") + " by land or shoals." : "Route planning timed out — try again.", false);
         go.style.display = "flex";
       }
     }, 600);

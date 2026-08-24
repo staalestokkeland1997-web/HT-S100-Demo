@@ -63,12 +63,37 @@ folger day/dusk/night automatisk. Havnesoket har innebygd norsk havneliste
 eget touch-tastatur med AE/O/AA i samme glass-stil. Velg et treff for aa faa
 et destinasjonskort med "Set route to destination": appens dybdetrygge
 autoroute planlegger ruten og seilasen startes automatisk. Havner utenfor
-demo-kartomraadet vises som "view only". Ruteplanleggingen kjorer tidsskivet i
-bakgrunnen, saa kartet kan panoreres/zoomes og alle knapper virker mens ruten
-beregnes. AIS-laget er **kun ekte trafikk**: det finnes ingen simulert
+demo-kartomraadet vises som "view only". Soket finner ogsaa **fartoy**: det
+soker i de live AIS-maalene (navn eller MMSI) — samme sannhet som skopet
+viser, ingen egen kilde — og fartoykortet folger maalet live (posisjon, fart,
+kurs, destinasjon), kan sentrere kartet paa fartoyet og sette kurs mot det med
+samme dybdetrygge autoroute ("Set route to vessel"; ruta gaar til fartoyets
+posisjon i trykkoyeblikket, og forsvinner signalet viser kortet "AIS signal
+lost" paa siste kjente posisjon). Er AIS-kilden nede, gir fartoysoket ingen
+treff — et aerlig tomt svar, som resten av AIS-laget. Ruteplanleggingen
+kjorer tidsskivet i bakgrunnen, saa kartet kan panoreres/zoomes og alle
+knapper virker mens ruten beregnes. AIS-laget er **kun ekte trafikk**: det finnes ingen simulert
 flaate og ingen varmstart fra en gammel cache. Er stroemmen nede eller tom,
 staar skopet tomt og kildepanelet sier hvorfor — et tomt AIS-bilde er sant,
 en oppdiktet flaate er det ikke.
+
+Rutefinneren er bygget om for fart og sikkerhet: hver sjokartflis dekodes EN
+gang til en bitpakket landmaske (8-16 KB i stedet for 256 KB raa piksler), saa
+store korridorer ikke lenger kaster ut hverandres fliser midt i planleggingen;
+A*-soeket bruker lukket sett og vektet heuristikk (hoyst en ekspansjon per
+celle — foer kunne et soek brenne hele ekspansjonstaket paa aa gjenaapne noder
+og "feile" en passasje som var aapen); klaringsnivaaer som blokkerer identisk
+deler ett soek; og validering som strander paa ulastede fliser avbryter runden
+i stedet for aa brenne hele kaskaden mot manglende data. Ruter over ~12 nm
+planlegges i to trinn: en grov korridor finner skjelettet, deretter planlegges
+hvert ~7 nm-segment paa fullt finmasket rutenett (~0,02 nm celler, samme
+skjaergaardsopploesning som korte ruter — foer vokste cellene med avstanden og
+smaa holmer kunne falle mellom dem) og soemmes sammen. Flis-preloaden gaar naa
+som en prioritert stroem langs ruten i stedet for 400 samtidige kall, og den
+autonome omrutingen underveis kjorer ogsaa tidsskivet (hoyst ett soek per
+bilde) i stedet for aa fryse simulasjonen. Hver kandidatrute valideres fortsatt
+kontinuerlig (hver 0,02 nm) mot selve kartrasteret foer den settes — en rute
+kan aldri godkjennes paa data som ikke er lastet.
 
 HT Radar er et fullverdig radarkonsoll (demo) med roterende sveip og
 etterglod, datablokker i hjornene, peilering med kurs- og nordmerke,
