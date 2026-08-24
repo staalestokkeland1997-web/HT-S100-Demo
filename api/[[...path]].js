@@ -163,24 +163,30 @@ async function handleApi(request, response, url) {
   // HT ECDIS: skipets posisjon/kurs/innstillinger lagres server-side slik at
   // demoen fortsetter der den slapp selv om nettleserprofilen nullstilles.
   // AIS-maal lagres IKKE her - hver skjerm henter dem fra /ais/targets.
+  // Tidsstemplene under maales i SERVERENS klokke, bade naar tilstanden
+  // lagres og naar den leses. Da kan radaren regne ut hvor gammelt et
+  // snapshot er uten aa stole paa at ECDIS-maskinen og radarmaskinen har
+  // samme klokke - og fore skipet frem dit det faktisk staar naa, i stedet
+  // for aa tegne en posisjon som er sekunder gammel.
   if (pathname === "/api/ecdis-state") {
     if (request.method === "GET") {
       const state = await store.getJson("ecdis-state");
-      sendJson(response, 200, state || {});
+      sendJson(response, 200, { ...(state || {}), serverNow: Date.now() });
       return;
     }
 
     if (request.method === "POST") {
       try {
         const body = await parseJsonBody(request);
-        const document = JSON.stringify(body);
+        const stamped = { ...(body || {}), serverSavedAt: Date.now() };
+        const document = JSON.stringify(stamped);
 
         if (document.length > 256 * 1024) {
           sendJson(response, 413, { error: "State too large." });
           return;
         }
 
-        await store.setJson("ecdis-state", body);
+        await store.setJson("ecdis-state", stamped);
         sendJson(response, 200, { ok: true });
       } catch (error) {
         sendJson(response, 400, { error: "Invalid state payload." });
@@ -585,6 +591,10 @@ async function handleAis(request, response, url) {
 const PROXY_HOSTS = new Set([
   "api.met.no",
   "vannstand.kartverket.no",
+  // Sjokartflisene: radaren maler landekkoene fra de SAMME flisene ECDIS
+  // tegner, og maa lese pikslene. Naar nettleseren ikke faar CORS direkte
+  // hentes flisen herfra i stedet - da er den samme opphav og lesbar.
+  "cache.kartverket.no",
   "ows.emodnet-bathymetry.eu",
   "d2ad6b4ur7yvpq.cloudfront.net",
   "raw.githubusercontent.com"
