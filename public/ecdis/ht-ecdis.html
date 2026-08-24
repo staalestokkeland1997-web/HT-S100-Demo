@@ -46,8 +46,18 @@
       if (remote.ship && remote.ship.savedAt) {
         var local = {};
         try { local = JSON.parse(localStorage.getItem("mrd_ship") || "{}") || {}; } catch (e) {}
-        if (!local.savedAt || remote.ship.savedAt > local.savedAt) {
-          localStorage.setItem("mrd_ship", JSON.stringify(remote.ship));
+        // Alder, ikke tidsstempel: serveren stempler bade lagring og svar, saa
+        // "hvem er ferskest" avgjores uten aa anta at denne maskinen og den
+        // som lagret har samme klokke. Deretter skrives savedAt om til DENNE
+        // maskinens klokke, slik at dodregningen ved oppstart blir riktig.
+        var rAge = (remote.serverNow && remote.serverSavedAt)
+          ? Math.max(0, remote.serverNow - remote.serverSavedAt)
+          : Math.max(0, Date.now() - remote.ship.savedAt);
+        var lAge = local.savedAt ? Math.max(0, Date.now() - local.savedAt) : Infinity;
+        if (rAge < lAge) {
+          var adopted = JSON.parse(JSON.stringify(remote.ship));
+          adopted.savedAt = Date.now() - rAge;
+          localStorage.setItem("mrd_ship", JSON.stringify(adopted));
           if (remote.route && remote.route.route) localStorage.setItem("mrd_route", JSON.stringify(remote.route));
         }
       }
