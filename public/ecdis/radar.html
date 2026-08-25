@@ -380,9 +380,20 @@
   // synk fra ECDIS i samme nettleserprofil; er ECDIS aapen i samme nettleser
   // overtar BroadcastChannel. AIS-maalene er ikke med her - de hentes fra
   // stroemmen direkte.
+  // Samme kiosk-nokkel som ECDIS bruker, slik at de to skjermene fortsatt
+  // deler seilas mens tilfeldige besokende ikke skriver inn i den.
+  var STATE_URL = (function () {
+    var id = "";
+    try {
+      id = (new URLSearchParams(location.search).get("kiosk") || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
+    } catch (e) {}
+    return "/api/ecdis-state" + (id ? "?kiosk=" + id : "");
+  })();
+
   function pollServer() {
+    if (document.hidden) return;
     var t0 = Date.now();
-    fetch("/api/ecdis-state", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
+    fetch(STATE_URL, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
       if (!st) return;
       if (st.route) adoptRoute(st.route);
       if (!st.ship) return;
@@ -569,9 +580,10 @@
   }
   var AIS_COLS = ["#0A84FF", "#34C759", "#FF9F0A", "#BF5AF2", "#FF375F", "#30B0C7", "#FFD60A"];
   function aisColor(mmsi) { return AIS_COLS[Math.abs(mmsi | 0) % AIS_COLS.length]; }
-  function pollAis() {
+  function pollAis(force) {
     var base = aisBase();
     if (!base || aisBusy) return;
+    if (document.hidden && !force) return;
     aisBusy = true;
     fetch(base + "/ais/targets?bbox=" + aisBox(), { cache: "no-store" })
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -617,6 +629,13 @@
   }
   pollAis();
   setInterval(pollAis, 3000);
+  // En glemt radarfane holdt AIS-broen oppkoblet hele dogenet. Pausen tas naar
+  // fanen er skjult, og bildet hentes med en gang den er synlig igjen.
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) return;
+    pollServer();
+    pollAis(true);
+  });
 
   // Kartet tegner AIS-maalene DER DE MELDER SEG. Radaren gjor det samme: den
   // dodregner dem ikke fremover (da ville ekkoene ligget foran skipene paa

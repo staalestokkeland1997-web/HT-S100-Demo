@@ -18,10 +18,31 @@ function mergeSection(defaults, stored) {
   return { ...defaults, ...stored };
 }
 
+// Den lagrede configen leses fra basen ved hvert API-kall, ogsaa av AIS-
+// endepunktene som klientene poller hvert 3. sekund. Instansen holdes varm
+// mellom kall (det er nettopp derfor AIS-socketen overlever), saa en kort
+// cache paa modulnivaa fjerner titalls unodige databaseoppslag i minuttet
+// uten at adminendringer blir staaende lenge.
+const CONFIG_TTL_MS = 5000;
+let configCache = null;
+let configCachedAt = 0;
+
+function invalidateConfigCache() {
+  configCache = null;
+  configCachedAt = 0;
+}
+
+const IS_PRODUCTION = process.env.VERCEL_ENV === "production";
+
 // Lagret config (fra adminsidene) legges over de bundlede standardene, felt
 // for felt per seksjon, slik at nye standardfelter i repoet aldri forsvinner.
 async function loadConfig() {
-  const stored = (await store.getJson("config")) || {};
+  if (configCache && Date.now() - configCachedAt < CONFIG_TTL_MS) {
+    return configCache;
+  }
+
+  const { admin: _ignoredAdmin, apiKeys: _ignoredKeys, ...stored } =
+    (await store.getJson("config")) || {};
   const config = { ...DEFAULT_CONFIG, ...stored };
 
   Object.keys(DEFAULT_CONFIG).forEach((key) => {
@@ -44,11 +65,26 @@ async function loadConfig() {
     throw new Error("Missing admin.password in config/contest-config.json");
   }
 
+  // Standardpassordet ligger i et offentlig repo, og bak adminsidene ligger
+  // navn, e-post og telefon til alle deltakere. Er ADMIN_PASSWORD glemt i
+  // produksjon, stenges adminsidene - men spillene og ECDIS-en fortsetter aa
+  // virke. Aa ta ned hele kiosken midt paa en messe ville vaert en verre kur
+  // enn sykdommen; /api/health sier tydelig fra i stedet.
+  config.adminLocked = IS_PRODUCTION && config.admin.password === DEFAULT_CONFIG.admin.password;
+
+  configCache = config;
+  configCachedAt = Date.now();
+
   return config;
 }
 
+// Hemmeligheter kommer fra miljovariabler og skal ALDRI persisteres: gjorde de
+// det, ville et adminpassord fra env blitt liggende i basen og fortsatt virke
+// lenge etter at variabelen var fjernet.
 async function writeConfig(config) {
-  await store.setJson("config", config);
+  const { admin, apiKeys, adminLocked, ...persisted } = config;
+  await store.setJson("config", persisted);
+  invalidateConfigCache();
 }
 
 function toBoundedNumber(value, fallback, min, max) {
@@ -458,7 +494,7 @@ async function backupEntries(reason = "manual") {
   };
 
   await store.pushBackup(backup);
-  return `data/backups/${name}`;
+  return `backup:${name}`;
 }
 
 async function latestBackupInfo() {
@@ -471,7 +507,7 @@ async function latestBackupInfo() {
 
   return {
     name: latest.name,
-    path: `data/backups/${latest.name}`,
+    path: `backup:${latest.name}`,
     createdAt: latest.createdAt,
     bytes: latest.bytes
   };
@@ -498,9 +534,19 @@ function getLeaderboard(entries, limit = 10, game = null) {
     }));
 }
 
+// Ett gjennomlop i stedet for en full sortering per spill. Med sju spill
+// sorterte /api/leaderboard hele deltakerlisten sju ganger for hver
+// forespoersel, ogsaa naar klienten bare ba om ett av dem.
 function getAllLeaderboards(entries, limit = 10) {
+  const byGame = Object.fromEntries(Object.keys(GAMES).map((gameId) => [gameId, []]));
+
+  for (const entry of entries) {
+    const bucket = byGame[entry.game];
+    if (bucket) bucket.push(entry);
+  }
+
   return Object.fromEntries(
-    Object.keys(GAMES).map((gameId) => [gameId, getLeaderboard(entries, limit, gameId)])
+    Object.entries(byGame).map(([gameId, scoped]) => [gameId, getLeaderboard(scoped, limit)])
   );
 }
 
@@ -517,7 +563,14 @@ function buildCsv(entries) {
     entry.createdAt
   ]);
 
-  const escape = (value) => `"${String(value).replace(/"/g, "\"\"")}"`;
+  // Regneark tolker ledende =, +, - og @ som formelstart, saa et deltakernavn
+  // kan ellers bli kjorbar kode naar admin aapner eksporten i Excel. Apostrof
+  // foran gjor cellen til ren tekst.
+  const escape = (value) => {
+    const text = String(value ?? "");
+    const guarded = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+    return `"${guarded.replace(/"/g, "\"\"")}"`;
+  };
   return [header, ...rows].map((row) => row.map(escape).join(",")).join("\n");
 }
 
@@ -562,6 +615,7 @@ module.exports = {
   GAME_SCHEMAS,
   loadConfig,
   writeConfig,
+  invalidateConfigCache,
   toBoundedNumber,
   toBoundedFloat,
   normalizeGameSettings,

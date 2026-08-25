@@ -4,7 +4,8 @@
   "description": "Hatteland Technology messekonkurranse - touchspill, adminsider og HT ECDIS/radar-demo. Deployes paa Vercel (statisk frontend + serverless API).",
   "private": true,
   "scripts": {
-    "build": "echo 'Statisk frontend + serverless API - ingen byggesteg.'"
+    "build": "echo 'Statisk frontend + serverless API - ingen byggesteg.'",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=18"

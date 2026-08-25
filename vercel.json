@@ -3,21 +3,105 @@
   "outputDirectory": "public",
   "cleanUrls": false,
   "rewrites": [
-    { "source": "/", "destination": "/app.html" },
-    { "source": "/proxy", "destination": "/api/proxy" },
-    { "source": "/ais/:path*", "destination": "/api/ais?sub=:path*" },
-    { "source": "/api/ais/:path*", "destination": "/api/ais?sub=:path*" },
-    { "source": "/api/admin/:path*", "destination": "/api/admin?sub=:path*" },
-    { "source": "/favicon.ico", "destination": "/assets/logo.svg" }
+    {
+      "source": "/",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/proxy",
+      "destination": "/api/proxy"
+    },
+    {
+      "source": "/ais/:path*",
+      "destination": "/api/ais?sub=:path*"
+    },
+    {
+      "source": "/api/ais/:path*",
+      "destination": "/api/ais?sub=:path*"
+    },
+    {
+      "source": "/api/admin/:path*",
+      "destination": "/api/admin?sub=:path*"
+    },
+    {
+      "source": "/favicon.ico",
+      "destination": "/assets/logo.svg"
+    }
   ],
   "headers": [
     {
-      "source": "/(.*)\\.(html|js|css|json|svg|webmanifest)",
-      "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self'"
+        }
+      ]
     },
     {
-      "source": "/(.*)\\.(png|jpg|jpeg|gif|webp|ico|woff|woff2|txt)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
+      "source": "/(.*)\\.(html|js|css|json|webmanifest)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(png|jpg|jpeg|gif|webp|ico|svg|woff|woff2|txt)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    },
+    {
+      "source": "/ecdis/vendor/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(admin|admin-rush|admin-duel|admin-games|status)\\.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/(admin-rush|admin-duel|admin-games|status)\\.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "functions": {

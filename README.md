@@ -183,11 +183,11 @@ akkurat som de lokale `data/backups/`-kopiene gjorde.
 
 | Variabel | Effekt |
 | --- | --- |
-| `ADMIN_PASSWORD` | Overstyrer adminpassordet fra `config/contest-config.json`. **Anbefales** — standardpassordet ligger i et offentlig repo. |
-| `AISSTREAM_API_KEY` | Overstyrer `apiKeys.aisstream` (live AIS i ECDIS). |
+| `ADMIN_PASSWORD` | Adminpassordet. **Paakrevd i produksjon.** Standardpassordet i `config/contest-config.json` ligger i et offentlig repo, saa adminsidene svarer `503 Admin is locked` til denne er satt. Spillene og ECDIS-en virker som normalt imens; `/api/health` viser `adminLocked`. |
+| `AISSTREAM_API_KEY` | API-nokkel for live AIS via aisstream i ECDIS. **Maa settes** — repoet inneholder ingen nokkel. |
 | `AIS_KYSTVERKET_ENABLED` | `0` skrur Kystverket-kilden helt av (samme som `ais.enabled: false`). |
 | `AIS_KYSTVERKET_HOST` / `AIS_KYSTVERKET_PORT` | Overstyrer Kystverkets stroem (standard `153.44.253.27:5631`). |
-| `ARCGIS_API_KEY` | Overstyrer `apiKeys.arcgis` (flyfoto/Ocean-basemap + stedssok i ECDIS). |
+| `ARCGIS_API_KEY` | API-nokkel for flyfoto/Ocean-basemap + stedssok i ECDIS. **Maa settes** — repoet inneholder ingen nokkel. Nokkelen naar klienten via `/api/config`, saa laas den til deploy-domenet med referrer-restriksjon i ArcGIS-portalen. |
 | `SUPABASE_URL` | Supabase-prosjektets URL — varig lagring via Supabase (alternativ til Redis). |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role-nokkel (hemmelig, kun server-side). |
 
@@ -249,10 +249,15 @@ Viktige seksjoner:
   kontakt. Er den stengt, vises ingen AIS-maal i det hele tatt (ingen
   demoflaate tar over) — velg aisstream.io i kildepanelet i stedet.
 
-- `apiKeys`: API-nokler for innebygde demoer. `apiKeys.aisstream` brukes av
-  HT ECDIS naar aisstream er valgt som AIS-kilde.
-  `apiKeys.arcgis` laaser opp Flyfoto/Ocean-basemaps og legger ArcGIS-treff
-  oppaa havnesoket (den innebygde norske havnelisten virker uten nokkel).
+- `apiKeys`: API-nokler for innebygde demoer. Feltene staar **tomme** i repoet
+  med vilje: nokler i et offentlig repo maa regnes som kompromitterte, og
+  `/api/config` serverer dem dessuten videre til klienten. Sett dem som
+  miljovariabler i Vercel i stedet (`AISSTREAM_API_KEY`, `ARCGIS_API_KEY`).
+  `apiKeys.aisstream` brukes av HT ECDIS naar aisstream er valgt som
+  AIS-kilde. `apiKeys.arcgis` laaser opp Flyfoto/Ocean-basemaps og legger
+  ArcGIS-treff oppaa havnesoket (den innebygde norske havnelisten virker uten
+  nokkel). Uten nokler faller demoen tilbake paa Kystverket-AIS og de norske
+  sjokartene, som ikke krever noen.
 - HT ECDIS husker seg selv mellom okter: skipets posisjon, kurs, rute,
   kartlag og palett lagres hvert 5. sekund (localStorage + `/api/ecdis-state`
   i databasen). Ved neste besok dodregnes skipet frem langs ruten etter
@@ -272,10 +277,11 @@ GET  /api/config
 GET  /api/leaderboard?game=<id>
 GET  /api/games
 POST /api/standalone-entry
-GET/POST /api/ecdis-state
+GET/POST /api/ecdis-state[?kiosk=<id>]   (en tilstand per kiosk)
 GET  /ais/status                     (Kystverket-broens tilstand)
 GET  /ais/targets?bbox=<lat,lon,lat,lon>[&atons=1]
 GET  /proxy?url=<https-url>          (allowlist: MET/yr, Kartverket m.fl.)
+                                     (redirects valideres per hopp, 8 s timeout)
 GET  /api/admin/entries              (header: x-admin-password)
 GET/POST /api/admin/settings
 GET/POST /api/admin/duel-settings
@@ -292,7 +298,11 @@ api/
   [[...path]].js         (hele backend-API-et som en serverless-funksjon)
   _lib/
     contest.js           (spillogikk/normalisering — portert fra server.js)
-    store.js             (Redis-lagring med /tmp-fallback)
+    store.js             (Redis-lagring med /tmp-fallback + forsokstellere)
+    ais-kystverket.js    (AIVDM-dekoder og TCP-bro mot Kystverket)
+    ecdis-state.js       (validering av ECDIS-tilstanden som lagres)
+    proxy-allowlist.js   (hvilke verter /proxy faar hente fra)
+test/                    (node --test — kjor med `npm test`)
 config/
   contest-config.json    (standardverdier for spill/branding/admin)
   kiosk-config.json      (standardrute for forsiden)
@@ -303,7 +313,9 @@ public/                  (alt som serveres statisk)
   *-standalone.html      (spillene)
   admin*.html/js, status.html/js
   ecdis/                 (HT ECDIS + HT Radar med vendored React/fonter)
-vercel.json              (rewrites, cache-headere, output-katalog)
+  robots.txt             (adminsidene skal ikke indekseres)
+vercel.json              (rewrites, cache- og sikkerhetsheadere, output-katalog)
+.github/workflows/       (CI: tester + sjekk mot nokler i configfilen)
 ```
 
 ## Personvern
@@ -312,3 +324,24 @@ Deltakere lagres med navn, e-post og telefon kun for konkurransen og
 premievarsling (se `privacy`-teksten i config). Husk at en offentlig
 Vercel-URL er tilgjengelig for alle: sett `ADMIN_PASSWORD`, og nullstill
 databasen etter messen (admin → Reset, eller slett Redis-databasen).
+
+Innsending er bremset per IP (10 per 5 minutter) og adminpaalogging likesaa
+(10 forsok per 10 minutter), saa hverken leaderboardet eller persondatabasen
+kan fylles med soppel fra et skript.
+
+Merk at **sikkerhetskopiene overlever en nullstilling**: de ti siste ligger i
+databasen, hver under sin egen nokkel (`htkiosk:backup:<navn>`). Skal
+persondataene faktisk vekk etter messen, slett hele databasen — en Reset
+alene flytter dem bare til siste sikkerhetskopi.
+
+## Tester
+
+```text
+npm test
+```
+
+Ingen avhengigheter — `node --test` mot `test/`. Dekker AIVDM-dekoderen (mot
+de publiserte referansesetningene fra gpsd-spesifikasjonen), valideringen av
+innsendinger og spillinnstillinger, CSV-eksporten og de to stedene der en
+utenforstaaende snakker direkte til serveren: `/api/ecdis-state` og `/proxy`.
+Testene kjorer ogsaa i CI paa hver PR.

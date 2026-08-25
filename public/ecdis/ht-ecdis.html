@@ -18,6 +18,17 @@
 // maa ligge klart for hovedskriptet leser localStorage.
 (function () {
   window.__kioskKeys = {};
+  // Tilstanden ligger under EN nokkel per kiosk. For delte alle besokende ett
+  // skip: to telefoner som aapnet demoen samtidig overskrev hverandre hvert
+  // 5. sekund. ECDIS og radar aapnes med samme ?kiosk=-verdi og deler derfor
+  // fortsatt seilas, akkurat som for.
+  window.__ecdisStateUrl = (function () {
+    var id = "";
+    try {
+      id = (new URLSearchParams(location.search).get("kiosk") || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
+    } catch (e) {}
+    return "/api/ecdis-state" + (id ? "?kiosk=" + id : "");
+  })();
   try {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", "/api/config", false);
@@ -39,7 +50,7 @@
   } catch (e) { /* file-modus eller server nede: da finnes ingen AIS-kilde */ }
   try {
     var xhr2 = new XMLHttpRequest();
-    xhr2.open("GET", "/api/ecdis-state", false);
+    xhr2.open("GET", window.__ecdisStateUrl, false);
     xhr2.send(null);
     if (xhr2.status === 200) {
       var remote = JSON.parse(xhr2.responseText) || {};
@@ -2037,9 +2048,17 @@ class Component extends DCLogic {
     this._aisKvFails = 0;
     this._aisKvDry = 0;
     this.setState({ aisStatus: 'connecting', aisMode: 'live' });
-    const tick = () => { if (this._aisKvOn) this.pollKystverket(base); };
+    // Skjult fane skal ikke holde AIS-broens TCP-stroem og funksjonsinstansen
+    // i live doegnet rundt - samme vakt som lagringsintervallet bruker. Naar
+    // fanen kommer tilbake hentes maalene med en gang, saa kartet ikke staar
+    // med et gammelt bilde mens neste intervall venter.
+    const tick = () => { if (this._aisKvOn && !document.hidden) this.pollKystverket(base); };
     tick();
     this._aisKvTimer = setInterval(tick, 3000);
+    if (!this._aisKvVis) {
+      this._aisKvVis = () => { if (!document.hidden) tick(); };
+      document.addEventListener('visibilitychange', this._aisKvVis);
+    }
   }
 
   async pollKystverket(base) {
@@ -3730,8 +3749,9 @@ class Component extends DCLogic {
       try { localStorage.removeItem('mrd_ais'); } catch (e) {}
       this.persistTrack();
       const doc = JSON.stringify({ ship: snap, route: this.route && this.route.length ? { route: this.route, channel: this.channel, activeLeg: this.activeLeg } : null, targets: null });
-      if (unloading && navigator.sendBeacon) navigator.sendBeacon('/api/ecdis-state', new Blob([doc], { type: 'application/json' }));
-      else fetch('/api/ecdis-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: doc, keepalive: !!unloading }).catch(() => {});
+      const stateUrl = window.__ecdisStateUrl || '/api/ecdis-state';
+      if (unloading && navigator.sendBeacon) navigator.sendBeacon(stateUrl, new Blob([doc], { type: 'application/json' }));
+      else fetch(stateUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: doc, keepalive: !!unloading }).catch(() => {});
     } catch (e) {}
   }
   loadShipState() {
