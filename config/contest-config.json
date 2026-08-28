@@ -25,8 +25,8 @@
     "confirmationAutoResetSeconds": 12
   },
   "apiKeys": {
-    "aisstream": "1359f173a821db5d3b6b8278a865a3eeae17dfdc",
-    "arcgis": "AAPTaMlwtVNNPCs80q9OyAMBeuA..WQL3xbwAAXACOHYZm18jMTXsh_O9j7n3aTZcdxHuqpzerao83g-Cm-FbYeRU_qe0PNV-A3Mwf6JTcRsALibYYhoyjztC7g-HSxhKxI3-AaU72k_k2no3GHGAE8UKNw6HzXLUnbyjZb-HcfWuhrd_ccKaqFtFx9qcTqwy_Aetd5A0wVrZvg5X-ngg4prcfz4DBUJeuwC8b1UmPUsUKv4_H-rSuDJIrIfsuuQ5-sKU4kwL53bIxIvafZ8UAT1_OXdeMqnf"
+    "aisstream": "",
+    "arcgis": ""
   },
   "ais": {
     "source": "auto",

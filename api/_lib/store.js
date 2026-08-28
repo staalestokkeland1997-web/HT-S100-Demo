@@ -246,15 +246,100 @@ async function replaceEntries(entries) {
   tmpWrite("entries", entries);
 }
 
+// Sikkerhetskopier ligger som EN nokkel per kopi, og bare metadataene staar i
+// indeksen. For laa alle de ti kopiene i samme verdi: med noen tusen deltakere
+// sprengte den Upstash sitt 1 MB-tak, og da feilet nullstillingen i akkurat det
+// oyeblikket sikkerhetskopien trengtes. Indeksen er dessuten liten nok til at
+// /api/admin/status kan lese den uten aa dra med seg hele deltakerbasen.
 async function listBackups() {
-  const stored = await getJson("backups");
-  return Array.isArray(stored) ? stored : [];
+  const stored = await getJson("backup-index");
+
+  if (Array.isArray(stored)) {
+    return stored;
+  }
+
+  // Migrering fra det gamle formatet: hele kopier lagret under "backups".
+  const legacy = await getJson("backups");
+  return Array.isArray(legacy) ? legacy.map(({ entries, ...meta }) => meta) : [];
 }
 
 async function pushBackup(backup) {
-  const backups = await listBackups();
-  backups.unshift(backup);
-  await setJson("backups", backups.slice(0, MAX_BACKUPS));
+  const { entries, ...meta } = backup;
+  const index = await listBackups();
+
+  await setJson(`backup:${meta.name}`, { ...meta, entries });
+
+  index.unshift(meta);
+  const kept = index.slice(0, MAX_BACKUPS);
+
+  await setJson("backup-index", kept);
+
+  // Rydd bort kopier som falt ut av indeksen, saa de ikke blir liggende med
+  // persondata i basen etter at admin har nullstilt.
+  for (const dropped of index.slice(MAX_BACKUPS)) {
+    await deleteKey(`backup:${dropped.name}`).catch(() => {});
+  }
+}
+
+async function readBackup(name) {
+  return getJson(`backup:${name}`);
+}
+
+async function deleteKey(key) {
+  if (HAS_REDIS) {
+    await redisCommand(["DEL", KEY_PREFIX + key]);
+    return;
+  }
+
+  if (HAS_SUPABASE) {
+    await supaFetch(`/rest/v1/htkiosk_kv?key=eq.${encodeURIComponent(key)}`, { method: "DELETE" });
+    return;
+  }
+
+  memoryCache.delete(key);
+
+  try {
+    fs.unlinkSync(tmpPathFor(key));
+  } catch (error) {
+    // Fantes ikke - ingenting aa rydde.
+  }
+}
+
+// Enkel forsoksteller for adminpaalogging og innsending. Redis/Supabase gir
+// en teller som deles av alle funksjonsinstanser; uten database faller den
+// tilbake til prosessminnet, som er bedre enn ingenting paa en varm instans.
+const memoryHits = new Map();
+
+async function hitCount(bucket, windowSeconds) {
+  const key = `rate:${bucket}`;
+
+  if (HAS_REDIS) {
+    const count = await redisCommand(["INCR", KEY_PREFIX + key]);
+
+    if (Number(count) === 1) {
+      await redisCommand(["EXPIRE", KEY_PREFIX + key, String(windowSeconds)]);
+    }
+
+    return Number(count);
+  }
+
+  const now = Date.now();
+  const slot = memoryHits.get(key);
+
+  if (!slot || slot.resetAt <= now) {
+    memoryHits.set(key, { count: 1, resetAt: now + windowSeconds * 1000 });
+
+    // Uten TTL i basen maa kartet ryddes selv, ellers vokser det i en varm
+    // instans som staar hele messedagen.
+    if (memoryHits.size > 5000) {
+      for (const [k, v] of memoryHits) if (v.resetAt <= now) memoryHits.delete(k);
+    }
+
+    return 1;
+  }
+
+  slot.count += 1;
+  return slot.count;
 }
 
 module.exports = {
@@ -266,5 +351,8 @@ module.exports = {
   appendEntry,
   replaceEntries,
   listBackups,
-  pushBackup
+  pushBackup,
+  readBackup,
+  deleteKey,
+  hitCount
 };

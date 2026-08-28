@@ -1,0 +1,9 @@
+# Messekiosk-demo. Adminsidene og statussiden skal aldri indekseres; de ligger
+# i tillegg bak X-Robots-Tag: noindex fra vercel.json.
+User-agent: *
+Disallow: /admin.html
+Disallow: /admin-rush.html
+Disallow: /admin-duel.html
+Disallow: /admin-games.html
+Disallow: /status.html
+Disallow: /api/

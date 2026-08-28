@@ -7,6 +7,8 @@ const crypto = require("crypto");
 const store = require("./_lib/store");
 const contest = require("./_lib/contest");
 const { KystverketAis } = require("./_lib/ais-kystverket");
+const { ecdisStateId, sanitizeEcdisState } = require("./_lib/ecdis-state");
+const { proxyAllows } = require("./_lib/proxy-allowlist");
 
 const KIOSK_CONFIG = require("../config/kiosk-config.json");
 
@@ -55,7 +57,17 @@ function sendText(response, statusCode, payload, contentType = "text/plain; char
 
 // Vercel parser JSON-body selv naar Content-Type er satt; behold likevel
 // stream-lesing som fallback (f.eks. sendBeacon uten korrekt content-type).
+const MAX_BODY_BYTES = 1024 * 1024;
+
 function parseJsonBody(request) {
+  // Sjekk headeren for begge grenene under: taket nedenfor gjaldt bare
+  // stream-fallbacken, saa en kropp Vercel alt hadde parset slapp usjekket
+  // gjennom.
+  const declared = Number(request.headers["content-length"]);
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+    return Promise.reject(new Error("Payload too large"));
+  }
+
   if (request.body !== undefined && request.body !== null) {
     if (typeof request.body === "string") {
       if (!request.body) {
@@ -86,7 +98,7 @@ function parseJsonBody(request) {
     request.on("data", (chunk) => {
       body += chunk;
 
-      if (body.length > 1024 * 1024) {
+      if (body.length > MAX_BODY_BYTES) {
         reject(new Error("Payload too large"));
         request.destroy();
       }
@@ -120,7 +132,56 @@ function safeEquals(left, right) {
   return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-function requireAdmin(request, response, config) {
+function clientIp(request) {
+  const forwarded = String(request.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded || request.headers["x-real-ip"] || "unknown";
+}
+
+// Uten dette kan et skript prove tusenvis av adminpassord i minuttet mot en
+// serverless-funksjon, eller fylle deltakerlisten med falsk persondata.
+// Telleren ligger i basen naar en er koblet til, saa den deles av alle
+// instanser; ellers holder den i prosessminnet paa en varm instans.
+async function tooManyAttempts(response, bucket, limit, windowSeconds) {
+  let count = 0;
+
+  try {
+    count = await store.hitCount(bucket, windowSeconds);
+  } catch (error) {
+    // Er telleren nede, skal den ikke ta ned kiosken. Slipp forespoerselen
+    // gjennom heller enn aa avvise ekte deltakere paa messa.
+    return false;
+  }
+
+  if (count <= limit) {
+    return false;
+  }
+
+  response.writeHead(429, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Retry-After": String(windowSeconds)
+  });
+  response.end(JSON.stringify({ error: "Too many requests. Try again shortly." }));
+  return true;
+}
+
+async function requireAdmin(request, response, config) {
+  // ADMIN_PASSWORD glemt i produksjon: da staar standardpassordet fra det
+  // offentlige repoet igjen, og adminsidene ville servert persondata til
+  // hvem som helst. Steng dem heller enn aa stole paa passordet.
+  if (config.adminLocked) {
+    sendJson(response, 503, {
+      error:
+        "Admin is locked: ADMIN_PASSWORD is not set, and the default password from the public " +
+        "repository cannot be used in production. Set it in Vercel > Settings > Environment Variables."
+    });
+    return false;
+  }
+
+  if (await tooManyAttempts(response, `admin:${clientIp(request)}`, 10, 600)) {
+    return false;
+  }
+
   const password = request.headers["x-admin-password"];
 
   if (!safeEquals(password, config.admin.password)) {
@@ -155,7 +216,8 @@ async function handleApi(request, response, url) {
     sendJson(response, 200, {
       ok: true,
       time: new Date().toISOString(),
-      storage: { mode: store.mode, persistent: store.persistent }
+      storage: { mode: store.mode, persistent: store.persistent },
+      adminLocked: Boolean(config.adminLocked)
     });
     return;
   }
@@ -169,24 +231,41 @@ async function handleApi(request, response, url) {
   // samme klokke - og fore skipet frem dit det faktisk staar naa, i stedet
   // for aa tegne en posisjon som er sekunder gammel.
   if (pathname === "/api/ecdis-state") {
+    // En nokkel per kiosk. Endepunktet er offentlig (kiosksidene kan ikke bare
+    // paa en hemmelighet), saa uten dette delte ALLE besokende ett skip:
+    // to telefoner som aapner demoen overskrev hverandre hvert 5. sekund, og
+    // en utenforstaaende kunne flyttet demoskipet midt i en presentasjon.
+    // ECDIS og radar aapnes med samme ?kiosk=-verdi og deler derfor tilstand.
+    const stateKey = "ecdis-state:" + ecdisStateId(url.searchParams);
+
     if (request.method === "GET") {
-      const state = await store.getJson("ecdis-state");
+      const state = await store.getJson(stateKey);
       sendJson(response, 200, { ...(state || {}), serverNow: Date.now() });
       return;
     }
 
     if (request.method === "POST") {
+      if (await tooManyAttempts(response, `ecdis:${clientIp(request)}`, 120, 60)) {
+        return;
+      }
+
       try {
         const body = await parseJsonBody(request);
-        const stamped = { ...(body || {}), serverSavedAt: Date.now() };
-        const document = JSON.stringify(stamped);
+        const clean = sanitizeEcdisState(body);
 
-        if (document.length > 256 * 1024) {
+        if (!clean) {
+          sendJson(response, 400, { error: "Invalid state payload." });
+          return;
+        }
+
+        const stamped = { ...clean, serverSavedAt: Date.now() };
+
+        if (JSON.stringify(stamped).length > 256 * 1024) {
           sendJson(response, 413, { error: "State too large." });
           return;
         }
 
-        await store.setJson("ecdis-state", stamped);
+        await store.setJson(stateKey, stamped);
         sendJson(response, 200, { ok: true });
       } catch (error) {
         sendJson(response, 400, { error: "Invalid state payload." });
@@ -219,6 +298,13 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && pathname === "/api/standalone-entry") {
+    // Endepunktet er aapent og lagrer navn, e-post og telefon. Uten en bremse
+    // kan bade leaderboardet og persondatabasen fylles med soppel fra ett
+    // skript. Taket ligger langt over det en messebesokende rekker.
+    if (await tooManyAttempts(response, `entry:${clientIp(request)}`, 10, 300)) {
+      return;
+    }
+
     const payload = await parseJsonBody(request);
     const entryPayload = payload && typeof payload === "object" ? payload : {};
     const errors = contest.validateStandaloneEntry(entryPayload);
@@ -259,7 +345,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && pathname === "/api/admin/entries") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -279,7 +365,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && pathname === "/api/admin/settings") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -292,7 +378,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && pathname === "/api/admin/duel-settings") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -303,7 +389,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && pathname === "/api/admin/settings") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -325,7 +411,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && pathname === "/api/admin/duel-settings") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -353,7 +439,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && pathname === "/api/admin/export") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -372,7 +458,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && pathname === "/api/admin/status") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -416,7 +502,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "GET" && pathname === "/api/admin/game-settings") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -435,7 +521,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && pathname === "/api/admin/game-settings") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -462,7 +548,7 @@ async function handleApi(request, response, url) {
   }
 
   if (request.method === "POST" && pathname === "/api/admin/reset") {
-    if (!requireAdmin(request, response, config)) {
+    if (!(await requireAdmin(request, response, config))) {
       return;
     }
 
@@ -588,18 +674,47 @@ async function handleAis(request, response, url) {
 // CORS-proxy for ECDIS-demoens dataleverandoerer (MET/yr, Kartverket tide,
 // EMODnet, kystlinje). Streng allowlist saa den ikke kan misbrukes som aapent
 // relay; api.met.no krever dessuten en identifiserende User-Agent.
-const PROXY_HOSTS = new Set([
-  "api.met.no",
-  "vannstand.kartverket.no",
-  // Sjokartflisene: radaren maler landekkoene fra de SAMME flisene ECDIS
-  // tegner, og maa lese pikslene. Naar nettleseren ikke faar CORS direkte
-  // hentes flisen herfra i stedet - da er den samme opphav og lesbar.
-  "cache.kartverket.no",
-  "ows.emodnet-bathymetry.eu",
-  "d2ad6b4ur7yvpq.cloudfront.net",
-  "raw.githubusercontent.com"
-]);
 const PROXY_UA = "HT-ECDIS-Demo/1.0 (github.com/staalestokkeland1997-web/HT-S100-Demo)";
+const PROXY_TIMEOUT_MS = 8000;
+const PROXY_MAX_BYTES = 8 * 1024 * 1024;
+const PROXY_MAX_REDIRECTS = 2;
+
+// Allowlisten sjekkes paa HVERT hopp. Med redirect: "follow" ville en tillatt
+// vert som svarer 302 mot en annen vert tatt proxyen med seg dit, og
+// allowlisten var omgaatt.
+async function proxyFetch(startUrl, signal) {
+  let target = startUrl;
+
+  for (let hop = 0; hop <= PROXY_MAX_REDIRECTS; hop++) {
+    const upstream = await fetch(target.href, {
+      headers: { "User-Agent": PROXY_UA },
+      redirect: "manual",
+      signal
+    });
+
+    if (upstream.status < 300 || upstream.status > 399) {
+      return upstream;
+    }
+
+    const location = upstream.headers.get("location");
+    if (!location) return upstream;
+
+    let next;
+    try {
+      next = new URL(location, target.href);
+    } catch (error) {
+      throw new Error("Bad redirect target");
+    }
+
+    if (!proxyAllows(next)) {
+      throw new Error("Redirect to a host that is not allowed: " + next.hostname);
+    }
+
+    target = next;
+  }
+
+  throw new Error("Too many redirects");
+}
 
 async function handleProxy(request, response, query) {
   const cors = {
@@ -629,27 +744,46 @@ async function handleProxy(request, response, query) {
     return;
   }
 
-  if (target.protocol !== "https:" || !PROXY_HOSTS.has(target.hostname)) {
+  if (!proxyAllows(target)) {
     response.writeHead(403, cors);
     response.end("Host not allowed: " + target.hostname);
     return;
   }
 
   try {
-    const upstream = await fetch(target.href, {
-      headers: { "User-Agent": PROXY_UA },
-      redirect: "follow"
-    });
+    const upstream = await proxyFetch(target, AbortSignal.timeout(PROXY_TIMEOUT_MS));
+
+    // Uten tak kunne en stor motpart holde hele svaret i minnet paa en
+    // funksjon med 30 sekunders levetid.
+    const declared = Number(upstream.headers.get("content-length"));
+    if (Number.isFinite(declared) && declared > PROXY_MAX_BYTES) {
+      response.writeHead(502, { ...cors, "Content-Type": "text/plain" });
+      response.end("Upstream response too large");
+      return;
+    }
+
     const body = Buffer.from(await upstream.arrayBuffer());
+
+    if (body.length > PROXY_MAX_BYTES) {
+      response.writeHead(502, { ...cors, "Content-Type": "text/plain" });
+      response.end("Upstream response too large");
+      return;
+    }
+
+    // Kartfliser og kystlinjer endrer seg ikke, saa la CDN-en beholde dem.
+    // For hentet hver panorering flisen paa nytt gjennom funksjonen - tregere
+    // paa messa, og unodig baandbredde aa betale for.
+    const cacheable = upstream.status === 200 && !/(^|\.)api\.met\.no$/.test(target.hostname);
     response.writeHead(upstream.status, {
       ...cors,
       "Content-Type": upstream.headers.get("content-type") || "application/octet-stream",
-      "Cache-Control": "no-cache"
+      "Cache-Control": cacheable ? "public, max-age=3600, s-maxage=86400" : "no-cache"
     });
     response.end(body);
   } catch (error) {
-    response.writeHead(502, { ...cors, "Content-Type": "text/plain" });
-    response.end("Upstream error: " + error.message);
+    const timedOut = error && (error.name === "TimeoutError" || error.name === "AbortError");
+    response.writeHead(timedOut ? 504 : 502, { ...cors, "Content-Type": "text/plain" });
+    response.end((timedOut ? "Upstream timeout: " : "Upstream error: ") + target.hostname);
   }
 }
 
