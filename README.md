@@ -260,6 +260,14 @@ Viktige seksjoner:
   ArcGIS-treff oppaa havnesoket (den innebygde norske havnelisten virker uten
   nokkel). Uten nokler faller demoen tilbake paa Kystverket-AIS og de norske
   sjokartene, som ikke krever noen.
+- **Skjerm-nokkelen:** ECDIS og radaren deler EN lagret seilas, nokla paa
+  `?kiosk=`. Verdien huskes i nettleseren: den forste siden som ser en
+  `?kiosk=` lagrer den, og sider som aapnes uten parameteren bruker den
+  lagrede. Derfor folger radaren ECDIS ogsaa naar de aapnes ulikt — f.eks.
+  ECDIS fra kiosk-URL-en med `?kiosk=1` og radaren fra en lenke uten. Skal en
+  skjerm flyttes til en annen kiosk, overstyrer `?kiosk=` det lagrede.
+  Utregningen ligger ETT sted (`public/ecdis/kiosk.js`), som begge sidene
+  laster, saa de ikke kan drifte fra hverandre.
 - HT ECDIS husker seg selv mellom okter: skipets posisjon, kurs, rute,
   kartlag og palett lagres hvert 5. sekund (localStorage + `/api/ecdis-state`
   i databasen). Ved neste besok dodregnes skipet frem langs ruten etter
@@ -281,7 +289,7 @@ GET  /api/config
 GET  /api/leaderboard?game=<id>
 GET  /api/games
 POST /api/standalone-entry
-GET/POST /api/ecdis-state[?kiosk=<id>]   (en tilstand per kiosk)
+GET/POST /api/ecdis-state[?kiosk=<id>]   (en tilstand per skjerm-par)
 GET  /ais/status                     (Kystverket-broens tilstand)
 GET  /ais/targets?bbox=<lat,lon,lat,lon>[&atons=1]
 GET  /proxy?url=<https-url>          (allowlist: MET/yr, Kartverket m.fl.)

@@ -18,17 +18,13 @@
 // maa ligge klart for hovedskriptet leser localStorage.
 (function () {
   window.__kioskKeys = {};
-  // Tilstanden ligger under EN nokkel per kiosk. For delte alle besokende ett
-  // skip: to telefoner som aapnet demoen samtidig overskrev hverandre hvert
-  // 5. sekund. ECDIS og radar aapnes med samme ?kiosk=-verdi og deler derfor
-  // fortsatt seilas, akkurat som for.
-  window.__ecdisStateUrl = (function () {
-    var id = "";
-    try {
-      id = (new URLSearchParams(location.search).get("kiosk") || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
-    } catch (e) {}
-    return "/api/ecdis-state" + (id ? "?kiosk=" + id : "");
-  })();
+  // Tilstanden ligger under EN nokkel per skjerm-par. For delte alle besokende
+  // ett skip: to telefoner som aapnet demoen samtidig overskrev hverandre
+  // hvert 5. sekund. Nokkelen regnes ut i kiosk.js, som radaren laster ogsaa -
+  // saa de to kan ikke havne paa hver sin nokkel selv om de aapnes ulikt.
+  window.__ecdisStateUrl = window.htEcdisStateUrl
+    ? window.htEcdisStateUrl()
+    : "/api/ecdis-state";
   try {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", "/api/config", false);

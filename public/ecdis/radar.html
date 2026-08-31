@@ -381,15 +381,9 @@
   // synk fra ECDIS i samme nettleserprofil; er ECDIS aapen i samme nettleser
   // overtar BroadcastChannel. AIS-maalene er ikke med her - de hentes fra
   // stroemmen direkte.
-  // Samme kiosk-nokkel som ECDIS bruker, slik at de to skjermene fortsatt
-  // deler seilas mens tilfeldige besokende ikke skriver inn i den.
-  var STATE_URL = (function () {
-    var id = "";
-    try {
-      id = (new URLSearchParams(location.search).get("kiosk") || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
-    } catch (e) {}
-    return "/api/ecdis-state" + (id ? "?kiosk=" + id : "");
-  })();
+  // Samme nokkel som ECDIS, regnet ut ETT sted (kiosk.js) slik at de to
+  // skjermene ikke kan drifte fra hverandre naar de aapnes ulikt.
+  var STATE_URL = window.htEcdisStateUrl ? window.htEcdisStateUrl() : "/api/ecdis-state";
 
   function pollServer() {
     if (document.hidden) return;
