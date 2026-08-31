@@ -274,6 +274,53 @@ async function handleApi(request, response, url) {
     }
   }
 
+  // PIN-laasen foran kiosken. Koden ligger i KIOSK_PIN og sendes ALDRI til
+  // nettleseren - klienten spor bare OM en PIN kreves, og faar ja/nei paa et
+  // forsok. Det er forskjellen fra en PIN i klientkoden, som kan leses rett
+  // ut av View Source.
+  if (pathname === "/api/kiosk-unlock") {
+    const pin = String(process.env.KIOSK_PIN || "").trim();
+
+    if (request.method === "GET") {
+      sendJson(response, 200, {
+        required: pin.length > 0,
+        minutes: Number(process.env.KIOSK_PIN_MINUTES) || 0
+      });
+      return;
+    }
+
+    if (request.method === "POST") {
+      if (!pin) {
+        sendJson(response, 200, { ok: true, minutes: 0 });
+        return;
+      }
+
+      // Uten bremse kan en firesifret kode gjettes paa sekunder.
+      if (await tooManyAttempts(response, `pin:${clientIp(request)}`, 10, 300)) {
+        return;
+      }
+
+      let payload = {};
+      try {
+        payload = await parseJsonBody(request);
+      } catch (error) {
+        sendJson(response, 400, { error: "Invalid request." });
+        return;
+      }
+
+      if (!safeEquals(String((payload && payload.pin) || ""), pin)) {
+        sendJson(response, 401, { error: "Wrong code." });
+        return;
+      }
+
+      sendJson(response, 200, {
+        ok: true,
+        minutes: Number(process.env.KIOSK_PIN_MINUTES) || 0
+      });
+      return;
+    }
+  }
+
   if (request.method === "GET" && pathname === "/api/leaderboard") {
     const entries = await contest.readEntries();
     const game = contest.normalizeGameId(url.searchParams.get("game"));

@@ -18,17 +18,13 @@
 // maa ligge klart for hovedskriptet leser localStorage.
 (function () {
   window.__kioskKeys = {};
-  // Tilstanden ligger under EN nokkel per kiosk. For delte alle besokende ett
-  // skip: to telefoner som aapnet demoen samtidig overskrev hverandre hvert
-  // 5. sekund. ECDIS og radar aapnes med samme ?kiosk=-verdi og deler derfor
-  // fortsatt seilas, akkurat som for.
-  window.__ecdisStateUrl = (function () {
-    var id = "";
-    try {
-      id = (new URLSearchParams(location.search).get("kiosk") || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
-    } catch (e) {}
-    return "/api/ecdis-state" + (id ? "?kiosk=" + id : "");
-  })();
+  // Tilstanden ligger under EN nokkel per skjerm-par. For delte alle besokende
+  // ett skip: to telefoner som aapnet demoen samtidig overskrev hverandre
+  // hvert 5. sekund. Nokkelen regnes ut i kiosk.js, som radaren laster ogsaa -
+  // saa de to kan ikke havne paa hver sin nokkel selv om de aapnes ulikt.
+  window.__ecdisStateUrl = window.htEcdisStateUrl
+    ? window.htEcdisStateUrl()
+    : "/api/ecdis-state";
   try {
     var xhr = new XMLHttpRequest();
     xhr.open("GET", "/api/config", false);
@@ -76,6 +72,7 @@
   } catch (e) { /* uten server gjelder localStorage alene */ }
 })();
 </script>
+<script src="/kiosk-lock.js"></script>
 <script src="/fullscreen.js" defer></script>
 </head>
 <body>
@@ -2727,7 +2724,7 @@ class Component extends DCLogic {
     ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(msg, this.W / 2, y + 13.5); ctx.restore();
   }
-  TILE(layer) { const M = { sjokart: { f: (z, x, y) => this.kv('sjokartraster', z, x, y), max: 18 }, topo: { f: (z, x, y) => this.kv('topo', z, x, y), max: 18 }, flyfoto: { f: (z, x, y) => { const t = (window.__kioskKeys || {}).arcgis; return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}` + (t ? `?token=${t}` : ''); }, max: 19 }, ocean: { f: (z, x, y) => { const t = (window.__kioskKeys || {}).arcgis; return `https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/${z}/${y}/${x}` + (t ? `?token=${t}` : ''); }, max: 13 }, oceanref: { f: (z, x, y) => { const t = (window.__kioskKeys || {}).arcgis; return `https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/${z}/${y}/${x}` + (t ? `?token=${t}` : ''); }, max: 13 }, traffic: { f: (z, x, y) => { const h = 20037508.342789244, ts = 2 * h / Math.pow(2, z); const minx = -h + x * ts, maxx = minx + ts, maxy = h - y * ts, miny = maxy - ts; return `https://ows.emodnet-humanactivities.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:vesseldensity_all&styles=&format=image/png&transparent=true&crs=EPSG:3857&width=256&height=256&bbox=${minx},${miny},${maxx},${maxy}`; }, max: 12 }, dark: { f: (z, x, y) => `https://${'abc'[(x + y) % 3]}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`, max: 19 }, light: { f: (z, x, y) => `https://${'abc'[(x + y) % 3]}.basemaps.cartocdn.com/light_all/${z}/${x}/${y}.png`, max: 19 }, seamark: { f: (z, x, y) => `https://tiles.openseamap.org/seamark/${z}/${x}/${y}.png`, max: 18 }, bathy: { f: (z, x, y) => { const h = 20037508.342789244, ts = 2 * h / Math.pow(2, z); const minx = -h + x * ts, maxx = minx + ts, maxy = h - y * ts, miny = maxy - ts; return `https://ows.emodnet-bathymetry.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:mean_multicolour&styles=&format=image/png&transparent=true&crs=EPSG:3857&width=256&height=256&bbox=${minx},${miny},${maxx},${maxy}`; }, max: 13 } }; return M[layer]; }
+  TILE(layer) { const M = { sjokart: { f: (z, x, y) => this.kv('sjokartraster', z, x, y), max: 18 }, topo: { f: (z, x, y) => this.kv('topo', z, x, y), max: 18 }, flyfoto: { f: (z, x, y) => { /* World_Imagery serverer fliser anonymt; nokkelen legges paa naar den finnes, men kreves ikke. */ const t = (window.__kioskKeys || {}).arcgis; return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}` + (t ? `?token=${t}` : ''); }, max: 19 }, ocean: { f: (z, x, y) => { const t = (window.__kioskKeys || {}).arcgis; return `https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/${z}/${y}/${x}` + (t ? `?token=${t}` : ''); }, max: 13 }, oceanref: { f: (z, x, y) => { const t = (window.__kioskKeys || {}).arcgis; return `https://services.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/${z}/${y}/${x}` + (t ? `?token=${t}` : ''); }, max: 13 }, traffic: { f: (z, x, y) => { const h = 20037508.342789244, ts = 2 * h / Math.pow(2, z); const minx = -h + x * ts, maxx = minx + ts, maxy = h - y * ts, miny = maxy - ts; return `https://ows.emodnet-humanactivities.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:vesseldensity_all&styles=&format=image/png&transparent=true&crs=EPSG:3857&width=256&height=256&bbox=${minx},${miny},${maxx},${maxy}`; }, max: 12 }, dark: { f: (z, x, y) => `https://${'abc'[(x + y) % 3]}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`, max: 19 }, light: { f: (z, x, y) => `https://${'abc'[(x + y) % 3]}.basemaps.cartocdn.com/light_all/${z}/${x}/${y}.png`, max: 19 }, seamark: { f: (z, x, y) => `https://tiles.openseamap.org/seamark/${z}/${x}/${y}.png`, max: 18 }, bathy: { f: (z, x, y) => { const h = 20037508.342789244, ts = 2 * h / Math.pow(2, z); const minx = -h + x * ts, maxx = minx + ts, maxy = h - y * ts, miny = maxy - ts; return `https://ows.emodnet-bathymetry.eu/wms?service=WMS&request=GetMap&version=1.3.0&layers=emodnet:mean_multicolour&styles=&format=image/png&transparent=true&crs=EPSG:3857&width=256&height=256&bbox=${minx},${miny},${maxx},${maxy}`; }, max: 13 } }; return M[layer]; }
   MAX_TILE_INFLIGHT = 6;
   // `counted` = started by the pumpTiles scheduler. Direct fetches (land
   // sampling, route pre-load) must NOT count against the scheduler's budget:
@@ -3576,7 +3573,7 @@ class Component extends DCLogic {
       onToggleLeft: () => this.setState({ rightOpen: s.rightOpen && s.rightTab === 'chart' ? false : true, rightTab: 'chart' }),
       onTabChart: () => this.setState({ rightTab: 'chart' }),
       onBaseSjo: () => this.setState({ base: 'sjokart' }), onBaseTopo: () => this.setState({ base: 'topo' }), onBaseDark: () => this.setState({ base: 'dark' }), onBaseFly: () => this.setState({ base: 'flyfoto' }),
-      baseRows: [['sjokart', 'Nautical'], ['ocean', 'Ocean'], ['flyfoto', 'Aerial'], ['topo', 'Topo'], ['dark', 'Dark']].filter(([k]) => (k !== 'flyfoto' && k !== 'ocean') || (window.__kioskKeys || {}).arcgis).map(([k, name]) => ({ name, select: () => this.setState({ base: k }), style: C(`padding:8px 13px;border-radius:5px;border:1px solid ${s.base === k ? A : 'var(--hair,rgba(60,60,67,.14))'};background:${s.base === k ? A : 'var(--card,rgba(255,255,255,.5))'};color:${s.base === k ? '#fff' : 'var(--ink,#1c1c1e)'};font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;`) })),
+      baseRows: [['sjokart', 'Nautical'], ['ocean', 'Ocean'], ['flyfoto', 'Aerial'], ['topo', 'Topo'], ['dark', 'Dark']].filter(([k]) => k !== 'ocean' || (window.__kioskKeys || {}).arcgis).map(([k, name]) => ({ name, select: () => this.setState({ base: k }), style: C(`padding:8px 13px;border-radius:5px;border:1px solid ${s.base === k ? A : 'var(--hair,rgba(60,60,67,.14))'};background:${s.base === k ? A : 'var(--card,rgba(255,255,255,.5))'};color:${s.base === k ? '#fff' : 'var(--ink,#1c1c1e)'};font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;`) })),
       onShallow: (e) => this.setSafety('shallowC', +e.target.value), onSafety: (e) => this.setSafety('safetyC', +e.target.value), onDeep: (e) => this.setSafety('deepC', +e.target.value),
       onSafetyDepth: (e) => this.setSafety('safetyD', +e.target.value),
       onCatBase: () => this.setDisplayCat('base'), onCatStd: () => this.setDisplayCat('standard'), onCatAll: () => this.setDisplayCat('all'),
@@ -3767,7 +3764,7 @@ class Component extends DCLogic {
         this._restoredUi = true;
         const u = snap.ui, st = {};
         if (u.palette) st.palette = u.palette;
-        if (u.base && ((u.base !== 'flyfoto' && u.base !== 'ocean') || (window.__kioskKeys || {}).arcgis)) st.base = u.base;
+        if (u.base && (u.base !== 'ocean' || (window.__kioskKeys || {}).arcgis)) st.base = u.base;
         if (u.orient) st.orient = u.orient;
         if (u.displayCat) st.displayCat = u.displayCat;
         if (u.layers) st.layers = { ...this.state.layers, ...u.layers };

@@ -185,6 +185,8 @@ akkurat som de lokale `data/backups/`-kopiene gjorde.
 | --- | --- |
 | `ADMIN_PASSWORD` | Adminpassordet. **Paakrevd i produksjon.** Standardpassordet i `config/contest-config.json` ligger i et offentlig repo, saa adminsidene svarer `503 Admin is locked` til denne er satt. Spillene og ECDIS-en virker som normalt imens; `/api/health` viser `adminLocked`. |
 | `AISSTREAM_API_KEY` | API-nokkel for live AIS via aisstream i ECDIS. **Maa settes** — repoet inneholder ingen nokkel. |
+| `KIOSK_PIN` | Slaar paa PIN-laasen foran hele kiosken. Uten den er laasen av, og alt virker som for. Koden ligger bare paa serveren og sendes aldri til nettleseren. |
+| `KIOSK_PIN_MINUTES` | Hvor lenge en opplaasing varer (minutter). Ikke satt / `0` = til noen laaser manuelt — det normale for en kiosk som staar hele messedagen. |
 | `AIS_KYSTVERKET_ENABLED` | `0` skrur Kystverket-kilden helt av (samme som `ais.enabled: false`). |
 | `AIS_KYSTVERKET_HOST` / `AIS_KYSTVERKET_PORT` | Overstyrer Kystverkets stroem (standard `153.44.253.27:5631`). |
 | `ARCGIS_API_KEY` | API-nokkel for flyfoto/Ocean-basemap + stedssok i ECDIS. **Maa settes** — repoet inneholder ingen nokkel. Nokkelen naar klienten via `/api/config`, saa laas den til deploy-domenet med referrer-restriksjon i ArcGIS-portalen. |
@@ -258,6 +260,14 @@ Viktige seksjoner:
   ArcGIS-treff oppaa havnesoket (den innebygde norske havnelisten virker uten
   nokkel). Uten nokler faller demoen tilbake paa Kystverket-AIS og de norske
   sjokartene, som ikke krever noen.
+- **Skjerm-nokkelen:** ECDIS og radaren deler EN lagret seilas, nokla paa
+  `?kiosk=`. Verdien huskes i nettleseren: den forste siden som ser en
+  `?kiosk=` lagrer den, og sider som aapnes uten parameteren bruker den
+  lagrede. Derfor folger radaren ECDIS ogsaa naar de aapnes ulikt — f.eks.
+  ECDIS fra kiosk-URL-en med `?kiosk=1` og radaren fra en lenke uten. Skal en
+  skjerm flyttes til en annen kiosk, overstyrer `?kiosk=` det lagrede.
+  Utregningen ligger ETT sted (`public/ecdis/kiosk.js`), som begge sidene
+  laster, saa de ikke kan drifte fra hverandre.
 - HT ECDIS husker seg selv mellom okter: skipets posisjon, kurs, rute,
   kartlag og palett lagres hvert 5. sekund (localStorage + `/api/ecdis-state`
   i databasen). Ved neste besok dodregnes skipet frem langs ruten etter
@@ -273,11 +283,13 @@ Samme API som den lokale serveren, naa under Vercel-domenet:
 
 ```text
 GET  /api/health                     (lagringsmodus + oppetid, uten passord)
+GET  /api/kiosk-unlock               (kreves PIN?)
+POST /api/kiosk-unlock               (proev en PIN — bremset)
 GET  /api/config
 GET  /api/leaderboard?game=<id>
 GET  /api/games
 POST /api/standalone-entry
-GET/POST /api/ecdis-state[?kiosk=<id>]   (en tilstand per kiosk)
+GET/POST /api/ecdis-state[?kiosk=<id>]   (en tilstand per skjerm-par)
 GET  /ais/status                     (Kystverket-broens tilstand)
 GET  /ais/targets?bbox=<lat,lon,lat,lon>[&atons=1]
 GET  /proxy?url=<https-url>          (allowlist: MET/yr, Kartverket m.fl.)
@@ -309,6 +321,8 @@ config/
 public/                  (alt som serveres statisk)
   app.html               (fullskjerm-skall — `/` gaar hit; app i iframe)
   fullscreen.js          (fullskjerm-keeper, lastes paa alle kiosksider)
+  kiosk-lock.js          (PIN-laas foran kiosken, lastes paa alle sider)
+  scores.js              (highscore lokalt paa enheten + synk mot server)
   select.html            (spillvelgeren)
   *-standalone.html      (spillene)
   admin*.html/js, status.html/js
@@ -317,6 +331,53 @@ public/                  (alt som serveres statisk)
 vercel.json              (rewrites, cache- og sikkerhetsheadere, output-katalog)
 .github/workflows/       (CI: tester + sjekk mot nokler i configfilen)
 ```
+
+## PIN-laas foran kiosken
+
+Sett `KIOSK_PIN` i Vercel, saa moter foerste besoekende et talltastatur i
+stedet for spillvelgeren. Koden tastes EN gang per nettleser: opplaasingen
+deles mellom skallet og sidene i iframen, saa kiosken spor ikke paa nytt for
+hver side. `HTKioskLock.lock()` fra konsollen laaser igjen.
+
+Koden ligger i miljovariabelen og sendes **aldri** til nettleseren — klienten
+spor bare om en PIN kreves, og faar ja/nei paa hvert forsok fra
+`/api/kiosk-unlock`. Forsokene er bremset til 10 per 5 minutter per IP, saa en
+firesifret kode kan ikke gjettes.
+
+**Vaer klar over hva laasen er og ikke er.** Den hindrer at tilfeldige bruker
+kiosken eller snubler over den offentlige URL-en. Den er ikke adgangskontroll:
+sidene serveres fortsatt statisk, saa den som vet hva han gjor kan hente
+HTML-en eller kalle API-et direkte uten aa gaa via laaseskjermen. Adminsidene
+har derfor sin egen sperre server-side (`x-admin-password`) — det er den som
+faktisk beskytter persondataene, og PIN-en erstatter den ikke.
+
+Merk ogsaa at laasen staar foran spillene: uten at noen taster koden kommer
+ingen messebesokende til aa spille. Er det ikke meningen, la `KIOSK_PIN` staa
+usatt og behold adminpassordet som eneste sperre.
+
+## Highscore uten database
+
+Highscoren lever **lokalt paa enheten forst**, og synkes mot serveren naar den
+svarer (`public/scores.js`). Uten database er serveren bare varm-instans-minne,
+og en highscoreliste som forsvinner midt paa en messedag er verdilos — den
+lokale kopien er det som gjor at tavlen staar. Listen som vises er de to
+flettet sammen, uten dobbeltforinger.
+
+- Poengene skrives til `localStorage` **for** nettverket proves, saa de staar
+  der uansett hva serveren svarer.
+- Feiler innsendingen, legges den i en ko og gaar av seg selv ved neste
+  sidelast. Avviser serveren innholdet (4xx), gis den opp med en gang —
+  koen skal ikke fylles med noe som aldri kommer gjennom.
+- **Personvern:** den lokale listen inneholder bare navn, poeng og tidspunkt.
+  E-post og telefon ligger utelukkende i synkekoen og slettes i det
+  innsendingen gaar gjennom; blir de liggende i mer enn 7 dager, gis de opp.
+  En kiosk som staar aapen paa en messe skal ikke baere kontaktopplysninger
+  lenger enn nodvendig.
+
+Merk at den lokale listen bare lever i den ene nettleseren. Admin-eksporten
+leser fra databasen, saa **skal deltakerne kunne eksporteres, maa en database
+vaere koblet til** — den lokale kopien er en sikring mot at tavlen gaar tom,
+ikke en erstatning for varig lagring.
 
 ## Personvern
 

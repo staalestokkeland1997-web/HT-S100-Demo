@@ -38,7 +38,9 @@
         opacity: 1;
       }
     </style>
-  <script src="/fullscreen.js" defer></script>
+  <script src="/kiosk-lock.js"></script>
+<script src="/scores.js"></script>
+<script src="/fullscreen.js" defer></script>
 </head>
   <body>
     <main class="app">
@@ -1087,13 +1089,13 @@
         }
 
         function refreshBoard() {
-          if (isFileMode || !window.fetch) return;
-          fetch("/api/leaderboard?game=" + GAME_ID, { cache: "no-store" })
-            .then(function (response) {
-              return response.ok ? response.json() : null;
-            })
-            .then(function (payload) {
-              if (!payload) return;
+          if (!window.HTScores) return;
+          // Server + lokalt flettet: uten database er serveren bare varm-
+          // instans-minne, saa den lokale kopien er det som gjor at tavlen
+          // staar igjennom en hel messedag.
+          HTScores.board(GAME_ID, 10)
+            .then(function (entries) {
+              var payload = { entries: entries };
               boardEntries = payload.entries || [];
               renderBoard(ui.startBoard, boardEntries);
               renderBoard(ui.endBoard, boardEntries);
@@ -1134,44 +1136,42 @@
           ui.saveButton.disabled = true;
           ui.saveButton.textContent = "Saving...";
 
-          fetch("/api/standalone-entry", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              game: GAME_ID,
-              name: ui.name.value.trim().slice(0, 40),
-              email: ui.email.value.trim(),
-              phone: ui.phone.value.trim(),
-              consent: true,
-              score: Math.min(99999, state.finalScore || 0),
-              playedAt: new Date().toISOString()
-            })
-          })
-            .then(function (response) {
-              return response.json().then(function (payload) {
-                return { ok: response.ok, payload: payload };
-              });
-            })
-            .then(function (result) {
-              if (!result.ok) {
-                ui.message.textContent = result.payload.error || "Could not save score.";
-                ui.saveButton.disabled = false;
-                ui.saveButton.textContent = "Save score";
-                return;
-              }
-              boardEntries = result.payload.leaderboard || [];
-              renderBoard(ui.endBoard, boardEntries);
-              renderBoard(ui.startBoard, boardEntries);
-              ui.message.textContent = "Saved to the Deep Dive board.";
-              ui.rankTeaser.textContent = "You are on the board!";
-              ui.saveButton.textContent = "Saved";
-            })
-            .catch(function () {
-              // Ikke lås knappen ved nettverksglipp - la spilleren prove igjen.
-              ui.message.textContent = "No server connection. Tap to try again.";
+          if (!window.HTScores) {
+            ui.message.textContent = "Could not save score.";
+            ui.saveButton.disabled = false;
+            ui.saveButton.textContent = "Save score";
+            return;
+          }
+
+          // Poengene lagres lokalt FOR nettverket proves (scores.js), saa de
+          // staar der uansett hva serveren svarer; feiler innsendingen legges
+          // den i ko og gaar av seg selv naar forbindelsen er tilbake.
+          HTScores.submit(GAME_ID, {
+            name: ui.name.value.trim().slice(0, 40),
+            email: ui.email.value.trim(),
+            phone: ui.phone.value.trim(),
+            // Serveren avviser score over maxAcceptedScore.
+            score: Math.min(99999, state.finalScore || 0),
+            playedAt: new Date().toISOString()
+          }, 10).then(function (result) {
+            boardEntries = result.board;
+            renderBoard(ui.endBoard, boardEntries);
+            renderBoard(ui.startBoard, boardEntries);
+
+            if (result.permanent) {
+              // Serveren avviste innholdet - da hjelper det ikke aa prove igjen.
+              ui.message.textContent = result.error || "Could not save score.";
               ui.saveButton.disabled = false;
-              ui.saveButton.textContent = "Try again";
-            });
+              ui.saveButton.textContent = "Save score";
+              return;
+            }
+
+            ui.message.textContent = result.synced
+              ? "Saved to the Deep Dive board."
+              : "Saved on this device \u2014 will sync automatically.";
+            ui.rankTeaser.textContent = "You are on the board!";
+            ui.saveButton.textContent = "Saved";
+          });
         }
 
         function loadSettings() {

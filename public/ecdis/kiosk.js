@@ -1,3 +1,51 @@
+// Hvilken skjerm-tilstand denne siden hoerer til.
+//
+// ECDIS og radaren deler EN lagret seilas, nokla paa ?kiosk=. Men de aapnes
+// ikke alltid likt: klikker man seg inn paa radaren med ?kiosk=1 mens ECDIS
+// staar aapen uten parameteren, ville de landet paa hver sin nokkel og
+// sluttet aa folge hverandre. Derfor huskes verdien: den forste siden som ser
+// en ?kiosk= lagrer den, og sider uten parameteren bruker den lagrede. Begge
+// ligger paa samme opphav, saa de kan ikke drifte fra hverandre.
+//
+// Dette maa staa UTENFOR kiosk-vakten under - radaren og ECDIS trenger samme
+// nokkel ogsaa naar de aapnes uten ?kiosk=1.
+(function () {
+  var KEY = "htkiosk_screen_id";
+
+  function clean(value) {
+    return String(value || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
+  }
+
+  function screenId() {
+    var fromUrl = "";
+    try {
+      fromUrl = clean(new URLSearchParams(location.search).get("kiosk"));
+    } catch (e) {}
+
+    if (fromUrl) {
+      try { localStorage.setItem(KEY, fromUrl); } catch (e) {}
+      return fromUrl;
+    }
+
+    try {
+      return clean(localStorage.getItem(KEY)) || "default";
+    } catch (e) {
+      return "default";
+    }
+  }
+
+  // Lagre med en gang siden lastes, ikke forst naar noen spor etter nokkelen:
+  // ellers rekker en side som laster foer den andre aa lese tom lagring, og de
+  // to havner paa hver sin nokkel likevel.
+  screenId();
+
+  window.htScreenId = screenId;
+  window.htEcdisStateUrl = function () {
+    var id = screenId();
+    return "/api/ecdis-state" + (id && id !== "default" ? "?kiosk=" + encodeURIComponent(id) : "");
+  };
+})();
+
 // Kiosk helpers — active ONLY when the page is opened with ?kiosk=1
 // (run-kiosk.sh / run-kiosk.bat do that for you).
 //
