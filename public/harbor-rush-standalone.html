@@ -70,6 +70,8 @@
       line-height: 1.35;
     }
   </style>
+<script src="/kiosk-lock.js"></script>
+<script src="/scores.js"></script>
 <script src="/fullscreen.js" defer></script>
 </head>
 <body>
@@ -405,24 +407,20 @@
       });
     }
 
+    // Tavlen er server + lokalt flettet (scores.js). Uten database er serveren
+    // bare varm-instans-minne, saa den lokale kopien er det som gjor at
+    // highscoren staar igjennom en hel messedag.
     async function refreshLeaderboard() {
       if (isFileMode) {
-        renderLeaderboard();
+        renderLeaderboard(window.HTScores ? HTScores.localBoard("rush", 10) : undefined);
         return;
       }
       try {
-        const response = await fetch("/api/leaderboard?game=rush", { cache: "no-store" });
-
-        if (!response.ok) {
-          throw new Error("No server leaderboard.");
-        }
-
-        const payload = await response.json();
-        const entries = payload.entries || [];
+        const entries = await HTScores.board("rush", 10);
         serverTopScore = entries.length ? Number(entries[0].score || 0) : 0;
         renderLeaderboard(entries);
       } catch (error) {
-        renderLeaderboard();
+        renderLeaderboard(HTScores.localBoard("rush", 10));
       }
     }
 
@@ -472,48 +470,35 @@
       const name = ui.nameInput.value.trim().slice(0, 40);
       const email = ui.emailInput.value.trim();
       const phone = ui.phoneInput.value.trim();
-      const entry = {
-        game: "rush",
+      // Poengene lagres lokalt FOR nettverket proves, saa de staar der uansett
+      // hva serveren svarer; feiler innsendingen legges den i ko og gaar av
+      // seg selv naar forbindelsen er tilbake.
+      if (!window.HTScores) {
+        ui.formMessage.textContent = "Could not save score.";
+        ui.saveScoreButton.disabled = false;
+        ui.saveScoreButton.textContent = "Save score";
+        return;
+      }
+
+      const result = await HTScores.submit("rush", {
         name,
         email,
         phone,
-        consent: true,
         score: state.score,
         playedAt: new Date().toISOString()
-      };
+      }, 10);
 
-      try {
-        const response = await fetch("/api/standalone-entry", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json"
-          },
-          body: JSON.stringify(entry)
-        });
+      renderLeaderboard(result.board);
 
-        const payload = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          ui.formMessage.textContent = payload.error || "Could not save score.";
-          ui.saveScoreButton.disabled = false;
-          ui.saveScoreButton.textContent = "Save score";
-          return;
-        }
-
-        renderLeaderboard(payload.leaderboard || []);
+      if (result.synced) {
         ui.formMessage.textContent = "Saved to leaderboard.";
-      } catch (requestError) {
-        const localEntry = {
-          ...entry,
-          id: window.crypto?.randomUUID ? window.crypto.randomUUID() : String(Date.now()),
-          createdAt: new Date().toISOString()
-        };
-        const entries = getLeaderboard();
-        entries.push(localEntry);
-        entries.sort((left, right) => right.score - left.score);
-        setLeaderboard(entries);
-        renderLeaderboard(entries);
-        ui.formMessage.textContent = "Saved locally on this machine.";
+      } else if (result.permanent) {
+        ui.formMessage.textContent = result.error || "Could not save score.";
+        ui.saveScoreButton.disabled = false;
+        ui.saveScoreButton.textContent = "Save score";
+        return;
+      } else {
+        ui.formMessage.textContent = "Saved on this device — will sync automatically.";
       }
 
       ui.saveScoreButton.textContent = "Saved";
